@@ -1,0 +1,77 @@
+------ Launching COMPSs application ------
+PROVENANCE | PROFILING | Profiling interval set to 5 second(s)
+PROVENANCE | PROFILING | Profiling interval set to 5 second(s)
+PROVENANCE | PROFILING | Profiling interval set to 5 second(s)
+PROVENANCE | PROFILING | Profiling interval set to 5 second(s)
+PROVENANCE | Setting YAML to 'ro-crate-info.yaml'
+PROVENANCE | Zipping the resulting COMPSs RO-Crate
+[ INFO ] Using default execution type: compss
+PROVENANCE | PROFILING | Profiling interval set to 5 second(s)
+
+----------------- Executing matmul_objects.py --------------------------
+
+[(508)    API]  -  Starting COMPSs Runtime v3.4.post2607 (build 20260709-0107.rcafaf967d574d14a07ed35db91261f5a294c3a87)
+[(5846)    API]  -  ------- COMPSs Task Execution Summary per Worker ------
+[(5846)    API]  -  --- Summary for COMPSs Worker gs27r3b47-ib0
+[(5846)    API]  -  16 matmul_objects.multiply tasks have been executed
+[(5846)    API]  -  --- Total executed tasks in COMPSs Worker gs27r3b47-ib0: 16
+[(5846)    API]  -  --- Summary for COMPSs Worker gs27r3b46-ib0
+[(5846)    API]  -  16 matmul_objects.multiply tasks have been executed
+[(5846)    API]  -  --- Total executed tasks in COMPSs Worker gs27r3b46-ib0: 16
+[(5846)    API]  -  --- Summary for COMPSs Worker gs27r3b23-ib0
+[(5846)    API]  -  16 matmul_objects.multiply tasks have been executed
+[(5846)    API]  -  --- Total executed tasks in COMPSs Worker gs27r3b23-ib0: 16
+[(5846)    API]  -  --- Summary for COMPSs Worker gs27r3b50-ib0
+[(5846)    API]  -  16 matmul_objects.multiply tasks have been executed
+[(5846)    API]  -  --- Total executed tasks in COMPSs Worker gs27r3b50-ib0: 16
+[(5846)    API]  -  -------------------------------------------------------
+[(5847)    API]  -  
+[(5847)    API]  -  ------------ COMPSs Task Execution Summary ------------
+[(5847)    API]  -  64 matmul_objects.multiply tasks have been executed
+[(5847)    API]  -  Total executed tasks: 64
+[(5847)    API]  -  -------------------------------------------------------
+[(7442)    API]  -  Execution Finished
+[32m[ OK ] Application finished successfully(B[m
+
+------------------------------------------------------------
+PROVENANCE | PROFILING | Profiling stopped.
+PROVENANCE | STARTING WORKFLOW PROVENANCE SCRIPT
+PROVENANCE | Destination folder: COMPSs_RO-Crate_20260730_150356/
+PROVENANCE | If needed, Provenance generation can be triggered by hand using the following commands:
+	/apps/GPP/COMPSs/TrunkRSP/Runtime/scripts/utils/compss_gengraph svg /home/bsc/bsc284206/.COMPSs/43994630//monitor/complete_graph.dot
+	export PYTHONPATH=/apps/GPP/COMPSs/TrunkRSP/Runtime/scripts/system/:$PYTHONPATH
+	python3 /apps/GPP/COMPSs/TrunkRSP/Runtime/scripts/system/provenance/generate_COMPSs_RO-Crate.py ro-crate-info.yaml /home/bsc/bsc284206/.COMPSs/43994630/ COMPSs_RO-Crate_20260730_150356/ true
+PROVENANCE | TIP for BSC cluster users: before triggering generation by hand, run first: salloc --account=<your_group> --qos=gp_debug -p interactive
+PROVENANCE | Generating graph for Workflow Provenance
+PROVENANCE | Number of edges in the graph: 64
+Output file: /home/bsc/bsc284206/.COMPSs/43994630//monitor/complete_graph.svg
+INFO: Generating Graph with legend
+DONE
+PROVENANCE | Ended generating graph for Workflow Provenance. TIME: 1 s
+PROVENANCE | STARTING RO-CRATE GENERATION SCRIPT
+PROVENANCE | PROFILING | Finishing profiling (signal received)...
+PROVENANCE | PROFILING | Finishing profiling (signal received)...
+PROVENANCE | PROFILING | Finishing profiling (signal received)...
+PROVENANCE | PROFILING | Finishing profiling (signal received)...
+PROVENANCE | PROFILING | INFO: By default, only aggregated plots are generated. If you want to generate plots for all computing nodes, launch this command:
+	/apps/GPP/PYTHON/3.12.1/INTEL/bin/python3 /apps/GPP/COMPSs/TrunkRSP/Tools/resource_analysis_plots/genprofiling_cli.py --dir=/home/bsc/bsc284206/.COMPSs/43994630/stats --output_dir=/home/bsc/bsc284206/.COMPSs/43994630/stats/plots --scope=all --metrics=cpu,mem --format=svg --silent
+PROVENANCE | PROFILING | Profiling plots generation TIME: 1.87 s.
+PROVENANCE | WARNING: Specified file or directory in ro-crate-info.yaml 'sources' does not exist (/src)
+PROVENANCE | WARNING: Specified file or directory in ro-crate-info.yaml 'sources' does not exist (src/matmul_files.py)
+PROVENANCE | WARNING: Unable to find application source files. Please, review your ro_crate_info.yaml definition ('sources' term)
+PROVENANCE | WARNING: the defined 'sources_main_file' (matmul_files.py) does not exist in the defined 'sources'. Check your ro-crate-info.yaml.
+PROVENANCE | WARNING: The detected 'mainEntity' has not been found in the list of 'sources' provided in ro-crate-info.yaml. Current Working Directory will be searched to find the 'mainEntity'
+PROVENANCE | COMPSs version: '3.4.post2607', main_entity: '/gpfs/home/bsc/bsc284206/python/matmul_objects/COMPSs_RO-Crate_20260709_132905/application_sources/matmul_objects.py'
+PROVENANCE | COMPSs runtime detected inputs (0)
+PROVENANCE | COMPSs runtime detected outputs (0)
+PROVENANCE | dataprovenance.log processing TIME: 0.0007812976837158203 s
+PROVENANCE | WARNING: A file or directory defined as 'sources' in ro-crate-info.yaml does not exist (/src/)
+PROVENANCE | WARNING: A file or directory defined as 'sources' in ro-crate-info.yaml does not exist (src/matmul_files.py)
+PROVENANCE | Application source files detected (1)
+PROVENANCE | RO-Crate adding source files TIME: 0.0010571479797363281 s
+PROVENANCE | RO-Crate adding input files TIME (Persistence: True): 1.6689300537109375e-06 s
+PROVENANCE | RO-Crate adding output files TIME (Persistence: True): 7.152557373046875e-07 s
+PROVENANCE | Added resource profiling information TIME: 0.007002115249633789 s
+PROVENANCE | RO-Crate adding CreateAction TIME: 0.009259700775146484 s
+PROVENANCE | RO-Crate adding all COMPSs log files. Persitence is True
+PROVENANCE | RO-Crate Provenance Run Crate profile total TIME: 0.024495363235473633 s

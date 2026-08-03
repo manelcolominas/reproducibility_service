@@ -155,6 +155,7 @@ def update_yaml(crate_path: str):
 
     print("Updated the ro-crate-info.yaml file with the workflow information.")
 
+
 def provenance_info_collector(execution_path: str, service_path: str) -> bool:
     """
     Collect provenance information for the workflow based on user input.

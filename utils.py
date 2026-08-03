@@ -664,3 +664,15 @@ def get_submission_command(crate_path: str) -> str:
         print_colored("Warning: Could not find a valid submission command starting with 'runcompss' or 'enqueue_compss'.", TextColor.YELLOW)
 
     return new_command
+
+
+def resolve_instrument_file(crate: ROCrate, instrument_id: str) -> str | None:
+    for entity in crate.get_entities():
+        if "File" in entity.get("@type", []):
+            has_part = entity.get("hasPart", [])
+            if not isinstance(has_part, list):
+                has_part = [has_part]
+            for part in has_part:
+                if getattr(part, "id", None) == instrument_id:
+                    return entity.id
+    return None

@@ -1,0 +1,7 @@
+[(589)(2026-07-30 15:03:41,503)              Worker]    @init             -  No streaming backend passed
+[(590)(2026-07-30 15:03:41,504)              Worker]    @init             -  No storage configuration file passed
+[(5096)(2026-07-30 15:03:46,010)              Worker]    @runWatchdogLoop  -  [Watchdog] Master unreachable (1/6): Connection refused
+[(15758)(2026-07-30 15:03:56,672)            Executor]    @delete           -  Inbound pipe can not be removed: /home/bsc/bsc284206/python/matmul_objects/./tmp.eZfzxgkFaV/5299563b-70d0-4b46-9f05-63e880725c33/gs27r3b46-ib0/pipe_1973492647_control_worker.inbound
+[(15759)(2026-07-30 15:03:56,673)            Executor]    @delete           -  Outbound pipe can not be removed: /home/bsc/bsc284206/python/matmul_objects/./tmp.eZfzxgkFaV/5299563b-70d0-4b46-9f05-63e880725c33/gs27r3b46-ib0/pipe_1973492647_control_worker.outbound
+[(15759)(2026-07-30 15:03:56,673)            Executor]    @delete           -  Inbound pipe can not be removed: /home/bsc/bsc284206/python/matmul_objects/./tmp.eZfzxgkFaV/5299563b-70d0-4b46-9f05-63e880725c33/gs27r3b46-ib0/pipe_1973492647_control_worker.inbound
+[(15760)(2026-07-30 15:03:56,674)            Executor]    @delete           -  Outbound pipe can not be removed: /home/bsc/bsc284206/python/matmul_objects/./tmp.eZfzxgkFaV/5299563b-70d0-4b46-9f05-63e880725c33/gs27r3b46-ib0/pipe_1973492647_control_worker.outbound

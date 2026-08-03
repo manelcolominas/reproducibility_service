@@ -57,7 +57,8 @@ def files_verifier(
     temp_path = []
     # temp_date = []
     crate = ROCrate(crate_path)
-    instrument_path = os.path.join(crate_path, instrument)
+    instrument_file = resolve_instrument_file(crate, instrument)
+    instrument_path = os.path.join(crate_path, instrument_file)
     instrument_tuple = (instrument, instrument_path, 1, 1)
     # Verify the instrument file
     if not os.path.exists(instrument_path):

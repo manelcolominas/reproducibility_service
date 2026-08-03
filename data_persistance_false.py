@@ -36,6 +36,7 @@ from utils import (
     get_by_id,
     get_instrument,
     get_objects_dict,
+    resolve_instrument_file,
 )
 from utils import get_results_dict, check_slurm_cluster, executor, get_previous_flags
 from utils import get_file_names, generate_file_status_table, get_submission_command
@@ -43,6 +44,17 @@ from get_workflow import get_more_flags, get_change_values
 
 RESULT_PATH: str = None
 OUTPUT_NUM: int = 0
+
+def is_file_like_entity(crate: ROCrate, entity_id: str) -> bool:
+    entity = get_by_id(crate, entity_id)
+    if entity is None:
+        return False
+
+    entity_type = entity.get("@type", [])
+    if isinstance(entity_type, str):
+        entity_type = [entity_type]
+
+    return "File" in entity_type or "contentSize" in entity
 
 
 def check_file_accessibility(crate: ROCrate) -> tuple[bool, dict]:
@@ -62,6 +74,10 @@ def check_file_accessibility(crate: ROCrate) -> tuple[bool, dict]:
         if path.startswith("http"):
             # do not consider remote path for cluster due to no connection
             continue
+
+        if not is_file_like_entity(crate, path):
+            continue
+
         parsed_url = urlparse(path)
         # Remove the 'file://<id>' prefix
         file_path = path.replace(f"file://{parsed_url.netloc}", "")
@@ -102,7 +118,8 @@ def files_verifier_dpf(crate_path: str):
     temp_size = []
     temp_date = []
     crate = ROCrate(crate_path)
-    instrument_path = os.path.join(crate_path, instrument)
+    instrument_file = resolve_instrument_file(crate, instrument)
+    instrument_path = os.path.join(crate_path, instrument_file)
 
     file_verifer = []  # tuple of (file_name, file_path, Date_modified ,file_size)
     instrument_tuple = (instrument, instrument_path, 1, 1)
@@ -127,6 +144,8 @@ def files_verifier_dpf(crate_path: str):
             # do not consider remote path for cluster due to no connection
             continue
 
+        if not is_file_like_entity(crate, path):
+            continue
         parsed_url = urlparse(path)
         # Remove the 'file://<id>' prefix
         file_path = path.replace(f"file://{parsed_url.netloc}", "")
