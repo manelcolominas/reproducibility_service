@@ -1,288 +1,304 @@
 #!/usr/bin/env python3
-#
-#  Copyright 2002-2026 Barcelona Supercomputing Center (www.bsc.es)
-#
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
-#
+from __future__ import annotations
 
-
-"""
-Reproducibility Service Main Module
-
-This module serves as the entry point for the Reproducibility Service, a tool designed to automate
-the process of reproducing computational experiments and workflows. It integrates various components
-and modules to ensure that experiments can be consistently and accurately reproduced, either using
-existing datasets or new ones.
-
-Authors: Archit Dabral and Raül Sirvent
-
-"""
-
+import argparse
+import json
 import os
+import shlex
+import shutil
+import subprocess
 import sys
-import signal
-from rocrate.rocrate import ROCrate
-
-from reproducibility_methods import generate_command_line
-from file_operations import move_results_created, create_new_execution_directory
-from file_verifier import files_verifier
-from utils import (
-    check_compss_version,
-    check_slurm_cluster,
-    executor,
-    get_compss_crate_version,
-    get_data_persistence_status,
-    get_instrument,
-    get_objects_dict,
-    get_previous_flags,
-    get_yes_or_no,
-    print_colored,
-    print_welcome_message,
-    TextColor,
-    get_create_action_name,
-)
-from new_dataset_backend import new_dataset_info_collector
-from provenance_backend import (
-    provenance_info_collector,
-    update_yaml,
-    provenance_checker,
-)
-from get_workflow import get_workflow, get_more_flags, get_change_values
-from remote_dataset import remote_dataset
-from data_persistance_false import data_persistence_false_verifier, run_dpf
-
-SUB_DIRECTORY_PATH: str = None
-SERVICE_PATH: str = None
-COMPSS_VERSION: str = None
-SLURM_CLUSTER: bool = None
-DPF: bool = False
-CRATE_PATH: str = None
-DATA_PERSISTENCE: bool = False
+import threading
+import urllib.request
+import zipfile
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Iterable
 
 
-def interrupt_handler(
-    signum, frame
-):  # signal handler for cleaning up in case of an interrupt
-    """
-    Signal handler for safely exiting in case of interrupt.
-    """
-    print_colored(
-        f"Reproducibility Service has been interrupted with signal {signum}.",
-        TextColor.RED,
+RUN_PREFIX = "reproducibility_service_"
+RESULTS_DIR_NAME = "Results"
+LOG_DIR_NAME = "log"
+CRATE_METADATA_FILE = "ro-crate-metadata.json"
+SUBMISSION_FILE = "compss_submission_command_line.txt"
+VALID_EXECUTABLES = ("runcompss", "enqueue_compss")
+
+
+@dataclass(frozen=True)
+class RunPaths:
+    root: Path
+    crate_root: Path
+    log_dir: Path
+    results_dir: Path
+
+
+def timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def detect_backend() -> str:
+    try:
+        result = subprocess.run(["squeue"], capture_output=True, text=True)
+        return "slurm" if result.returncode == 0 else "local"
+    except FileNotFoundError:
+        return "local"
+    except Exception:
+        return "local"
+
+
+def download_to(url: str, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(url, destination)
+
+
+def source_kind(raw: str) -> str:
+    if raw.startswith(("http://", "https://")):
+        return "url"
+    if zipfile.is_zipfile(raw):
+        return "zip"
+    if Path(raw).is_dir():
+        return "directory"
+    return "path"
+
+
+def acquire_source(raw_source: str, work_root: Path) -> Path:
+    kind = source_kind(raw_source)
+    crate_root = work_root / "crate"
+    crate_root.mkdir(parents=True, exist_ok=True)
+
+    if kind == "url":
+        archive = work_root / "source.zip"
+        download_to(raw_source, archive)
+        return extract_archive(archive, crate_root)
+    if kind == "zip":
+        return extract_archive(Path(raw_source), crate_root)
+    if kind == "directory":
+        copytree(Path(raw_source), crate_root)
+        return normalize_crate_root(crate_root)
+    if kind == "path" and Path(raw_source).exists():
+        copytree(Path(raw_source), crate_root)
+        return normalize_crate_root(crate_root)
+
+    raise SystemExit(f"Unsupported source: {raw_source}")
+
+
+def copytree(src: Path, dst: Path) -> None:
+    if src.is_dir():
+        for item in src.iterdir():
+            target = dst / item.name
+            if item.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                copytree(item, target)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item, target)
+    else:
+        dst.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst / src.name)
+
+
+def extract_archive(archive: Path, extract_root: Path) -> Path:
+    with zipfile.ZipFile(archive, "r") as zip_ref:
+        zip_ref.extractall(extract_root)
+    return normalize_crate_root(extract_root)
+
+
+def normalize_crate_root(root: Path) -> Path:
+    if (root / CRATE_METADATA_FILE).exists() or (root / SUBMISSION_FILE).exists():
+        return root
+
+    candidates = list(root.rglob(CRATE_METADATA_FILE))
+    if candidates:
+        return candidates[0].parent
+
+    candidates = list(root.rglob(SUBMISSION_FILE))
+    if candidates:
+        return candidates[0].parent
+
+    raise SystemExit(
+        f"Could not locate a crate root under {root}. "
+        f"Expected {CRATE_METADATA_FILE} or {SUBMISSION_FILE}."
     )
-    print_colored("Exiting the program.", TextColor.RED)
-    sys.exit(0)
 
 
-signal.signal(signal.SIGINT, interrupt_handler)  # register the signal handler
+def walk_strings(node: object) -> Iterable[str]:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "description" and isinstance(value, str):
+                yield value
+            yield from walk_strings(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from walk_strings(item)
+    elif isinstance(node, str):
+        yield node
 
 
-class Unbuffered:
-    """
-    Unbuffered class for logging purposes.
-    """
+def discover_command(crate_root: Path) -> list[str]:
+    command_file = crate_root / SUBMISSION_FILE
+    if command_file.exists():
+        content = command_file.read_text(encoding="utf-8").strip()
+        if content:
+            return shlex.split(content)
 
-    def __init__(self, stream):
-        self.stream = stream
-
-    def write(self, data):
-        self.stream.write(data)
-        self.stream.flush()
-        te.write(data)
-
-    def flush(self):
-        self.stream.flush()
-        te.flush()
-
-
-class ReproducibilityService:
-    """
-    Reproducibility Service class for executing the reproducibility service.
-
-    __init__: Initialises the Reproducibility Service with the given flags.
-        And verifies the files and fills other necessary information.
-
-    run(): Run the reproducibility service by submitting the final command to the executor.
-    """
-
-    def __init__(self, provenance_flag: bool, new_dataset_flag: bool) -> bool:
-        global CRATE_PATH
-        self.crate_directory = CRATE_PATH
-        self.provenance_flag = provenance_flag
-        self.new_dataset_flag = new_dataset_flag
-        self.root_folder = SERVICE_PATH
-        self.remote_dataset_flag = False
-
-        crate_compss_version: str = get_compss_crate_version(self.crate_directory)
-        print_colored(
-            f"COMPSs version used in the original run: {crate_compss_version}",
-            TextColor.BLUE,
-        )
-
-        # not using currently to run 3.3.1,3.3 examples on a 3.3 or 3.3.1 compss machine
-        if COMPSS_VERSION != crate_compss_version:
-            print_colored(
-                f"WARNING: The crate was created with COMPSs version: {get_compss_crate_version(self.crate_directory)}, which differs with the COMPSs version found locally: {COMPSS_VERSION}",
-                TextColor.YELLOW,
-            )
-
+    metadata_file = crate_root / CRATE_METADATA_FILE
+    if metadata_file.exists():
         try:
-            crate = ROCrate(self.crate_directory)
-            print_colored(
-                f"THE RUN WAS: {get_create_action_name(crate)}", TextColor.YELLOW
-            )
-            global DATA_PERSISTENCE
-            if not DATA_PERSISTENCE:
-                data_persistence_false_verifier(self.crate_directory)
-                global DPF
-                DPF = True
-                return
+            doc = json.loads(metadata_file.read_text(encoding="utf-8"))
+            for candidate in walk_strings(doc):
+                if candidate.startswith(VALID_EXECUTABLES):
+                    return shlex.split(candidate)
+        except Exception as exc:
+            raise SystemExit(f"Could not parse {metadata_file}: {exc}") from exc
 
-            if new_dataset_flag:
-                new_dataset_info_collector(self.crate_directory)
-            else:  # verify the metadata only if the old dataset is used
-                # print("Reproducing the crate on the old dataset.")
-                instrument = get_instrument(crate)
-                objects = get_objects_dict(crate)
-                # download the remote data-set if it exists and return true if it exists
-                (self.remote_dataset_flag, remote_dataset_dict) = remote_dataset(
-                    crate, self.crate_directory
-                )
-                files_verifier(
-                    self.crate_directory, instrument, objects, remote_dataset_dict
-                )
-            if provenance_flag:  # update the sources inside the yaml file
-                update_yaml(self.crate_directory)
+    raise SystemExit(
+        f"Could not discover a COMPSs submission command in {crate_root}. "
+        f"Expected {SUBMISSION_FILE} or a runnable description in {CRATE_METADATA_FILE}."
+    )
 
-        except Exception as e:
-            print_colored(e, TextColor.RED)
-            sys.exit(1)
 
-        self.log_folder = os.path.join(SUB_DIRECTORY_PATH, "log")
+def backend_executable(backend: str) -> str:
+    return "enqueue_compss" if backend == "slurm" else "runcompss"
 
-    def run(self):
-        try:
-            new_command = generate_command_line(self, SUB_DIRECTORY_PATH)
-            initial_files = set(os.listdir(os.getcwd()))
-            if self.provenance_flag:  # add the provenance flag to the command
-                new_command.insert(1, "--provenance")
 
-            previous_flags = get_previous_flags(
-                self.crate_directory
-            )  # get the previous flags to show the user as reference
-            new_command = get_more_flags(
-                new_command, previous_flags
-            )  # ask user for more flags he/she wants to add to the final compss command
-            new_command = get_change_values(new_command)
+def build_command(
+    crate_root: Path,
+    backend: str,
+    provenance: bool,
+    extra_flags: list[str],
+) -> list[str]:
+    command = discover_command(crate_root)
+    if not command:
+        raise SystemExit("Empty submission command")
 
-            result = executor(new_command, SUB_DIRECTORY_PATH)
-            move_results_created(initial_files, SUB_DIRECTORY_PATH)
+    command[0] = backend_executable(backend)
 
-            return result
+    insertion_index = 1
+    if provenance:
+        command.insert(insertion_index, "--provenance")
+        insertion_index += 1
 
-        except Exception as e:
-            print_colored(e, TextColor.RED)
-            return False
+    for flag in extra_flags:
+        command.insert(insertion_index, flag)
+        insertion_index += 1
+
+    return command
+
+
+def tee_stream(stream, log_file):
+    for line in iter(stream.readline, ""):
+        print(line, end="")
+        log_file.write(line)
+        log_file.flush()
+    stream.close()
+
+
+def run_command(command: list[str], cwd: Path, log_dir: Path) -> int:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path = log_dir / "out.log"
+    stderr_path = log_dir / "err.log"
+
+    print("Executing:", " ".join(command))
+    print("Working directory:", cwd)
+
+    process = subprocess.Popen(
+        command,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+
+    assert process.stdout is not None
+    assert process.stderr is not None
+
+    with stdout_path.open("w", encoding="utf-8") as stdout_log, stderr_path.open(
+        "w", encoding="utf-8"
+    ) as stderr_log:
+        stdout_thread = threading.Thread(target=tee_stream, args=(process.stdout, stdout_log))
+        stderr_thread = threading.Thread(target=tee_stream, args=(process.stderr, stderr_log))
+        stdout_thread.start()
+        stderr_thread.start()
+        process.wait()
+        stdout_thread.join()
+        stderr_thread.join()
+
+    print("stdout log:", stdout_path)
+    print("stderr log:", stderr_path)
+    return process.returncode
+
+
+def move_new_top_level_outputs(crate_root: Path, results_dir: Path, before: set[str]) -> None:
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    for item in crate_root.iterdir():
+        if item.name in before:
+            continue
+        if item.name in {LOG_DIR_NAME, RESULTS_DIR_NAME}:
+            continue
+        shutil.move(str(item), str(results_dir / item.name))
+
+
+def build_run_paths(base_dir: Path) -> RunPaths:
+    root = base_dir / f"{RUN_PREFIX}{timestamp()}"
+    crate_root = root / "crate"
+    log_dir = root / LOG_DIR_NAME
+    results_dir = root / RESULTS_DIR_NAME
+
+    root.mkdir(parents=True, exist_ok=False)
+    crate_root.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    return RunPaths(root=root, crate_root=crate_root, log_dir=log_dir, results_dir=results_dir)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Scratch MVP for COMPSs Reproducibility Service")
+    parser.add_argument("source", help="RO-Crate path, zip file, or URL")
+    parser.add_argument("--backend", choices=["auto", "local", "slurm"], default="auto")
+    parser.add_argument("--provenance", action="store_true", help="Pass --provenance to runcompss/enqueue_compss")
+    parser.add_argument("--dry-run", action="store_true", help="Print the command without executing it")
+    parser.add_argument("--extra-flag", action="append", default=[], help="Extra runtime flag to inject")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    base_dir = Path.cwd()
+    paths = build_run_paths(base_dir)
+
+    backend = detect_backend() if args.backend == "auto" else args.backend
+    print("Detected backend:", backend)
+
+    crate_root = acquire_source(args.source, paths.crate_root)
+    print("Crate root:", crate_root)
+
+    command = build_command(
+        crate_root=crate_root,
+        backend=backend,
+        provenance=args.provenance,
+        extra_flags=args.extra_flag,
+    )
+
+    print("Final command:", " ".join(command))
+
+    if args.dry_run:
+        return 0
+
+    before = {item.name for item in crate_root.iterdir()}
+    return_code = run_command(command, cwd=crate_root, log_dir=paths.log_dir)
+
+    try:
+        move_new_top_level_outputs(crate_root, paths.results_dir, before)
+    except Exception as exc:
+        print(f"Warning: could not move outputs into Results/: {exc}", file=sys.stderr)
+
+    print("Results directory:", paths.results_dir)
+    return return_code
 
 
 if __name__ == "__main__":
-    try:
-        if len(sys.argv) < 2:
-            print_colored(
-                "Please provide the link or the path to the RO-Crate.", TextColor.RED
-            )
-            sys.exit(1)
-        if len(sys.argv) > 2:
-            print_colored(
-                "Too many arguments provided. Please provide only the link or the path to the RO-Crate.",
-                TextColor.RED,
-            )
-            sys.exit(1)
-        print_welcome_message()
-        NEW_DATASET_FLAG = False
-        PROVENANCE_FLAG = False
-        COMPSS_VERSION: str = (
-            check_compss_version()
-        )  # To check if compss is installed, if yes extract the version, else exit the program
-        SLURM_CLUSTER = check_slurm_cluster()[
-            0
-        ]  # To check if the program is running on the SLURM cluster
-        print("Slurm cluster:", SLURM_CLUSTER)
-        SERVICE_PATH = os.path.dirname(os.path.abspath(__file__))
-        print("Service path is:", SERVICE_PATH)
-        SUB_DIRECTORY_PATH = create_new_execution_directory(SERVICE_PATH)
-        print("Sub-directory path is:", SUB_DIRECTORY_PATH)
-
-        te = open(
-            os.path.join(SUB_DIRECTORY_PATH, "log/rs_log.txt"), "w", encoding="utf-8"
-        )  #  for logging purposes
-
-        sys.stdout = Unbuffered(sys.stdout)  # for logging
-
-        link_or_path = sys.argv[1]  # take the link or path given by the user
-        print(f"Source for crate: {link_or_path}")
-        CRATE_PATH = get_workflow(SUB_DIRECTORY_PATH, link_or_path)
-        # print("Crate path is:",CRATE_PATH)
-        DATA_PERSISTENCE = get_data_persistence_status(CRATE_PATH)
-        print_colored(
-            f"DATA PERSISTENCE IN THE CRATE WAS: {DATA_PERSISTENCE}", TextColor.YELLOW
-        )
-        os.chdir(
-            SUB_DIRECTORY_PATH
-        )  # Avoid problems when relative paths are used as parameter
-
-        # if not SLURM_CLUSTER:
-        if DATA_PERSISTENCE:
-            NEW_DATASET_FLAG = get_yes_or_no(
-                "Do you want to reproduce the crate on a new dataset?"
-            )
-        else:
-            print_colored(
-                "Note: The crate does not contain a dataset directory (Data persistence: False). Reproducing using local paths.",
-                TextColor.YELLOW,
-            )
-
-        if not SLURM_CLUSTER or DATA_PERSISTENCE:  # can generate provenance for dpt
-            PROVENANCE_FLAG = provenance_info_collector(
-                SUB_DIRECTORY_PATH, SERVICE_PATH
-            )
-
-        rs = ReproducibilityService(PROVENANCE_FLAG, NEW_DATASET_FLAG)
-        RESULT = False  # default value
-        if DPF:
-            # print(rs.crate_directory)
-            RESULT = run_dpf(SUB_DIRECTORY_PATH, rs.crate_directory)
-        else:
-            RESULT = rs.run()
-        if RESULT:
-            print_colored(
-                "Reproducibility Service has been executed successfully",
-                TextColor.GREEN,
-            )
-        else:
-            print_colored("Reproducibility Service has failed", TextColor.RED)
-
-        if PROVENANCE_FLAG and not SLURM_CLUSTER:
-            provenance_checker(SUB_DIRECTORY_PATH)
-
-    except FileNotFoundError as e:
-        print_colored(e, TextColor.RED)
-        sys.exit(1)
-    except ValueError as e:
-        print_colored(e, TextColor.RED)
-        sys.exit(1)
-    except Exception as e:
-        print_colored(e, TextColor.RED)
-        sys.exit(1)
-
-    sys.exit(0)
+    raise SystemExit(main())
