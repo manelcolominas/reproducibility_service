@@ -261,7 +261,7 @@ if __name__ == "__main__":
         RESULT = False  # default value
         if DPF:
             # print(rs.crate_directory)
-            RESULT = run_dpf(SUB_DIRECTORY_PATH, rs.crate_directory, PROVENANCE_FLAG)
+            RESULT = run_dpf(SUB_DIRECTORY_PATH, rs.crate_directory)
         else:
             RESULT = rs.run()
         if RESULT:

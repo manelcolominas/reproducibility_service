@@ -54,7 +54,7 @@ def is_file_like_entity(crate: ROCrate, entity_id: str) -> bool:
     if isinstance(entity_type, str):
         entity_type = [entity_type]
 
-    return "File" in entity_type or "contentSize" in entity
+    return "File" in entity_type or entity.get("contentSize") is not None
 
 
 def check_file_accessibility(crate: ROCrate) -> tuple[bool, dict]:
@@ -76,6 +76,7 @@ def check_file_accessibility(crate: ROCrate) -> tuple[bool, dict]:
             continue
 
         if not is_file_like_entity(crate, path):
+            print_colored("1. Everything fine until now.", TextColor.GREEN)
             continue
 
         parsed_url = urlparse(path)
@@ -117,16 +118,23 @@ def files_verifier_dpf(crate_path: str):
     date_verifier = True
     temp_size = []
     temp_date = []
-    crate = ROCrate(crate_path)
+
     instrument_file = resolve_instrument_file(crate, instrument)
+
+    if not instrument_file:
+        raise ValueError(
+            f"Could not resolve the instrument {instrument} to a file inside application_sources"
+        )
+
     instrument_path = os.path.join(crate_path, instrument_file)
+    instrument_object = get_by_id(crate, instrument)
+
+    if instrument_object is None:
+        raise ValueError(f"Could not find metadata for instrument file {instrument_file}")
 
     file_verifer = []  # tuple of (file_name, file_path, Date_modified ,file_size)
     instrument_tuple = (instrument, instrument_path, 1, 1)
-    if (
-        not os.path.getsize(instrument_path)
-        == get_by_id(crate, instrument)["contentSize"]
-    ):
+    if os.path.getsize(instrument_path) != instrument_object.get("contentSize"):
         size_verifier = False
         temp_size.append(instrument_path)
         instrument_tuple = (
@@ -135,9 +143,9 @@ def files_verifier_dpf(crate_path: str):
             instrument_tuple[2],
             0,
         )
+
     file_verifer.append(instrument_tuple)
     # Verify the objects/inputs
-    crate = ROCrate(crate_path)
     file_paths = get_objects(crate)
     for path in file_paths:
         if path.startswith("http"):
@@ -145,12 +153,17 @@ def files_verifier_dpf(crate_path: str):
             continue
 
         if not is_file_like_entity(crate, path):
+            print_colored("2. Everything fine until now.", TextColor.GREEN)
             continue
         parsed_url = urlparse(path)
         # Remove the 'file://<id>' prefix
         file_path = path.replace(f"file://{parsed_url.netloc}", "")
 
         file_object = get_by_id(crate, path)
+
+        if file_object is None:
+            continue  # Skip if the file object is not found in the crate
+
         file_tuple = (path, file_path, 1, 2)
         if "contentSize" in file_object:
             content_size = file_object[
