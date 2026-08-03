@@ -25,7 +25,7 @@ ensuring their existence and optionally their size and modification date.
 import os
 
 from rocrate.rocrate import ROCrate
-from utils import get_by_id, print_colored, TextColor, generate_file_status_table
+from utils import get_by_id, print_colored, TextColor, generate_file_status_table, resolve_instrument_file
 
 
 def files_verifier(
@@ -66,10 +66,10 @@ def files_verifier(
         temp_path.append(instrument_path)
         instrument_tuple = (instrument_tuple[0], instrument_tuple[1], 0, 0)
 
-    if (
-        not os.path.getsize(instrument_path)
-        == get_by_id(crate, instrument)["contentSize"]
-    ):
+    # if (
+    #     not os.path.getsize(instrument_path)
+    #     == get_by_id(crate, instrument)["contentSize"]
+    # ):
         size_verifier = False
         temp_size.append(instrument_path)
         instrument_tuple = (
@@ -97,6 +97,18 @@ def files_verifier(
         # Skip the remote objects
         if input.startswith("http"):
             continue
+
+        file_object = get_by_id(crate, input)
+        if file_object is None:
+            continue
+        
+        entity_type = file_object.get("@type", [])
+        if isinstance(entity_type, str):
+            entity_type = [entity_type]
+        
+        if "File" not in entity_type and file_object.get("contentSize") is None:
+            continue
+
         file_path = os.path.join(crate_path, input)
         file_tuple = (name[0], file_path, 1, 2)
         if not os.path.exists(file_path):
