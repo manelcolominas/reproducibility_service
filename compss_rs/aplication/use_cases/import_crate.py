@@ -6,25 +6,23 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from ports.crate_source import (
+from compss_rs.application.ports.crate_source import (
     CrateSourceAcquirer,
-    CrateSourceInspector,
     CrateSourceResolver,
     CrateSourceValidator,
     SourceAcquisitionResult,
     SourceValidationResult,
 )
-from ports.file_system import FileSystemManager
-from ports.metadata_parser import MetadataDocument, MetadataParser
-from compss_rs.domain.errors import FileSystemError, MetadataError, ValidationError
+from compss_rs.application.ports.file_system import (
+    DirectoryCreateRequest,
+    FileSystemManager,
+)
+from compss_rs.domain.errors import FileSystemError, ValidationError
 from compss_rs.domain.models.crate import CrateLocation, CrateSource, CrateSummary
-from compss_rs.domain.models.execution import ExecutionContext
-from compss_rs.domain.models.verification import VerificationSummary
 
 
 class ImportCrateStatus(str, Enum):
     PENDING = "pending"
-    RESOLVED = "resolved"
     VALIDATED = "validated"
     PREPARED = "prepared"
     IMPORTED = "imported"
@@ -35,12 +33,7 @@ class ImportCrateStatus(str, Enum):
 class ImportCrateRequest:
     raw_source: str
     run_directory: Path
-    allow_download: bool = True
-    allow_archive_extraction: bool = True
-    create_run_workspace: bool = True
-    preserve_source: bool = True
-    create_log_directory: bool = True
-    create_results_directory: bool = True
+    create_workspace: bool = True
 
     def __post_init__(self) -> None:
         if not self.raw_source.strip():
@@ -50,19 +43,33 @@ class ImportCrateRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class ImportCratePlan:
+    request: ImportCrateRequest
+    source: CrateSource
+    validation: SourceValidationResult
+    workspace_root: Path
+    crate_root: Path
+    log_dir: Path
+    results_dir: Path
+
+    def __post_init__(self) -> None:
+        for path_name in ("workspace_root", "crate_root", "log_dir", "results_dir"):
+            if not str(getattr(self, path_name)).strip():
+                raise ValidationError(f"ImportCratePlan.{path_name} cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class ImportCrateResult:
     status: ImportCrateStatus
+    request: ImportCrateRequest
     source: CrateSource
-    source_validation: SourceValidationResult
+    validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
     location: CrateLocation
-    summary: CrateSummary | None = None
-    metadata_document: MetadataDocument | None = None
-    verification: VerificationSummary | None = None
-    context: ExecutionContext | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    crate: CrateSummary | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def imported(self) -> bool:
@@ -72,62 +79,16 @@ class ImportCrateResult:
     def has_warnings(self) -> bool:
         return len(self.warnings) > 0
 
-    @property
-    def has_notes(self) -> bool:
-        return len(self.notes) > 0
-
-
-@dataclass(frozen=True, slots=True)
-class ImportCratePlan:
-    request: ImportCrateRequest
-    source: CrateSource
-    destination_root: Path
-    workspace_root: Path
-    log_directory: Path
-    results_directory: Path
-    preserve_source: bool = True
-    create_log_directory: bool = True
-    create_results_directory: bool = True
-
-    def __post_init__(self) -> None:
-        for field_name in ("destination_root", "workspace_root", "log_directory", "results_directory"):
-            if not str(getattr(self, field_name)).strip():
-                raise ValidationError(f"ImportCratePlan.{field_name} cannot be empty")
-
 
 @runtime_checkable
 class ImportCrateUseCase(Protocol):
     def execute(self, request: ImportCrateRequest) -> ImportCrateResult:
-        """
-        Import a crate source into a prepared workspace and return the canonical result.
-        """
         ...
 
 
 @runtime_checkable
 class ImportCratePlanner(Protocol):
-    def build_plan(self, request: ImportCrateRequest, source: CrateSource) -> ImportCratePlan:
-        """
-        Build the filesystem layout and workspace plan for crate import.
-        """
-        ...
-
-
-@runtime_checkable
-class ImportCrateOrchestrator(Protocol):
-    def resolve_source(self, raw_source: str) -> CrateSource:
-        ...
-
-    def validate_source(self, source: CrateSource) -> SourceValidationResult:
-        ...
-
-    def acquire_source(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
-        ...
-
-    def inspect_metadata(self, prepared_root: Path) -> MetadataDocument:
-        ...
-
-    def prepare_context(self, plan: ImportCratePlan) -> ExecutionContext:
+    def build_plan(self, request: ImportCrateRequest) -> ImportCratePlan:
         ...
 
 
@@ -135,38 +96,77 @@ class ImportCratePortError(FileSystemError):
     pass
 
 
-class ImportCrateMetadataError(MetadataError):
+class ImportCrateFailure(ImportCratePortError):
     pass
 
 
-class ImportCrateFailure(ImportCratePortError):
-    def __init__(self, message: str, details: str | None = None):
-        super().__init__(message=message, details=details, recoverable=False)
+class DefaultImportCrateService:
+    def __init__(
+        self,
+        resolver: CrateSourceResolver,
+        validator: CrateSourceValidator,
+        acquirer: CrateSourceAcquirer,
+        file_system: FileSystemManager,
+    ) -> None:
+        self._resolver = resolver
+        self._validator = validator
+        self._acquirer = acquirer
+        self._file_system = file_system
 
+    def build_plan(self, request: ImportCrateRequest) -> ImportCratePlan:
+        source = self._resolver.resolve(request.raw_source)
+        validation = self._validator.validate(source)
 
-def is_imported(result: ImportCrateResult) -> bool:
-    return result.status == ImportCrateStatus.IMPORTED
+        workspace_root = request.run_directory
+        crate_root = workspace_root / "crate"
+        log_dir = workspace_root / "log"
+        results_dir = workspace_root / "Results"
 
+        return ImportCratePlan(
+            request=request,
+            source=source,
+            validation=validation,
+            workspace_root=workspace_root,
+            crate_root=crate_root,
+            log_dir=log_dir,
+            results_dir=results_dir,
+        )
 
-def has_metadata(result: ImportCrateResult) -> bool:
-    return result.metadata_document is not None
+    def execute(self, request: ImportCrateRequest) -> ImportCrateResult:
+        plan = self.build_plan(request)
 
+        if not plan.validation.is_valid:
+            raise ImportCrateFailure(
+                "Source validation failed",
+                details=plan.validation.message or "the source is not usable",
+            )
 
-def has_verification(result: ImportCrateResult) -> bool:
-    return result.verification is not None
+        if request.create_workspace:
+            self._file_system.create_directory(
+                DirectoryCreateRequest(path=plan.workspace_root, parents=True, exist_ok=True)
+            )
+            self._file_system.create_directory(
+                DirectoryCreateRequest(path=plan.crate_root, parents=True, exist_ok=True)
+            )
+            self._file_system.create_directory(
+                DirectoryCreateRequest(path=plan.log_dir, parents=True, exist_ok=True)
+            )
+            self._file_system.create_directory(
+                DirectoryCreateRequest(path=plan.results_dir, parents=True, exist_ok=True)
+            )
 
+        acquisition = self._acquirer.acquire(plan.source, plan.crate_root)
+        location = CrateLocation(
+            original_path=acquisition.source_root,
+            working_path=acquisition.prepared_root,
+        )
 
-__all__ = [
-    "ImportCrateFailure",
-    "ImportCrateMetadataError",
-    "ImportCrateOrchestrator",
-    "ImportCratePlan",
-    "ImportCratePlanner",
-    "ImportCrateRequest",
-    "ImportCrateResult",
-    "ImportCrateStatus",
-    "ImportCrateUseCase",
-    "has_metadata",
-    "has_verification",
-    "is_imported",
-]
+        return ImportCrateResult(
+            status=ImportCrateStatus.IMPORTED,
+            request=request,
+            source=plan.source,
+            validation=plan.validation,
+            acquisition=acquisition,
+            location=location,
+            notes=("Crate source prepared successfully",),
+        )
