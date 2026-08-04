@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path
 
 from rich.prompt import Prompt
+from datetime import datetime
 
 from application.use_cases.build_execution_plan import (
     BuildExecutionPlanFailure,
@@ -83,8 +84,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def run_app(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     settings = build_default_settings()
-    run_id = args.run_id or uuid.uuid4().hex[:8]
-    run_directory = settings.run_directory(run_id)
+    # run_id = args.run_id or uuid.uuid4().hex[:8]
+    run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+    source_path = Path(args.source).expanduser()
+    runs_root = source_path.resolve().parent
+    run_directory = runs_root / f"reproducibility_service_{run_id}"
 
     view.print_banner()
 
