@@ -29,6 +29,8 @@ _COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
 _LOCAL_UNSUPPORTED_FLAGS = {
     "--qos",
     "--job_name",
+    "--num_nodes",
+    "--exec_time",
 }
 
 class BuildExecutionPlanStatus(str, Enum):
@@ -178,7 +180,9 @@ class DefaultBuildExecutionPlanService:
             arguments=arguments,
             crate_root=request.crate.location.working_path,
         )
-    
+
+        arguments = [argument for argument in arguments if argument != "--provenance" and not argument.startswith("--provenance=")]
+
         if request.provenance_enabled:
             arguments.insert(0, "--provenance")
         if request.extra_flags:

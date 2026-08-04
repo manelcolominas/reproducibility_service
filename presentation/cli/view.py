@@ -121,13 +121,6 @@ def print_provenance_result(result: PrepareProvenanceResult) -> None:
             console.print(f"  [yellow]![/yellow] {warning}")
 
 
-def confirm_execution(plan: ExecutionPlan) -> bool:
-    console.print()
-    return Confirm.ask(
-        f"Run [bold]{plan.command.as_string()}[/bold] now?", default=True
-    )
-
-
 def run_with_spinner(description: str, fn, *args, **kwargs):
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True,

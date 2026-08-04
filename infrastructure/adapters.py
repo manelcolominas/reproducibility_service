@@ -502,8 +502,8 @@ class SubprocessExecutionSubmitter:
         submission.log_directory.mkdir(parents=True, exist_ok=True)
         submission.results_directory.mkdir(parents=True, exist_ok=True)
 
-        stdout_path = submission.log_directory / "stdout.log"
-        stderr_path = submission.log_directory / "stderr.log"
+        stdout_path = submission.log_directory / "stdout.out"
+        stderr_path = submission.log_directory / "stderr.err"
         started_at = datetime.now(timezone.utc)
 
         return_code: int | None

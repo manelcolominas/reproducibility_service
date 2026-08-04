@@ -104,9 +104,7 @@ def run_app(argv: list[str] | None = None) -> int:
     if plan_result is None:
         return 0
 
-    if not args.yes and not view.confirm_execution(plan_result.plan):
-        view.console.print("Aborted before execution.")
-        return 0
+    view.console.print(f"Running {plan_result.plan.command.as_string()}")
 
     submitter = SubprocessExecutionSubmitter()
     outcome = view.run_with_spinner("Executing workflow...", submitter.submit, plan_result.submission)
@@ -169,15 +167,32 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
 
     if verify_result.status == VerifyInputsStatus.FAILED:
         if not args.yes and not view.console.input(
-            "[yellow]Some inputs are missing. Continue anyway? [y/N]: [/yellow]"
+            "[yellow]Some inputs are missing. Continue anyway ? [y/N]: [/yellow]"
         ).lower().startswith("y"):
             view.console.print("Aborted after failed verification.")
             return crate, None
 
-    plan_result = _build_plan(args, plan_service, crate, run_directory)
+    provenance_flag = args.provenance
+    if not args.yes and not provenance_flag:
+        provenance_flag = view.console.input(
+            "[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]"
+        ).lower().startswith("y")
+
+    plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
+    view.console.print()
+    view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
+
+    if not args.yes and view.console.input(
+        "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]"
+    ).lower().startswith("y"):
+        args.command = Prompt.ask(
+            "[yellow]Enter the new submission command[/yellow]"
+        )
+
+        plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
     view.print_execution_plan(plan_result.plan)
 
-    if args.provenance:
+    if provenance_flag:
         provenance_result = provenance_service.execute(
             PrepareProvenanceRequest(
                 crate=crate,
@@ -194,7 +209,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
     return crate, plan_result
 
 
-def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Path):
+def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Path, provenance_enabled: bool):
     backend = ExecutionBackend(args.backend)
     try:
         return plan_service.execute(
@@ -202,7 +217,7 @@ def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Pa
                 crate=crate,
                 run_directory=run_directory,
                 backend=backend,
-                provenance_enabled=args.provenance,
+                provenance_enabled=provenance_enabled,
                 extra_flags=tuple(args.extra_flag),
                 submission_command=args.command,
             )
@@ -211,20 +226,18 @@ def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Pa
         if args.yes or args.command:
             raise
         manual_command = Prompt.ask(
-            "[yellow]Could not find a submission command in the crate. "
-            "Enter one manually (e.g. 'runcompss main.py')[/yellow]"
+            "[yellow]Could not find a submission command in the crate. Enter one manually (e.g. 'runcompss main.py')[/yellow]"
         )
         return plan_service.execute(
             BuildExecutionPlanRequest(
                 crate=crate,
                 run_directory=run_directory,
                 backend=backend,
-                provenance_enabled=args.provenance,
+                provenance_enabled=provenance_enabled,
                 extra_flags=tuple(args.extra_flag),
                 submission_command=manual_command,
             )
         )
-
 
 def main() -> None:
     raise SystemExit(run_app())
