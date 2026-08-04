@@ -104,7 +104,7 @@ def run_app(argv: list[str] | None = None) -> int:
     if plan_result is None:
         return 0
 
-    view.console.print(f"Running {plan_result.plan.command.as_string()}")
+    view.console.print(f"Running submission command: {plan_result.plan.command.as_string()}")
 
     submitter = SubprocessExecutionSubmitter()
     outcome = view.run_with_spinner("Executing workflow...", submitter.submit, plan_result.submission)
@@ -188,8 +188,8 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
         args.command = Prompt.ask(
             "[yellow]Enter the new submission command[/yellow]"
         )
-
         plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
+
     view.print_execution_plan(plan_result.plan)
 
     if provenance_flag:
