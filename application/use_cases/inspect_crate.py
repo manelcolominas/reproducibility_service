@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Protocol, runtime_checkable
+
+from application.ports.metadata_parser import (
+    MetadataDocument,
+    MetadataFormat,
+    MetadataNormalizationResult,
+    MetadataNormalizer,
+    MetadataParseRequest,
+    MetadataParser,
+    MetadataSource,
+    MetadataSourceKind,
+)
+from domain.errors import MetadataError, ValidationError
+from domain.models.crate import CrateSummary
+from domain.models.verification import VerificationSummary
+
+
+class InspectCrateStatus(str, Enum):
+    PENDING = "pending"
+    PARSED = "parsed"
+    NORMALIZED = "normalized"
+    INSPECTED = "inspected"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class InspectCrateRequest:
+    crate_root: Path
+    metadata_path: Path | None = None
+
+    def __post_init__(self) -> None:
+        if not str(self.crate_root).strip():
+            raise ValidationError("InspectCrateRequest.crate_root cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class InspectCratePlan:
+    request: InspectCrateRequest
+    metadata_source: MetadataSource
+    parse_request: MetadataParseRequest
+
+
+@dataclass(frozen=True, slots=True)
+class InspectCrateResult:
+    status: InspectCrateStatus
+    request: InspectCrateRequest
+    document: MetadataDocument
+    normalization: MetadataNormalizationResult
+    crate: CrateSummary | None = None
+    verification: VerificationSummary | None = None
+    warnings: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def inspected(self) -> bool:
+        return self.status == InspectCrateStatus.INSPECTED
+
+    @property
+    def has_warnings(self) -> bool:
+        return len(self.warnings) > 0
+
+
+@runtime_checkable
+class InspectCrateUseCase(Protocol):
+    def execute(self, request: InspectCrateRequest) -> InspectCrateResult:
+        ...
+
+
+@runtime_checkable
+class InspectCratePlanner(Protocol):
+    def build_plan(self, request: InspectCrateRequest) -> InspectCratePlan:
+        ...
+
+
+class InspectCratePortError(MetadataError):
+    pass
+
+
+class InspectCrateFailure(InspectCratePortError):
+    pass
+
+
+class DefaultInspectCrateService:
+    def __init__(
+        self,
+        parser: MetadataParser,
+        normalizer: MetadataNormalizer,
+    ) -> None:
+        self._parser = parser
+        self._normalizer = normalizer
+
+    def build_plan(self, request: InspectCrateRequest) -> InspectCratePlan:
+        metadata_source = MetadataSource(
+            kind=MetadataSourceKind.DIRECTORY,
+            location=str(request.crate_root),
+            format_hint=MetadataFormat.UNKNOWN,
+        )
+        parse_request = MetadataParseRequest(
+            source=metadata_source,
+            expected_format=MetadataFormat.UNKNOWN,
+            allow_partial_metadata=True,
+            strict=False,
+        )
+        return InspectCratePlan(
+            request=request,
+            metadata_source=metadata_source,
+            parse_request=parse_request,
+        )
+
+    def execute(self, request: InspectCrateRequest) -> InspectCrateResult:
+        plan = self.build_plan(request)
+        document = self._parser.parse(plan.parse_request)
+        normalization = self._normalizer.normalize(document)
+
+        crate = normalization.crate
+        if crate is None and normalization.metadata is not None:
+            crate = normalization.metadata  # type: ignore[assignment]
+
+        warnings = tuple(normalization.warnings)
+        notes = tuple(normalization.issues)
+
+        status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
+
+        return InspectCrateResult(
+            status=status,
+            request=request,
+            document=document,
+            normalization=normalization,
+            crate=crate,
+            warnings=warnings,
+            notes=notes,
+        )
