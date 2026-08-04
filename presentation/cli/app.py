@@ -84,7 +84,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def run_app(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     settings = build_default_settings()
-    # run_id = args.run_id or uuid.uuid4().hex[:8]
+    # run_id = args.run_id or uuid.uuid4().hex[:8] # Random 8-character hex string.
     run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
     source_path = Path(args.source).expanduser()
     runs_root = source_path.resolve().parent

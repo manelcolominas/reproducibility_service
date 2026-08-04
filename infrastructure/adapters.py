@@ -477,10 +477,19 @@ class CrateMetadataNormalizer:
 
 
 class ShutilExecutionBackendDetector:
-    """Detects SLURM vs local execution based on available executables."""
+    """Detects SLURM vs local execution."""
+
+    _SLURM_ENV_KEYS = (
+        "SLURM_JOB_ID",
+        "SLURM_CLUSTER_NAME",
+        "SLURM_SUBMIT_DIR",
+        "SLURM_NTASKS",
+        "SLURM_JOB_NODELIST",
+    )
 
     def detect(self) -> ExecutionBackend:
-        if shutil.which("enqueue_compss") or shutil.which("sbatch"):
+        # Only treat as SLURM when actually inside a SLURM environment
+        if any(os.getenv(key) for key in self._SLURM_ENV_KEYS):
             return ExecutionBackend.SLURM
         return ExecutionBackend.LOCAL
 

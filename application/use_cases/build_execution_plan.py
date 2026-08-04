@@ -6,6 +6,8 @@ from enum import Enum
 from pathlib import Path
 import shlex
 from typing import Protocol, runtime_checkable
+import json
+import os
 
 from application.ports.executor import (
     ExecutionBackendDetector,
@@ -22,6 +24,12 @@ from domain.models.execution import (
     RuntimeCommand,
 )
 
+_COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
+
+_LOCAL_UNSUPPORTED_FLAGS = {
+    "--qos",
+    "--job_name",
+}
 
 class BuildExecutionPlanStatus(str, Enum):
     PENDING = "pending"
@@ -146,20 +154,31 @@ class DefaultBuildExecutionPlanService:
         self,
         request: BuildExecutionPlanRequest,
         backend: ExecutionBackend,
-    ) -> RuntimeCommand:
+        ) -> RuntimeCommand:
         raw_command = request.submission_command or self._discover_command(request.crate)
         if not raw_command:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
-
+    
         parts = shlex.split(raw_command)
         executable = request.runtime_executable or self._default_executable(backend)
-
+    
         if not parts:
             raise BuildExecutionPlanFailure("The submission command is empty")
-
+    
         parts[0] = executable
-
+    
         arguments = list(parts[1:])
+    
+        # Local backend should not receive SLURM-only scheduler flags.
+        if backend == ExecutionBackend.LOCAL:
+            arguments = self._strip_local_unsupported_flags(arguments)
+    
+        # Remap absolute paths from original environment into local imported crate.
+        arguments = self._remap_arguments_to_local_crate(
+            arguments=arguments,
+            crate_root=request.crate.location.working_path,
+        )
+    
         if request.provenance_enabled:
             arguments.insert(0, "--provenance")
         if request.extra_flags:
@@ -167,19 +186,187 @@ class DefaultBuildExecutionPlanService:
         if request.changed_values:
             for index, value in request.changed_values:
                 arguments.extend(["--change", f"{index}={value}"])
-
+    
         return RuntimeCommand(
             executable=parts[0],
             arguments=tuple(arguments),
             working_directory=request.run_directory,
         )
 
+    def _strip_local_unsupported_flags(self, arguments: list[str]) -> list[str]:
+        """Drop scheduler-only flags when running locally."""
+        cleaned: list[str] = []
+        i = 0
+        while i < len(arguments):
+            token = arguments[i]
+    
+            if token in _LOCAL_UNSUPPORTED_FLAGS:
+                # Skip flag and its value (if present and not another flag)
+                i += 1
+                if i < len(arguments) and not arguments[i].startswith("-"):
+                    i += 1
+                continue
+    
+            # Also support --flag=value form.
+            if any(token.startswith(flag + "=") for flag in _LOCAL_UNSUPPORTED_FLAGS):
+                i += 1
+                continue
+    
+            cleaned.append(token)
+            i += 1
+    
+        return cleaned
+    
+    
+    def _remap_arguments_to_local_crate(self, arguments: list[str], crate_root: Path) -> list[str]:
+        """Translate absolute paths from original execution host to local crate paths."""
+        remapped: list[str] = []
+        for arg in arguments:
+            remapped.append(self._remap_single_argument(arg, crate_root))
+        return remapped
+    
+    
+    def _remap_single_argument(self, arg: str, crate_root: Path) -> str:
+        # Preserve possible trailing slash semantics from original command.
+        had_trailing_slash = arg.endswith("/") and arg != "/"
+    
+        # Ignore non-path tokens.
+        expanded = os.path.expanduser(arg)
+        path = Path(expanded)
+    
+        # Only remap absolute paths.
+        if not path.is_absolute():
+            return arg
+    
+        # If it already exists locally, keep as-is.
+        if path.exists():
+            return arg
+    
+        # Try known anchors first (common in COMPSs crates).
+        candidates = self._candidate_local_paths(path, crate_root)
+        for candidate in candidates:
+            if candidate.exists():
+                return self._format_mapped_path(candidate, had_trailing_slash)
+    
+        # Fallback: unique basename match under crate root.
+        basename_matches = list(crate_root.rglob(path.name))
+        if len(basename_matches) == 1 and basename_matches[0].exists():
+            return self._format_mapped_path(basename_matches[0], had_trailing_slash)
+    
+        # If ambiguous or not found, keep original and let runtime surface error.
+        return arg
+    
+    def _candidate_local_paths(self, original: Path, crate_root: Path) -> list[Path]:
+        parts = list(original.parts)
+    
+        anchors = (
+            "application_sources",
+            "dataset",
+            "datasets",
+            "data",
+            "src",
+        )
+    
+        candidates: list[Path] = []
+        for anchor in anchors:
+            if anchor in parts:
+                idx = parts.index(anchor)
+                suffix = parts[idx:]
+                candidates.append(crate_root.joinpath(*suffix))
+    
+        # If path ends in ".../wordcount.py", try under application_sources/src as a smart fallback.
+        candidates.append(crate_root / "application_sources" / "src" / original.name)
+    
+        # Deduplicate preserving order.
+        unique: list[Path] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            key = str(candidate)
+            if key not in seen:
+                unique.append(candidate)
+                seen.add(key)
+        return unique
+    
+    def _format_mapped_path(self, candidate: Path, had_trailing_slash: bool) -> str:
+        text = str(candidate)
+        if had_trailing_slash and candidate.is_dir() and not text.endswith("/"):
+            return text + "/"
+        return text
+
     def _discover_command(self, crate: CrateSummary) -> str | None:
-        submission_file = crate.location.working_path / "compss_submission_command_line.txt"
-        if submission_file.exists():
-            content = submission_file.read_text(encoding="utf-8").strip()
-            return content or None
+        crate_root = crate.location.working_path
+
+        # 1) txt file fallback, recursive to support wrapped zip roots
+        txt_candidates = [crate_root / "compss_submission_command_line.txt"]
+        txt_candidates.extend(sorted(crate_root.rglob("compss_submission_command_line.txt")))
+
+        for path in txt_candidates:
+            if not path.is_file():
+                continue
+            first_line = path.read_text(encoding="utf-8").splitlines()
+            if not first_line:
+                continue
+            command = self._normalize_submission_command(first_line[0])
+            if command:
+                return command
+
+        # 2) ro-crate-metadata.json fallback(s), recursive
+        for metadata_path in sorted(crate_root.rglob("ro-crate-metadata.json")):
+            command = self._extract_command_from_rocrate_json(metadata_path)
+            if command:
+                return command
+
         return None
+
+    def _extract_command_from_rocrate_json(self, metadata_path: Path) -> str | None:
+        try:
+            raw = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+        graph = raw.get("@graph")
+        if not isinstance(graph, list):
+            return None
+
+        # 1) COMPSs Workflow Run Crate entity
+        for entity in graph:
+            entity_id = str(entity.get("@id") or entity.get("id") or "")
+            if "#COMPSs_Workflow_Run_Crate_" in entity_id:
+                command = self._normalize_submission_command(entity.get("description"))
+                if command:
+                    return command
+
+        # 2) CreateAction
+        for entity in graph:
+            if self._is_create_action(entity):
+                command = self._normalize_submission_command(entity.get("description"))
+                if command:
+                    return command
+
+        # 3) Any entity description
+        for entity in graph:
+            command = self._normalize_submission_command(entity.get("description"))
+            if command:
+                return command
+
+        return None
+
+    def _normalize_submission_command(self, value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        text = value.strip()
+        for prefix in _COMMAND_PREFIXES:
+            if text == prefix or text.startswith(prefix + " "):
+                return text
+        return None
+
+    def _is_create_action(self, entity: dict) -> bool:
+        raw_type = entity.get("@type") or entity.get("type")
+        if isinstance(raw_type, str):
+            return raw_type == "CreateAction"
+        if isinstance(raw_type, list):
+            return any(str(t) == "CreateAction" for t in raw_type)
+        return False
 
     def _default_executable(self, backend: ExecutionBackend) -> str:
         return "enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss"
