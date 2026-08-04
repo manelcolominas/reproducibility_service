@@ -4,9 +4,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-from compss_rs.application.ports.file_system import FileSystemManager
+import yaml
+
+from compss_rs.application.ports.file_system import DirectoryCreateRequest, FileSystemManager
 from compss_rs.application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from compss_rs.domain.errors import FileSystemError, MetadataError, ValidationError
 from compss_rs.domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant
@@ -171,7 +173,7 @@ class DefaultPrepareProvenanceService:
                 )
 
             updated_metadata = self._build_updated_metadata(request, plan)
-            created_path = self._write_metadata_file(plan.target_metadata_path, updated_metadata)
+            created_path = self._write_metadata_file(plan.target_metadata_path, updated_metadata, request)
             status = PrepareProvenanceStatus.PUBLISHED
             return PrepareProvenanceResult(
                 status=status,
@@ -230,12 +232,58 @@ class DefaultPrepareProvenanceService:
             source_metadata_path=existing.source_metadata_path,
         )
 
-    def _write_metadata_file(self, target_path: Path, metadata: WorkflowMetadata) -> Path:
+    def _write_metadata_file(
+        self,
+        target_path: Path,
+        metadata: WorkflowMetadata,
+        request: PrepareProvenanceRequest,
+    ) -> Path:
         if not self._file_system.exists(target_path.parent):
             self._file_system.create_directory(
-                from compss_rs.application.ports.file_system import DirectoryCreateRequest
+                DirectoryCreateRequest(path=target_path.parent, parents=True, exist_ok=True)
             )
-        raise NotImplementedError("A concrete provenance writer adapter should be used to serialize metadata")
+
+        content = render_ro_crate_info_yaml(metadata, request.crate)
+        write_result = self._file_system.write_text(target_path, content)
+        if not write_result.succeeded:
+            raise PrepareProvenanceFailure(
+                f"Could not write provenance metadata: {target_path}",
+                details=write_result.message,
+            )
+        return target_path
+
+
+def _participant_to_dict(participant: WorkflowParticipant) -> dict[str, Any]:
+    return {
+        "name": participant.name,
+        "e-mail": participant.email or "",
+        "orcid": participant.orcid or "",
+        "organisation_name": participant.organization_name or "",
+        "ror": participant.ror or "",
+    }
+
+
+def render_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -> str:
+    """Render provenance metadata as an ro-crate-info.yaml document.
+
+    Mirrors the structure of the COMPSs ro-crate-info.yaml template.
+    """
+    sources = [artifact.path for artifact in crate.index.sources]
+    sources_main_file = sources[0] if sources else ""
+
+    document: dict[str, Any] = {
+        "COMPSs Workflow Information": {
+            "name": metadata.name,
+            "description": metadata.description,
+            "license": metadata.license or "Apache-2.0",
+            "sources": sources,
+            "sources_main_file": sources_main_file,
+            "data_persistence": metadata.data_persistence.value == "true",
+        },
+        "Authors": [_participant_to_dict(author) for author in metadata.authors] or [],
+        "Submitter": _participant_to_dict(metadata.submitter) if metadata.submitter else {},
+    }
+    return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
 
 def has_updated_metadata(result: PrepareProvenanceResult) -> bool:
@@ -258,4 +306,5 @@ __all__ = [
     "ProvenanceWriter",
     "has_created_metadata_file",
     "has_updated_metadata",
+    "render_ro_crate_info_yaml",
 ]
