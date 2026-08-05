@@ -283,6 +283,7 @@ def _build_run_logger(run_directory: Path) -> logging.Logger:
 
     return logger
 
+
 def _update_plan_with_selected_flags(
     args: argparse.Namespace,
     plan_service,
@@ -292,11 +293,20 @@ def _update_plan_with_selected_flags(
     current_plan,
     logger: logging.Logger,
 ):
-    selected_flags = view.select_submission_flags(current_plan.plan.backend)
-    if not selected_flags:
+    selected_flags = view.select_submission_flags(
+        current_plan.plan.backend,
+        current_plan.plan.command.as_list(),
+    )
+    if selected_flags is None:
         return current_plan
 
-    args.extra_flag.extend(selected_flags)
+    args.command = _replace_submission_flags(
+        current_plan.plan.command.as_list(),
+        current_plan.plan.backend,
+        selected_flags,
+    )
+    args.extra_flag = []
+
     plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_enabled)
     logger.info(
         "resolved_command=%s backend=%s provenance_enabled=%s",
@@ -305,6 +315,47 @@ def _update_plan_with_selected_flags(
         provenance_enabled,
     )
     return plan_result
+
+
+def _replace_submission_flags(
+    command_parts: list[str],
+    backend: ExecutionBackend,
+    selected_flags: list[str],
+) -> str:
+    if not command_parts:
+        return " ".join(selected_flags)
+
+    option_set = view.LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else view.SLURM_FLAG_OPTIONS
+    toggleable_bases = {_flag_base(flag) for flag, _description in option_set}
+
+    filtered_arguments = _strip_toggleable_flags(command_parts[1:], toggleable_bases)
+    updated_parts = [command_parts[0], *selected_flags, *filtered_arguments]
+    return " ".join(updated_parts)
+
+
+def _strip_toggleable_flags(arguments: list[str], toggleable_bases: set[str]) -> list[str]:
+    filtered: list[str] = []
+    index = 0
+
+    while index < len(arguments):
+        token = arguments[index]
+        base = _flag_base(token)
+
+        if base in toggleable_bases:
+            index += 1
+            if token == base and index < len(arguments) and not arguments[index].startswith("-"):
+                index += 1
+            continue
+
+        filtered.append(token)
+        index += 1
+
+    return filtered
+
+
+def _flag_base(flag: str) -> str:
+    return flag.split("=", 1)[0]
+
 
 def main() -> None:
     raise SystemExit(run_app())

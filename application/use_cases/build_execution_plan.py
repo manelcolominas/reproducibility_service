@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-import shlex
 from typing import Protocol, runtime_checkable
 import json
 import os
@@ -168,7 +167,7 @@ class DefaultBuildExecutionPlanService:
         if not raw_command:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
     
-        parts = shlex.split(raw_command)
+        parts = [part for part in raw_command.strip().split() if part]
         executable = request.runtime_executable or self._default_executable(backend)
     
         if not parts:
