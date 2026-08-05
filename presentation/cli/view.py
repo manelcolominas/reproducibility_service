@@ -36,8 +36,12 @@ LOCAL_FLAG_OPTIONS = [
     ("--monitoring", "Enable monitoring"),
     ("--external_debugger=<int>", "Enables external debugger connection on the specified port (or 9999 if empty)"),
     ("--external_debugger", "Enables external debugger connection on the default port 9999"),
+    ("--jmx_port=<int>","Enable JVM profiling on specified port"),
+    ("--task_execution=<compss|storage>", "Task execution under COMPSs or Storage. Default: compss"),
+    ("--storage_impl=<string>", "Path to an storage implementation. Shortcut to setting pypath and classpath. See Runtime/storage in your installation folder."),
+    ("--storage_conf=<path>", "Path to the storage configuration file"),
     ("--provenance=<yaml_file>", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph."),
-    ("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph."),
+    ("--provenance", "Generate COMPSs workflow provenanºce data in RO-Crate format using a YAML configuration file. Automatically activates --graph.")
 ]
 
 SLURM_FLAG_OPTIONS = [
