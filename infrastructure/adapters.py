@@ -1,12 +1,19 @@
-"""Concrete adapters implementing the application ports.
-
-This module intentionally keeps every adapter in one place. The MVP has
-four small ports (file_system, crate_source, metadata_parser, executor)
-and each adapter is a handful of straightforward methods backed by the
-standard library (pathlib, shutil, zipfile, urllib, subprocess, yaml,
-json). Splitting these into one-file-per-adapter would not add clarity
-at this size, and would blow the project's file budget.
-"""
+#!/usr/bin/env python3
+#
+#  Copyright 2002-2026 Barcelona Supercomputing Center (www.bsc.es)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 
 from __future__ import annotations
 
