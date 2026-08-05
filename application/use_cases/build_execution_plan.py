@@ -30,6 +30,13 @@ _LOCAL_UNSUPPORTED_FLAGS = {
     "--job_name",
     "--num_nodes",
     "--exec_time",
+    "--project_name",
+    "--worker_working_dir",
+    "--pythonpath",
+}
+
+_PATH_VALUE_FLAGS = {
+    "--pythonpath",
 }
 
 class BuildExecutionPlanStatus(str, Enum):
