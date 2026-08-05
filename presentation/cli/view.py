@@ -14,22 +14,27 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
 
+from InquirerPy import inquirer
+import questionary
+
 from application.ports.executor import ExecutionOutcome
 from application.use_cases.import_crate import ImportCrateResult
 from application.use_cases.inspect_crate import InspectCrateResult
 from application.use_cases.prepare_provenance import PrepareProvenanceResult
 from application.use_cases.verify_inputs import VerifyInputsResult
 from domain.models.crate import CrateSummary
-from domain.models.execution import ExecutionPlan
 from domain.models.verification import VerificationState
 from domain.models.execution import ExecutionPlan, ExecutionBackend
 
 LOCAL_FLAG_OPTIONS = [
-    ("--graph", "Generate the task graph"),
-    ("-g", "Enable graph generation shortcut"),
-    ("-t", "Enable tracing"),
-    ("--tracing", "Enable tracing"),
-    ("--tracing=<value>", "Set tracing mode explicitly"),
+    ("--graph=<bool>", "Generation of the complete graph (true/false)"),
+    ("--graph", "Enable graph generation shortcut"),
+    ("--tracing", "Set generation of traces."),
+    ("--tracing=<value>", "Set generation of traces."),
+    ("--monitoring=<int>", "Period between monitoring samples in (milliseconds)"),
+    ("--monitoring", "Enable monitoring"),
+    ("--external_debugger=<int>", "Enables external debugger connection on the specified port (or 9999 if empty)"),
+    ("--external_debugger", "Enables external debugger connection on the default port 9999"),
 ]
 
 SLURM_FLAG_OPTIONS = [
@@ -170,51 +175,87 @@ def _first_true(**flags: bool) -> str:
     return "unknown"
 
 
+# def select_submission_flags(backend: ExecutionBackend) -> list[str]:
+#     options = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
+
+#     table = Table(title=f"Additional {backend.value.upper()} submission flags", show_lines=False)
+#     table.add_column("#", style="cyan", justify="right")
+#     table.add_column("Flag", style="bold")
+#     table.add_column("Description")
+
+#     for index, (flag, description) in enumerate(options, start=1):
+#         table.add_row(str(index), flag, description)
+
+#     console.print()
+#     console.print(Panel(table, title="Flag selection", border_style="cyan", title_align="left"))
+#     console.print("Enter one or more numbers separated by commas. Leave empty to keep the current command.")
+
+#     raw_selection = Prompt.ask(
+#         "[yellow]Select flags[/yellow]",
+#         default="",
+#         show_default=False,
+#     ).strip()
+
+#     if not raw_selection:
+#         return []
+
+#     selected_indexes: list[int] = []
+#     for chunk in raw_selection.split(","):
+#         text = chunk.strip()
+#         if not text:
+#             continue
+#         if not text.isdigit():
+#             print_error(f"Invalid selection: {text}", "Use comma-separated numbers such as 1,3")
+#             return []
+#         index = int(text)
+#         if index < 1 or index > len(options):
+#             print_error(f"Invalid selection: {index}", f"Choose values between 1 and {len(options)}")
+#             return []
+#         if index not in selected_indexes:
+#             selected_indexes.append(index)
+
+#     selected_flags: list[str] = []
+#     for index in selected_indexes:
+#         template = options[index - 1][0]
+#         selected_flags.append(_resolve_flag_value(template))
+
+#     return selected_flags
+
+
+# def select_submission_flags(backend: ExecutionBackend) -> list[str]:
+#     options = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
+
+#     selected = inquirer.checkbox(
+#         message=f"Select {backend.value.upper()} submission flags",
+#         choices=[
+#             {"name": f"{flag} - {description}", "value": flag}
+#             for flag, description in options
+#         ],
+#         instruction="Use arrow keys to move, space to select, enter to confirm",
+#     ).execute()
+
+#     return [_resolve_flag_value(flag) for flag in selected]
+
+
 def select_submission_flags(backend: ExecutionBackend) -> list[str]:
     options = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
 
-    table = Table(title=f"Additional {backend.value.upper()} submission flags", show_lines=False)
-    table.add_column("#", style="cyan", justify="right")
-    table.add_column("Flag", style="bold")
-    table.add_column("Description")
+    selected = questionary.checkbox(
+        f"Select {backend.value.upper()} submission flags",
+        choices=[
+            questionary.Choice(
+                title=f"{flag} - {description}",
+                value=flag,
+            )
+            for flag, description in options
+        ],
+        instruction="Use arrow keys to move, space to select, enter to confirm",
+    ).ask()
 
-    for index, (flag, description) in enumerate(options, start=1):
-        table.add_row(str(index), flag, description)
-
-    console.print()
-    console.print(Panel(table, title="Flag selection", border_style="cyan", title_align="left"))
-    console.print("Enter one or more numbers separated by commas. Leave empty to keep the current command.")
-
-    raw_selection = Prompt.ask(
-        "[yellow]Select flags[/yellow]",
-        default="",
-        show_default=False,
-    ).strip()
-
-    if not raw_selection:
+    if not selected:
         return []
 
-    selected_indexes: list[int] = []
-    for chunk in raw_selection.split(","):
-        text = chunk.strip()
-        if not text:
-            continue
-        if not text.isdigit():
-            print_error(f"Invalid selection: {text}", "Use comma-separated numbers such as 1,3")
-            return []
-        index = int(text)
-        if index < 1 or index > len(options):
-            print_error(f"Invalid selection: {index}", f"Choose values between 1 and {len(options)}")
-            return []
-        if index not in selected_indexes:
-            selected_indexes.append(index)
-
-    selected_flags: list[str] = []
-    for index in selected_indexes:
-        template = options[index - 1][0]
-        selected_flags.append(_resolve_flag_value(template))
-
-    return selected_flags
+    return [_resolve_flag_value(flag) for flag in selected]
 
 
 def _resolve_flag_value(template: str) -> str:

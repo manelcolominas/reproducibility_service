@@ -214,18 +214,8 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
-    if not args.yes and view.console.input(
-        "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]"
-    ).lower().startswith("y"):
-        selected_flags = view.select_submission_flags(plan_result.plan.backend)
-        args.extra_flag.extend(selected_flags)
-        plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
-        logger.info(
-            "resolved_command=%s backend=%s provenance_enabled=%s",
-            plan_result.plan.command.as_string(),
-            plan_result.plan.backend.value,
-            provenance_flag,
-        )
+    if not args.yes and view.console.input( "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]" ).lower().startswith("y"):
+        plan_result = _update_plan_with_selected_flags( args=args, plan_service=plan_service, crate=crate, run_directory=run_directory, provenance_enabled=provenance_flag, current_plan=plan_result, logger=logger)
 
     view.print_execution_plan(plan_result.plan)
 
