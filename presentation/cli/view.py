@@ -199,7 +199,7 @@ def select_submission_flags(
     current_command: list[str] | None = None,
 ) -> list[str] | None:
     options = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
-    active_bases = _active_flag_bases(current_command)
+    active_bases = _active_flags(current_command)
 
     selected = questionary.checkbox(
         f"Select {backend.value.upper()} submission flags",
@@ -207,7 +207,7 @@ def select_submission_flags(
             questionary.Choice(
                 title=f"{flag} - {description}",
                 value=flag,
-                checked=_flag_base(flag) in active_bases,
+                checked= flag in active_bases,
             )
             for flag, description in options
         ],
@@ -220,15 +220,11 @@ def select_submission_flags(
     return [_resolve_flag_value(flag) for flag in selected]
 
 
-def _active_flag_bases(current_command: list[str] | None) -> set[str]:
+def _active_flags(current_command: list[str] | None) -> set[str]:
     if not current_command:
         return set()
 
-    return {_flag_base(part) for part in current_command[1:] if part.startswith("--")}
-
-
-def _flag_base(flag: str) -> str:
-    return flag.split("=", 1)[0]
+    return {part for part in current_command[1:] if part.startswith("--")}
 
 
 def _resolve_flag_value(template: str) -> str:
