@@ -90,8 +90,15 @@ class BuildExecutionPlanFailure(BuildExecutionPlanPortError):
 
 
 class DefaultBuildExecutionPlanService:
-    def __init__(self, backend_detector: ExecutionBackendDetector | None = None) -> None:
+    def __init__(
+        self,
+        backend_detector: ExecutionBackendDetector | None = None,
+        log_dir_name: str = "log",
+        results_dir_name: str = "Results",
+    ) -> None:
         self._backend_detector = backend_detector
+        self._log_dir_name = log_dir_name
+        self._results_dir_name = results_dir_name
 
     def execute(self, request: BuildExecutionPlanRequest) -> BuildExecutionPlanResult:
         backend = self._select_backend(request)
@@ -148,8 +155,8 @@ class DefaultBuildExecutionPlanService:
         return ExecutionContext(
             backend=backend,
             run_directory=request.run_directory,
-            log_directory=request.run_directory / "log",
-            results_directory=request.run_directory / "Results",
+            log_directory=request.run_directory / self._log_dir_name,
+            results_directory=request.run_directory / self._results_dir_name,
         )
 
     def _build_command(

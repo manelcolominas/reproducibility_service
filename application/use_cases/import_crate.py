@@ -107,20 +107,26 @@ class DefaultImportCrateService:
         validator: CrateSourceValidator,
         acquirer: CrateSourceAcquirer,
         file_system: FileSystemManager,
+        workflow_dir_name: str,
+        log_dir_name: str,
+        results_dir_name: str,
     ) -> None:
         self._resolver = resolver
         self._validator = validator
         self._acquirer = acquirer
         self._file_system = file_system
+        self._workflow_dir_name = workflow_dir_name
+        self._log_dir_name = log_dir_name
+        self._results_dir_name = results_dir_name
 
     def build_plan(self, request: ImportCrateRequest) -> ImportCratePlan:
         source = self._resolver.resolve(request.raw_source)
         validation = self._validator.validate(source)
 
         workspace_root = request.run_directory
-        crate_root = workspace_root / "crate"
-        log_dir = workspace_root / "log"
-        results_dir = workspace_root / "Results"
+        crate_root = workspace_root / self._workflow_dir_name
+        log_dir = workspace_root / self._log_dir_name
+        results_dir = workspace_root / self._results_dir_name
 
         return ImportCratePlan(
             request=request,

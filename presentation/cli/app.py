@@ -122,13 +122,20 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
         validator=LocalCrateSourceValidator(),
         acquirer=LocalCrateSourceAcquirer(),
         file_system=file_system,
+        workflow_dir_name=settings.workflow_dir_name,
+        log_dir_name=settings.log_dir_name,
+        results_dir_name=settings.results_dir_name,
     )
     inspect_service = DefaultInspectCrateService(
         parser=CrateMetadataParser(), normalizer=CrateMetadataNormalizer()
     )
     dataset_service = DefaultConfigureNewDatasetService(file_system=file_system)
     verify_service = DefaultVerifyInputsService(file_system=file_system)
-    plan_service = DefaultBuildExecutionPlanService(backend_detector=ShutilExecutionBackendDetector())
+    plan_service = DefaultBuildExecutionPlanService(
+        backend_detector=ShutilExecutionBackendDetector(),
+        log_dir_name=settings.log_dir_name,
+        results_dir_name=settings.results_dir_name,
+    )
     provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
 
     import_result = view.run_with_spinner(

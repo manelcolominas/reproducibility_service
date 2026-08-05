@@ -502,8 +502,8 @@ class SubprocessExecutionSubmitter:
         submission.log_directory.mkdir(parents=True, exist_ok=True)
         submission.results_directory.mkdir(parents=True, exist_ok=True)
 
-        stdout_path = submission.log_directory / "stdout.out"
-        stderr_path = submission.log_directory / "stderr.err"
+        stdout_path = submission.log_directory / "log.out"
+        stderr_path = submission.log_directory / "log.err"
         started_at = datetime.now(timezone.utc)
 
         return_code: int | None
@@ -518,6 +518,16 @@ class SubprocessExecutionSubmitter:
                     stderr=stderr_file,
                     check=False,
                 )
+            try:
+                self.move_generated_provenance_crate(
+                    run_directory=submission.run_directory,
+                    results_directory=submission.results_directory,
+                )
+            except OSError as exc:
+                if error_message:
+                    error_message = f"{error_message}; could not move provenance crate(s): {exc}"
+                else:
+                    error_message = f"Could not move provenance crate(s): {exc}"
             return_code = completed.returncode
             status = ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED
             if return_code != 0:
@@ -552,6 +562,27 @@ class SubprocessExecutionSubmitter:
         )
         return ExecutionOutcome(result=result, submission=submission)
 
+    def move_generated_provenance_crate(
+        self,
+        run_directory: Path,
+        results_directory: Path,
+        ) -> list[str]:
+        moved: list[str] = []
+
+        for candidate in run_directory.glob("COMPSs_RO-Crate*"):
+            if not candidate.is_dir():
+                continue
+            destination = results_directory / candidate.name
+
+        # Avoid accidental overwrite if folder already exists in Result.
+        if destination.exists():
+            suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            destination = results_directory / f"{candidate.name}_{suffix}"
+
+        shutil.move(str(candidate), str(destination))
+        moved.append(destination.name)
+
+        return moved
 
 __all__ = [
     "LocalFileSystem",

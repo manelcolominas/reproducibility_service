@@ -8,9 +8,9 @@ from pathlib import Path
 class AppSettings:
     service_root: Path
     runs_root: Path
-    workflow_dir_name: str = "crate"
+    workflow_dir_name: str = "Workflow"
     log_dir_name: str = "log"
-    results_dir_name: str = "Results"
+    results_dir_name: str = "Result"
     submission_filename: str = "compss_submission_command_line.txt"
     metadata_filename: str = "ro-crate-metadata.json"
     default_backend: str = "auto"
