@@ -10,7 +10,7 @@ from __future__ import annotations
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
 
@@ -22,6 +22,22 @@ from application.use_cases.verify_inputs import VerifyInputsResult
 from domain.models.crate import CrateSummary
 from domain.models.execution import ExecutionPlan
 from domain.models.verification import VerificationState
+from domain.models.execution import ExecutionPlan, ExecutionBackend
+
+LOCAL_FLAG_OPTIONS = [
+    ("--graph", "Generate the task graph"),
+    ("-g", "Enable graph generation shortcut"),
+    ("-t", "Enable tracing"),
+    ("--tracing", "Enable tracing"),
+    ("--tracing=<value>", "Set tracing mode explicitly"),
+]
+
+SLURM_FLAG_OPTIONS = [
+    ("--sc_cfg=<name>", "Scheduler configuration name"),
+    ("--exec_time=<minutes>", "Execution time limit in minutes"),
+    ("--job_name=<name>", "SLURM job name"),
+    ("--queue=<name>", "Target SLURM queue"),
+]
 
 console = Console()
 
@@ -152,3 +168,59 @@ def _first_true(**flags: bool) -> str:
         if value:
             return name
     return "unknown"
+
+
+def select_submission_flags(backend: ExecutionBackend) -> list[str]:
+    options = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
+
+    table = Table(title=f"Additional {backend.value.upper()} submission flags", show_lines=False)
+    table.add_column("#", style="cyan", justify="right")
+    table.add_column("Flag", style="bold")
+    table.add_column("Description")
+
+    for index, (flag, description) in enumerate(options, start=1):
+        table.add_row(str(index), flag, description)
+
+    console.print()
+    console.print(Panel(table, title="Flag selection", border_style="cyan", title_align="left"))
+    console.print("Enter one or more numbers separated by commas. Leave empty to keep the current command.")
+
+    raw_selection = Prompt.ask(
+        "[yellow]Select flags[/yellow]",
+        default="",
+        show_default=False,
+    ).strip()
+
+    if not raw_selection:
+        return []
+
+    selected_indexes: list[int] = []
+    for chunk in raw_selection.split(","):
+        text = chunk.strip()
+        if not text:
+            continue
+        if not text.isdigit():
+            print_error(f"Invalid selection: {text}", "Use comma-separated numbers such as 1,3")
+            return []
+        index = int(text)
+        if index < 1 or index > len(options):
+            print_error(f"Invalid selection: {index}", f"Choose values between 1 and {len(options)}")
+            return []
+        if index not in selected_indexes:
+            selected_indexes.append(index)
+
+    selected_flags: list[str] = []
+    for index in selected_indexes:
+        template = options[index - 1][0]
+        selected_flags.append(_resolve_flag_value(template))
+
+    return selected_flags
+
+
+def _resolve_flag_value(template: str) -> str:
+    if "<" not in template or ">" not in template:
+        return template
+
+    placeholder = template[template.index("<") + 1:template.index(">")]
+    value = Prompt.ask(f"[yellow]Value for {template} ({placeholder})[/yellow]").strip()
+    return template.replace(f"<{placeholder}>", value)

@@ -217,7 +217,8 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
     if not args.yes and view.console.input(
         "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]"
     ).lower().startswith("y"):
-        args.command = Prompt.ask("[yellow]Enter the new submission command[/yellow]")
+        selected_flags = view.select_submission_flags(plan_result.plan.backend)
+        args.extra_flag.extend(selected_flags)
         plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
         logger.info(
             "resolved_command=%s backend=%s provenance_enabled=%s",
@@ -291,6 +292,29 @@ def _build_run_logger(run_directory: Path) -> logging.Logger:
         logger.addHandler(file_handler)
 
     return logger
+
+def _update_plan_with_selected_flags(
+    args: argparse.Namespace,
+    plan_service,
+    crate,
+    run_directory: Path,
+    provenance_enabled: bool,
+    current_plan,
+    logger: logging.Logger,
+):
+    selected_flags = view.select_submission_flags(current_plan.plan.backend)
+    if not selected_flags:
+        return current_plan
+
+    args.extra_flag.extend(selected_flags)
+    plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_enabled)
+    logger.info(
+        "resolved_command=%s backend=%s provenance_enabled=%s",
+        plan_result.plan.command.as_string(),
+        plan_result.plan.backend.value,
+        provenance_enabled,
+    )
+    return plan_result
 
 def main() -> None:
     raise SystemExit(run_app())
