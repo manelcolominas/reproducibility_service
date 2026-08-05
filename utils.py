@@ -667,12 +667,29 @@ def get_submission_command(crate_path: str) -> str:
 
 
 def resolve_instrument_file(crate: ROCrate, instrument_id: str) -> str | None:
+    # 1) Direct hit: instrument already points to a file entity id/path
+    entity = get_by_id(crate, instrument_id)
+    if entity is not None:
+        entity_type = entity.get("@type", [])
+        if isinstance(entity_type, str):
+            entity_type = [entity_type]
+        if "File" in entity_type:
+            return entity.id
+
+    # 2) Fallback: resolve through hasPart relation
     for entity in crate.get_entities():
-        if "File" in entity.get("@type", []):
-            has_part = entity.get("hasPart", [])
-            if not isinstance(has_part, list):
-                has_part = [has_part]
-            for part in has_part:
-                if getattr(part, "id", None) == instrument_id:
-                    return entity.id
+        entity_type = entity.get("@type", [])
+        if isinstance(entity_type, str):
+            entity_type = [entity_type]
+        if "File" not in entity_type:
+            continue
+
+        has_part = entity.get("hasPart", [])
+        if not isinstance(has_part, list):
+            has_part = [has_part]
+        for part in has_part:
+            if getattr(part, "id", None) == instrument_id:
+                # Return the actual instrument file id, not the container id
+                return getattr(part, "id", None)
+
     return None
