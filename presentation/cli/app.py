@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import uuid
+import logging
 from pathlib import Path
 
 from rich.prompt import Prompt
@@ -92,29 +93,48 @@ def run_app(argv: list[str] | None = None) -> int:
     runs_root = source_path.resolve().parent
     run_directory = runs_root / f"reproducibility_service_{run_id}"
 
+    logger = _build_run_logger(run_directory)
+    logger.info("source=%s", args.source)
+
     view.print_banner()
 
     try:
-        crate, plan_result = _run_pipeline(args, settings, run_directory)
+        crate, plan_result = _run_pipeline(args, settings, run_directory, logger)
     except ServiceError as exc:
+        logger.exception("service_error=%s details=%s", exc.message, exc.details)
         view.print_error(exc.message, exc.details)
         return 1
     except KeyboardInterrupt:
+        logger.info("final_status=aborted_by_user")
         view.console.print("\n[yellow]Aborted by user.[/yellow]")
         return 130
 
     if plan_result is None:
+        logger.info("final_status=not_executed")
         return 0
+
+    logger.info(
+        "backend=%s provenance_enabled=%s command=%s",
+        plan_result.plan.backend.value,
+        plan_result.plan.provenance_enabled,
+        plan_result.plan.command.as_string(),
+    )
 
     view.console.print(f"Running submission command: {plan_result.plan.command.as_string()}")
 
     submitter = SubprocessExecutionSubmitter()
     outcome = view.run_with_spinner("Executing workflow...", submitter.submit, plan_result.submission)
     view.print_final_summary(outcome)
+
+    logger.info(
+        "final_status=%s return_code=%s",
+        "succeeded" if outcome.succeeded else "failed",
+        outcome.result.return_code,
+    )
     return 0 if outcome.succeeded else 1
 
 
-def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory: Path):
+def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory: Path, logger: logging.Logger):
     file_system = LocalFileSystem()
 
     import_service = DefaultImportCrateService(
@@ -153,14 +173,10 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
     view.print_inspect_result(inspect_result, inspect_result.crate)
 
     if inspect_result.crate is None:
+        logger.info("final_status=invalid_crate_metadata")
         view.print_error("Could not build a usable crate summary from the metadata found.")
         return None, None
 
-    # The crate root is wherever the metadata file actually lives on disk
-    # (RO-Crate convention: artifact paths are relative to the metadata
-    # file's directory), which the normalizer already resolved. This can
-    # differ from the import working path, e.g. a zip with a wrapping
-    # top-level folder.
     crate = inspect_result.crate
 
     if args.new_dataset:
@@ -178,6 +194,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
         if not args.yes and not view.console.input(
             "[yellow]Some inputs are missing. Continue anyway ? [y/N]: [/yellow]"
         ).lower().startswith("y"):
+            logger.info("final_status=aborted_after_failed_verification")
             view.console.print("Aborted after failed verification.")
             return crate, None
 
@@ -188,16 +205,26 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
         ).lower().startswith("y")
 
     plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
+    logger.info(
+        "resolved_command=%s backend=%s provenance_enabled=%s",
+        plan_result.plan.command.as_string(),
+        plan_result.plan.backend.value,
+        provenance_flag,
+    )
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
     if not args.yes and view.console.input(
         "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]"
     ).lower().startswith("y"):
-        args.command = Prompt.ask(
-            "[yellow]Enter the new submission command[/yellow]"
-        )
+        args.command = Prompt.ask("[yellow]Enter the new submission command[/yellow]")
         plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
+        logger.info(
+            "resolved_command=%s backend=%s provenance_enabled=%s",
+            plan_result.plan.command.as_string(),
+            plan_result.plan.backend.value,
+            provenance_flag,
+        )
 
     view.print_execution_plan(plan_result.plan)
 
@@ -213,6 +240,8 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
                 submitter_ror=args.submitter_ror,
             )
         )
+        if provenance_result.created_metadata_file:
+            logger.info("provenance_metadata=%s", provenance_result.created_metadata_file)
         view.print_provenance_result(provenance_result)
 
     return crate, plan_result
@@ -247,6 +276,21 @@ def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Pa
                 submission_command=manual_command,
             )
         )
+
+def _build_run_logger(run_directory: Path) -> logging.Logger:
+    log_dir = run_directory / "log"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    logger = logging.getLogger(f"reproducibility_service.{run_directory.name}")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    if not any(isinstance(handler, logging.FileHandler) for handler in logger.handlers):
+        file_handler = logging.FileHandler(log_dir / "rs_log.txt", encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logger.addHandler(file_handler)
+
+    return logger
 
 def main() -> None:
     raise SystemExit(run_app())
