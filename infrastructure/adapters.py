@@ -566,21 +566,21 @@ class SubprocessExecutionSubmitter:
         self,
         run_directory: Path,
         results_directory: Path,
-        ) -> list[str]:
+    ) -> list[str]:
         moved: list[str] = []
 
         for candidate in run_directory.glob("COMPSs_RO-Crate*"):
             if not candidate.is_dir():
                 continue
+
             destination = results_directory / candidate.name
 
-        # Avoid accidental overwrite if folder already exists in Result.
-        if destination.exists():
-            suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            destination = results_directory / f"{candidate.name}_{suffix}"
+            if destination.exists():
+                suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                destination = results_directory / f"{candidate.name}_{suffix}"
 
-        shutil.move(str(candidate), str(destination))
-        moved.append(destination.name)
+            shutil.move(str(candidate), str(destination))
+            moved.append(destination.name)
 
         return moved
 
