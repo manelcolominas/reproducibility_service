@@ -32,7 +32,7 @@ _LOCAL_UNSUPPORTED_FLAGS = {
     "--exec_time",
     "--project_name",
     "--worker_working_dir",
-    "--pythonpath",
+    "--pythonpath", # pythonpath is supported in local execution
 }
 
 _PATH_VALUE_FLAGS = {
