@@ -232,6 +232,14 @@ if __name__ == "__main__":
         link_or_path = sys.argv[1]  # take the link or path given by the user
         print(f"Source for crate: {link_or_path}")
         CRATE_PATH = get_workflow(SUB_DIRECTORY_PATH, link_or_path)
+        
+        if not CRATE_PATH or not os.path.exists(CRATE_PATH):
+            raise FileNotFoundError(f"Resolved crate path does not exist: {CRATE_PATH}")
+        
+        if not os.path.exists(os.path.join(CRATE_PATH, "ro-crate-metadata.json")):
+            raise FileNotFoundError(
+                f"ro-crate-metadata.json not found in resolved crate path: {CRATE_PATH}"
+            )
         # print("Crate path is:",CRATE_PATH)
         DATA_PERSISTENCE = get_data_persistence_status(CRATE_PATH)
         print_colored(

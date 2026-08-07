@@ -106,31 +106,66 @@ def get_by_id(entity: ROCrate, id: str):
 
 def get_Create_Action(crate: ROCrate):
     """
-    To get the CreateAction entity from the ROCrate.
-    Args:
-        entity (ROCrate): The ROCrate object.
-
-    Returns:
-        _type_: None if not found else the CreateAction entity.
+    Return the main workflow CreateAction when possible.
+    Fallback order:
+    1) CreateAction whose instrument matches root mainEntity
+    2) COMPSs-like workflow CreateAction by name/fields
+    3) first CreateAction found
     """
-    # Loop through all entities in the RO-Crate
+    main_entity = None
+    try:
+        main_entity = crate.root_dataset.get("mainEntity")
+    except Exception:
+        main_entity = None
+
+    first_create_action = None
+    fallback_compss_action = None
+
     for entity in crate.get_entities():
-        if entity.type == "CreateAction":
+        # Robustly detect CreateAction across possible type formats
+        e_type = getattr(entity, "type", [])
+        is_create_action = (
+            ("CreateAction" in e_type)
+            if isinstance(e_type, list)
+            else (e_type == "CreateAction" or "CreateAction" in str(e_type))
+        )
+        if not is_create_action:
+            continue
+
+        if first_create_action is None:
+            first_create_action = entity
+
+        instrument = entity.get("instrument")
+        if main_entity is not None and instrument == main_entity:
             return entity
-    return None
+
+        # Fallback for crates where instrument is missing/incomplete
+        ca_name = entity.get("name", "")
+        if (
+            fallback_compss_action is None
+            and isinstance(ca_name, str)
+            and ca_name.startswith("COMPSs")
+            and all(entity.get(k) for k in ["actionStatus", "endTime", "agent"])
+        ):
+            fallback_compss_action = entity
+
+    return fallback_compss_action or first_create_action
 
 
-def get_instrument(entity: ROCrate):
+def get_instrument(crate: ROCrate):
     """
-    To get the instrument ID from the CreateAction entity.
-    Args:
-        entity (ROCrate): The ROCrate object.
-
-    Returns:
-        _type_: The ID of the instrument.
+    Get instrument id from the selected CreateAction.
     """
-    createAction = get_Create_Action(entity)
-    return createAction["instrument"].id
+    create_action = get_Create_Action(crate)
+    if create_action is None or "instrument" not in create_action:
+        raise ValueError("Could not find a CreateAction with instrument in the crate.")
+
+    instrument = create_action["instrument"]
+    if hasattr(instrument, "id"):
+        return instrument.id
+    if isinstance(instrument, dict):
+        return instrument.get("@id")
+    return str(instrument)
 
 
 def get_objects(entity: ROCrate) -> list[str]:

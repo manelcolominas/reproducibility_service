@@ -32,24 +32,13 @@ from utils import print_colored, print_colored_ns, TextColor, executor, get_yes_
 def get_workflow(execution_path: str, link_or_path: str) -> str:
     """
     Get the workflow from the path or link provided by the user.
-    If path it may need to extract it to the workflow directory.
-
-    Args:
-        execution_path (str): The path to the execution directory.
-        link_or_path (str): The link or path to the workflow.
-
-    Raises:
-        ValueError: It can occur if the file is not a valid zip file or the link is not a valid URL.
-    Returns:
-        str: The path to the workflow
+    If it is a zip, extract under execution_path/Workflow and return the
+    actual crate directory (the one containing ro-crate-metadata.json).
     """
     workflow_path = os.path.join(execution_path, "Workflow")
-    workflow_source = None
+    os.makedirs(workflow_path, exist_ok=True)
 
-    if link_or_path.startswith("http"):
-        workflow_source = "link"
-    else:
-        workflow_source = "path"
+    workflow_source = "link" if link_or_path.startswith("http") else "path"
 
     if workflow_source == "path":
         print_colored(
@@ -61,9 +50,14 @@ def get_workflow(execution_path: str, link_or_path: str) -> str:
         if zipfile.is_zipfile(crate_path):
             shutil.copy(crate_path, os.path.join(workflow_path, "my_crate.zip"))
         elif os.path.isdir(crate_path):
+            # If a directory is passed, validate it looks like a crate
+            if not os.path.exists(os.path.join(crate_path, "ro-crate-metadata.json")):
+                raise ValueError(
+                    f"Directory {crate_path} does not contain ro-crate-metadata.json"
+                )
             return crate_path
         else:
-            raise ValueError(f"The file at path {crate_path} is not a valid")
+            raise ValueError(f"The file at path {crate_path} is not a valid zip/directory")
 
     elif workflow_source == "link":
         print_colored(
@@ -75,15 +69,13 @@ def get_workflow(execution_path: str, link_or_path: str) -> str:
             TextColor.YELLOW,
         )
         crate_link = link_or_path
-        # print("The link to download the crate is:", crate_link)
-        if not urllib.parse.urlparse(crate_link).scheme in ["http", "https"]:
+        if urllib.parse.urlparse(crate_link).scheme not in ["http", "https"]:
             raise ValueError("The link provided is not a valid URL.")
 
         executor(
             ["wget", "-O", os.path.join(workflow_path, "my_crate.zip"), crate_link],
             execution_path,
         )
-
     else:
         raise ValueError("Invalid input. Please enter 'path' or 'link'.")
 
@@ -92,20 +84,32 @@ def get_workflow(execution_path: str, link_or_path: str) -> str:
     try:
         with zipfile.ZipFile(crate_zip_path, "r") as zip_ref:
             zip_ref.extractall(workflow_path)
-            names = zip_ref.namelist()
-            cleaned = [name.rstrip("/") for name in names if name.strip()]
-            common_path = os.path.commonpath(
-                [os.path.join(workflow_path, name) for name in cleaned]
+
+        # Find real crate root by metadata marker
+        crate_roots = []
+        for root, _, files in os.walk(workflow_path):
+            if "ro-crate-metadata.json" in files:
+                crate_roots.append(root)
+
+        if not crate_roots:
+            raise ValueError(
+                f"No ro-crate-metadata.json found after extracting {crate_zip_path}"
             )
-        print(f"The workflow has been successfully extracted to {common_path}")
-        return common_path  # returns crate path
-    except zipfile.BadZipFile as e:
+
+        # Prefer the shallowest match
+        crate_roots.sort(key=lambda p: p.count(os.sep))
+        crate_root = crate_roots[0]
+
+        print(f"The workflow has been successfully extracted to {crate_root}")
+        return crate_root
+
+    except zipfile.BadZipFile:
         raise ValueError(
             f"The file {crate_zip_path} is not a valid zip file or it is corrupted."
         )
     finally:
-        os.remove(crate_zip_path)
-
+        if os.path.exists(crate_zip_path):
+            os.remove(crate_zip_path)
 
 def get_more_flags(command: list[str], previous_flags: list[str]) -> list[str]:
     """
