@@ -57,18 +57,153 @@ LOCAL_FLAG_OPTIONS = [
     ("--task_execution=<compss|storage>", "Task execution under COMPSs or Storage. Default: compss"),
     ("--storage_impl=<string>", "Path to an storage implementation. Shortcut to setting pypath and classpath. See Runtime/storage in your installation folder."),
     ("--storage_conf=<path>", "Path to the storage configuration file"),
+    ("--project=<path>", "Path to the COMPSs project file"),
+    ("--resources=<path>", "Path to the COMPSs resources file"),
+    ("--socket=<string>", "Socket name for the COMPSs runtime"),
+    ("--lang=<name>", "Language for the COMPSs runtime"),
+    ("--summary", "Print a summary of the COMPSs execution"),
+    ("--log_level=<level>", "Set the log level for the COMPSs runtime"),
+    ("--debug", "Enable debug mode for the COMPSs runtime"),
+    ("-d", "Enable debug mode for the COMPSs runtime"),
+    ("--extrae_config_file=<path>", "Path to the Extrae configuration file"),
+    ("--extrae_config_file_python=<path>", "Path to the Extrae configuration file for Python"),
+    ("--trace_label=<string>", "Label for the generated trace"),
+    ("--tracing_task_dependencies=<bool>", "Enable tracing of task dependencies (true/false)"),
+    ("--generate_trace=<bool>", "Enable tracing of task dependencies"),
+    ("--delete_trace_packages=<bool>", "Delete trace packages after execution (true/false)"),
+    ("--custom_threads=<bool>", "Enable custom threads for the COMPSs runtime (true/false)"),
+    ("--comm=<ClassName>", "Communication implementation class name for the COMPSs runtime"),
+    ("--conn=<className>", "Connection implementation class name for the COMPSs runtime"),
+    ("--streaming=<type>", "Enable streaming for the COMPSs runtime (type: TCP, UDP, etc.)"),
+    ("--streaming_master_name=<str>", "Master name for the streaming implementation"),
+    ("--streaming_master_port=<int>", "Master port for the streaming implementation"),
+    ("--scheduler=<className>", "Scheduler implementation class name for the COMPSs runtime"),
+    ("--scheduler_config_file=<path>", "Path to the scheduler configuration file"),
+    ("--checkpoint=<className>", "Checkpoint implementation class name for the COMPSs runtime"),
+    ("--checkpoint_params=<string>", "Parameters for the checkpoint implementation"),
+    ("--checkpoint_folder=<path>", "Folder for storing checkpoints"),
+    ("--library_path=<path>", "Path to the library for the COMPSs runtime"),
+    ("--classpath=<path>", "Path to the classpath for the COMPSs runtime"),
+    ("--appdir=<path>", "Path to the application directory for the COMPSs runtime"),
+    #("--pythonpath=<path>", "Path to the Python path for the COMPSs runtime"),
+    ("--env_script=<path>", "Path to the environment script for the COMPSs runtime"),
+    ("--log_dir=<path>", "Path to the log directory for the COMPSs runtime"),
+    ("--master_working_dir=<path>", "Path to the master working directory for the COMPSs runtime"),
+    ("--uuid=<int>", "UUID for the COMPSs runtime"),
+    ("--master_name=<string>", "Master name for the COMPSs runtime"),
+    ("--master_port=<int>", "Master port for the COMPSs runtime"),
+    ("--jvm_master_opts=<string>", "JVM options for the master process of the COMPSs runtime"),
+    ("--jvm_workers_opts=<string>", "JVM options for the worker processes of the COMPSs runtime"),
+    ("--cpu_affinity=<string>", "CPU affinity for the COMPSs runtime"),
+    ("--gpu_affinity=<string>", "GPU affinity for the COMPSs runtime"),
+    ("--fpga_affinity=<string>", "FPGA affinity for the COMPSs runtime"),
+    ("--fpga_reprogram=<string>", "FPGA reprogramming command for the COMPSs runtime"),
+    ("--io_executors=<int>", "Number of I/O executors for the COMPSs runtime"),
+    ("--task_count=<int>", "Number of tasks for the COMPSs runtime"),
+    ("--input_profile=<path>", "Path to the input profile for the COMPSs runtime"),
+    ("--output_profile=<path>", "Path to the output profile for the COMPSs runtime"),
+    ("--PyObject_serialize=<bool>", "Enable or disable PyObject serialization (true/false)"),
+    ("--persistent_worker_c=<bool>", "Enable or disable persistent worker for C tasks (true/false)"),
+    ("--enable_external_adaptation=<bool>", "Enable or disable external adaptation (true/false)"),
+    ("--gen_coredump", "Enable or disable core dump generation"),
+    ("--keep_workingdir", "Keep the working directory after execution"),
+    ("--python_interpreter=<string>", "Path to the Python interpreter for the COMPSs runtime"),
+    ("--python_propagate_virtual_environment=<bool>", "Enable or disable propagation of the Python virtual environment (true/false)"),
+    ("--python_mpi_worker=<bool>", "Enable or disable MPI worker for Python tasks (true/false)"),
+    ("--python_memory_profile=<string>", "Enable or disable memory profiling for Python tasks (true/false)"),
+    ("--python_cache_profiler=<bool>", "Enable or disable cache profiling for Python tasks (true/false)"),
+    ("--wall_clock_limit=<int>", "Set the wall clock limit for the COMPSs runtime in seconds"),
+    ("--shutdown_in_node_failure=<bool>", "Enable or disable shutdown in node failure (true/false)"),
     ("--provenance=<yaml_file>", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph."),
-    ("--provenance", "Generate COMPSs workflow provenanºce data in RO-Crate format using a YAML configuration file. Automatically activates --graph.")
+    ("--provenance", "Generate COMPSs workflow provenanºce data in RO-Crate format using a YAML configuration file. Automatically activates --graph."),
+    ("--provenance_folder=<path>", "Folder to store the generated provenance data in RO-Crate format"),
+    ("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format"),
+    ("-z", "Generate a ZIP file containing the provenance data in RO-Crate format"),
 ]
 
 SLURM_FLAG_OPTIONS = [
+    ("--heterogeneous", "Enable heterogeneous execution"),
     ("--sc_cfg=<name>", "Scheduler configuration name"),
     ("--exec_time=<minutes>", "Execution time limit in minutes"),
     ("--job_name=<name>", "SLURM job name"),
     ("--queue=<name>", "Target SLURM queue"),
+    ("--reservation=<name>", "SLURM reservation name"),
+    ("--job_execution_dir=<path>", "Directory for job execution"),
+    ("--pre_env_script=<path/to/script>", "Path to a script to be executed before the environment script"),
+    ("--extra_submit_flag=<flag>", "Extra flag to be passed to the SLURM submission command"),
+    ("--storage_container_image=<string>", "Container image for the storage implementation"),
+    ("--storage_cpu_affinity=<string>", "CPU affinity for the storage implementation"),
+    ("--constraints=<constraints>", "Constraints for the SLURM job"),
+    ("--project_name=<name>", "Project name for the SLURM job"),
+    ("--qos=<qos>", "Quality of Service for the SLURM job"),
+    ("--forward_cpus_per_node=<bool>", "Forward CPUs per node to the SLURM job (true/false)"),
+    ("--job_dependency=<jobID> ", "Set a job dependency for the SLURM job"),
+    ("--forward_time_limit=<true|false>", "Forward time limit to the SLURM job (true/false)"),
+    ("--storage_home=<string>", "Storage home directory for the SLURM job"),
+    ("--storage_props=<string>", "Storage properties for the SLURM job"),
+    ("--agents=<string>", "Agents for the SLURM job"),
+    ("--agents", "Agents for the SLURM job"),
+    ("--num_nodes=<int>", "Number of nodes for the SLURM job"),
+    ("--num_switches=<int>", "Number of switches for the SLURM job"),
+    ("--type_cfg=<file_location>", "Type configuration file location for the SLURM job"),
+    ("--master=<master_node_type>", "Master node type for the SLURM job"),
+    ("--workers=type_X:nodes,type_Y:nodes", "Worker node types and counts for the SLURM job"),
+    ("--cpus_per_node=<int>", "CPUs per node for the SLURM job"),
+    ("--gpus_per_node=<int>", "GPUs per node for the SLURM job"),
+    ("--fpgas_per_node=<int>", "FPGAs per node for the SLURM job"),
+    ("--io_executors=<int>", "I/O executors per node for the SLURM job"),
+    ("--fpga_reprogram=<string>", "FPGA reprogramming command for the SLURM job"),
+    ("--max_tasks_per_node=<int>", "Maximum tasks per node for the SLURM job"),
+    ("--node_memory=<MB>", "Node memory in MB for the SLURM job"),
+    ("--node_storage_bandwidth=<MB>", "Node storage bandwidth in MB for the SLURM job"),
+    ("--network=<name>", "Network type for the SLURM job"),
+    ("--prolog=<string>", "Prolog script for the SLURM job"),
+    ("--epilog=<string>", "Epilog script for the SLURM job"),
+    ("--master_working_dir=<name | path>", "Master working directory for the SLURM job"),
+    ("--worker_working_dir=<name | path>", "Worker working directory for the SLURM job"),
+    ("--worker_in_master_cpus=<int>", "Number of worker CPUs in the master node for the SLURM job"),
+    ("--worker_in_master_memory=<int>", "Amount of worker memory in the master node for the SLURM job"),
+    ("--worker_port_range=<min>,<max>", "Port range for workers in the SLURM job"),
+    ("--jvm_worker_in_master_opts=<string>", "JVM options for workers in the master node for the SLURM job"),
+    ("--container_image=<path>", "Container image for the SLURM job"),
+    ("--container_compss_path=<path>", "Path to COMPSs installation inside the container for the SLURM job"),
+    ("--container_opts=<string>", "Extra options for the container execution in the SLURM job"),
+    ("--elasticity=<max_extra_nodes>", "Maximum extra nodes for elasticity in the SLURM job"),
+    ("--automatic_scaling=<bool>", "Enable or disable automatic scaling for the SLURM job (true/false)"),
+    ("--jupyter_notebook=<path>", "Path to a Jupyter notebook to be executed in the SLURM job"),
+    ("--jupyter_notebook", "Enable execution of a Jupyter notebook in the SLURM job"),
+    ("--ipython", "Enable execution of an IPython shell in the SLURM job"),
+    ("--ear=<bool|string>", "Enable or disable execution after recovery (true/false or path to recovery file)"),
 ]
 
 console = Console()
+
+
+def _option_flag_base(flag_spec: str) -> str:
+    return flag_spec.split("=", 1)[0]
+
+LOCAL_FLAG_BASES = {_option_flag_base(flag) for flag, _ in LOCAL_FLAG_OPTIONS}
+SLURM_FLAG_BASES = {_option_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS}
+SLURM_ONLY_FLAG_BASES = SLURM_FLAG_BASES - LOCAL_FLAG_BASES
+
+def _flag_base(flag: str) -> str:
+    return flag.split("=", 1)[0]
+
+def _filter_flags_for_backend(
+    backend: ExecutionBackend,
+    flags: list[str],
+) -> tuple[list[str], list[str]]:
+    if backend != ExecutionBackend.LOCAL:
+        return flags, []
+
+    kept: list[str] = []
+    removed: list[str] = []
+    for flag in flags:
+        if _flag_base(flag) in SLURM_ONLY_FLAG_BASES:
+            removed.append(flag)
+        else:
+            kept.append(flag)
+    return kept, removed
 
 
 def print_banner() -> None:
@@ -199,59 +334,84 @@ def _first_true(**flags: bool) -> str:
     return "unknown"
 
 
-# with InquirerPy, the checkbox prompt does not support dynamic input for flags with placeholders, so we need to resolve them after selection. The following function is commented out because it was replaced by a version using questionary, which allows for better handling of user input.
-# def select_submission_flags(backend: ExecutionBackend) -> list[str]:
-#     options = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
-
-#     selected = inquirer.checkbox(
-#         message=f"Select {backend.value.upper()} submission flags",
-#         choices=[
-#             {"name": f"{flag} - {description}", "value": flag}
-#             for flag, description in options
-#         ],
-#         instruction="Use arrow keys to move, space to select, enter to confirm",
-#     ).execute()
-
-#     return [_resolve_flag_value(flag) for flag in selected]
-
-
 def select_submission_flags(
     backend: ExecutionBackend,
     current_command: list[str] | None = None,
 ) -> list[str] | None:
-    options = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
-    active_bases = _active_flags(current_command)
+    current_flags = _extract_current_flags(current_command)
+    choices: list[questionary.Choice] = [
+        questionary.Choice(title=flag, value=flag, checked=True)
+        for flag in current_flags
+    ]
+
+    add_pythonpath_choice = "__add_pythonpath__"
+    can_offer_pythonpath = (
+        backend == ExecutionBackend.LOCAL
+        and not any(_flag_base(flag) == "--pythonpath" for flag in current_flags)
+    )
+    if can_offer_pythonpath:
+        choices.append(
+            questionary.Choice(
+                title="Add --pythonpath",
+                value=add_pythonpath_choice,
+                checked=False,
+            )
+        )
+
+    if not choices:
+        console.print("[yellow]No submission flags found in the current command.[/yellow]")
+        return []
 
     selected = questionary.checkbox(
-        f"Select {backend.value.upper()} submission flags",
-        choices=[
-            questionary.Choice(
-                title=f"{flag} - {description}",
-                value=flag,
-                checked= flag in active_bases,
-            )
-            for flag, description in options
-        ],
-        instruction="Use arrow keys to move, space to select, enter to confirm",
+        f"Select {backend.value.upper()} flags to keep (uncheck to remove)",
+        choices=choices,
+        instruction="Use arrow keys to move, space to toggle, enter to confirm",
     ).ask()
 
     if selected is None:
         return None
 
-    return [_resolve_flag_value(flag) for flag in selected]
+    final_flags = [flag for flag in selected if flag != add_pythonpath_choice]
+
+    if add_pythonpath_choice in selected:
+        pythonpath_value = Prompt.ask("Value for --pythonpath (path)").strip()
+        if pythonpath_value:
+            final_flags.append(f"--pythonpath={pythonpath_value}")
+
+    return final_flags
 
 
-def _active_flags(current_command: list[str] | None) -> set[str]:
+def _flag_base(flag: str) -> str:
+    return flag.split("=", 1)[0]
+
+
+def _extract_current_flags(current_command: list[str] | None) -> list[str]:
     if not current_command:
-        return set()
+        return []
 
-    return {part for part in current_command[1:] if part.startswith("--")}
+    extracted: list[str] = []
+    seen: set[str] = set()
+    index = 1
 
+    while index < len(current_command):
+        token = current_command[index]
 
-def _resolve_flag_value(template: str) -> str:
-    if "<" not in template or ">" not in template:
-        return template
+        if not token.startswith("--"):
+            index += 1
+            continue
 
-    placeholder = template[template.index("<") + 1:template.index(">")]
-    value = Prompt.ask(f"[yellow]Value for {template} ({placeholder})[/yellow]").strip()
-    return template.replace(f"<{placeholder}>", value)
+        if "=" in token:
+            flag = token
+            index += 1
+        elif index + 1 < len(current_command) and not current_command[index + 1].startswith("-"):
+            flag = f"{token}={current_command[index + 1]}"
+            index += 2
+        else:
+            flag = token
+            index += 1
+
+        if flag not in seen:
+            extracted.append(flag)
+            seen.add(flag)
+
+    return extracted

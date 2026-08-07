@@ -342,12 +342,28 @@ def _replace_submission_flags(
     if not command_parts:
         return " ".join(selected_flags)
 
-    option_set = view.LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else view.SLURM_FLAG_OPTIONS
-    toggleable_bases = {_flag_base(flag) for flag, _description in option_set}
-
-    filtered_arguments = _strip_toggleable_flags(command_parts[1:], toggleable_bases)
-    updated_parts = [command_parts[0], *selected_flags, *filtered_arguments]
+    positional_arguments = _strip_all_long_flags(command_parts[1:])
+    updated_parts = [command_parts[0], *selected_flags, *positional_arguments]
     return " ".join(updated_parts)
+
+
+def _strip_all_long_flags(arguments: list[str]) -> list[str]:
+    filtered: list[str] = []
+    index = 0
+
+    while index < len(arguments):
+        token = arguments[index]
+
+        if token.startswith("--"):
+            index += 1
+            if "=" not in token and index < len(arguments) and not arguments[index].startswith("-"):
+                index += 1
+            continue
+
+        filtered.append(token)
+        index += 1
+
+    return filtered
 
 
 def _strip_toggleable_flags(arguments: list[str], toggleable_bases: set[str]) -> list[str]:
@@ -368,10 +384,6 @@ def _strip_toggleable_flags(arguments: list[str], toggleable_bases: set[str]) ->
         index += 1
 
     return filtered
-
-
-def _flag_base(flag: str) -> str:
-    return flag.split("=", 1)[0]
 
 
 def main() -> None:
