@@ -256,8 +256,14 @@ class DefaultBuildExecutionPlanService:
             crate_root=request.crate.location.working_path,
         )
 
-        arguments = [argument for argument in arguments if argument != "--provenance" and not argument.startswith("--provenance=")]
-
+        _PROVENANCE_FLAGS = {"--provenance", "-p"}
+        
+        arguments = [
+            argument
+            for argument in arguments
+            if argument not in _PROVENANCE_FLAGS and not argument.startswith("--provenance=")
+        ]
+        
         if request.provenance_enabled:
             arguments.insert(0, "--provenance")
         if request.extra_flags:

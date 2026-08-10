@@ -347,12 +347,18 @@ def _replace_submission_flags(
     return " ".join(updated_parts)
 
 
+PROVENANCE_FLAGS = {"--provenance", "-p"}
+
 def _strip_all_long_flags(arguments: list[str]) -> list[str]:
     filtered: list[str] = []
     index = 0
 
     while index < len(arguments):
         token = arguments[index]
+
+        if token in PROVENANCE_FLAGS:
+            index += 1
+            continue
 
         if token.startswith("--"):
             index += 1

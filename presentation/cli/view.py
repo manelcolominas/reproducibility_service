@@ -385,6 +385,8 @@ def _flag_base(flag: str) -> str:
     return flag.split("=", 1)[0]
 
 
+PROVENANCE_FLAGS = {"--provenance", "-p"}
+
 def _extract_current_flags(current_command: list[str] | None) -> list[str]:
     if not current_command:
         return []
@@ -400,7 +402,43 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
             index += 1
             continue
 
+        if token in PROVENANCE_FLAGS:
+            index += 1
+            continue
+
         if "=" in token:
+            flag = token
+            index += 1
+        elif index + 1 < len(current_command) and not current_command[index + 1].startswith("-"):
+            flag = f"{token}={current_command[index + 1]}"
+            index += 2
+        else:
+            flag = token
+            index += 1
+
+        if flag not in seen and _flag_base(flag) not in PROVENANCE_FLAGS:
+            extracted.append(flag)
+            seen.add(flag)
+
+    return extracted
+    if not current_command:
+        return []
+
+    extracted: list[str] = []
+    seen: set[str] = set()
+    index = 1
+
+    while index < len(current_command):
+        token = current_command[index]
+
+        if not token.startswith("--"):
+            index += 1
+            continue
+
+        if token in {"--provenance", "-p"}:
+            flag = token
+            index += 1
+        elif "=" in token:
             flag = token
             index += 1
         elif index + 1 < len(current_command) and not current_command[index + 1].startswith("-"):
@@ -414,4 +452,4 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
             extracted.append(flag)
             seen.add(flag)
 
-    return extracted
+    return [flag for flag in extracted if _flag_base(flag) not in {"--provenance", "-p"}]
