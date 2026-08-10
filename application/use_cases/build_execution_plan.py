@@ -309,37 +309,64 @@ class DefaultBuildExecutionPlanService:
         for arg in arguments:
             remapped.append(self._remap_single_argument(arg, crate_root))
         return remapped
-    
-    
+
+
     def _remap_single_argument(self, arg: str, crate_root: Path) -> str:
         # Preserve possible trailing slash semantics from original command.
         had_trailing_slash = arg.endswith("/") and arg != "/"
     
-        # Ignore non-path tokens.
         expanded = os.path.expanduser(arg)
         path = Path(expanded)
     
-        # Only remap absolute paths.
-        if not path.is_absolute():
-            return arg
+        if path.is_absolute():
+            # If it already exists locally, keep as-is.
+            if path.exists():
+                return arg
     
-        # If it already exists locally, keep as-is.
-        if path.exists():
-            return arg
-    
-        # Try known anchors first (common in COMPSs crates).
-        candidates = self._candidate_local_paths(path, crate_root)
-        for candidate in candidates:
-            if candidate.exists():
-                return self._format_mapped_path(candidate, had_trailing_slash)
+            # Try known anchors first (common in COMPSs crates).
+            candidates = self._candidate_local_paths(path, crate_root)
+            for candidate in candidates:
+                if candidate.exists():
+                    return self._format_mapped_path(candidate, had_trailing_slash)
+        else:
+            # Relative paths launched from the workspace root must be resolved
+            # against the imported crate contents.
+            candidates = self._candidate_relative_paths(path, crate_root)
+            for candidate in candidates:
+                if candidate.exists():
+                    return self._format_mapped_path(candidate, had_trailing_slash)
     
         # Fallback: unique basename match under crate root.
         basename_matches = list(crate_root.rglob(path.name))
         if len(basename_matches) == 1 and basename_matches[0].exists():
             return self._format_mapped_path(basename_matches[0], had_trailing_slash)
     
-        # If ambiguous or not found, keep original and let runtime surface error.
         return arg
+    
+    
+    def _candidate_relative_paths(self, original: Path, crate_root: Path) -> list[Path]:
+        candidates: list[Path] = []
+        if original.parts:
+            candidates.append(crate_root.joinpath(*original.parts))
+    
+            head = original.parts[0]
+            tail = original.parts[1:]
+            if head in {"src", "application_sources", "datasets", "dataset", "data"} and tail:
+                candidates.append(crate_root / "application_sources" / Path(*tail))
+                candidates.append(crate_root / "src" / Path(*tail))
+    
+        candidates.append(crate_root / "application_sources" / original.name)
+        candidates.append(crate_root / original.name)
+    
+        unique: list[Path] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            key = str(candidate)
+            if key not in seen:
+                unique.append(candidate)
+                seen.add(key)
+        return unique
+
     
     def _candidate_local_paths(self, original: Path, crate_root: Path) -> list[Path]:
         parts = list(original.parts)
