@@ -61,15 +61,15 @@ class RuntimeCommand:
 @dataclass(frozen=True, slots=True)
 class ExecutionContext:
     backend: ExecutionBackend
-    run_directory: Path
+    workspace_directory: Path
     log_directory: Path
     results_directory: Path
     preserve_logs: bool = True
     cleanup_on_failure: bool = False
 
     def __post_init__(self) -> None:
-        if not str(self.run_directory).strip():
-            raise ValueError("ExecutionContext.run_directory cannot be empty")
+        if not str(self.workspace_directory).strip():
+            raise ValueError("ExecutionContext.workspace_directory cannot be empty")
         if not str(self.log_directory).strip():
             raise ValueError("ExecutionContext.log_directory cannot be empty")
         if not str(self.results_directory).strip():

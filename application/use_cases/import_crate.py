@@ -49,14 +49,14 @@ class ImportCrateStatus(str, Enum):
 @dataclass(frozen=True, slots=True)
 class ImportCrateRequest:
     raw_source: str
-    run_directory: Path
+    workspace_directory: Path
     create_workspace: bool = True
 
     def __post_init__(self) -> None:
         if not self.raw_source.strip():
             raise ValidationError("ImportCrateRequest.raw_source cannot be empty")
-        if not str(self.run_directory).strip():
-            raise ValidationError("ImportCrateRequest.run_directory cannot be empty")
+        if not str(self.workspace_directory).strip():
+            raise ValidationError("ImportCrateRequest.workspace_directory cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +140,7 @@ class DefaultImportCrateService:
         source = self._resolver.resolve(request.raw_source)
         validation = self._validator.validate(source)
 
-        workspace_root = request.run_directory
+        workspace_root = request.workspace_directory
         crate_root = workspace_root / self._workflow_dir_name
         log_dir = workspace_root / self._log_dir_name
         results_dir = workspace_root / self._results_dir_name

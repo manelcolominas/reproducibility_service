@@ -46,7 +46,7 @@ class ExecutionRequest:
 class ExecutionSubmission:
     command: RuntimeCommand
     backend: ExecutionBackend
-    run_directory: Path
+    workspace_directory: Path
     log_directory: Path
     results_directory: Path
 

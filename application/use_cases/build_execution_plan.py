@@ -110,7 +110,7 @@ class BuildExecutionPlanStatus(str, Enum):
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanRequest:
     crate: CrateSummary
-    run_directory: Path
+    workspace_directory: Path
     backend: ExecutionBackend = ExecutionBackend.AUTO
     provenance_enabled: bool = False
     extra_flags: tuple[str, ...] = ()
@@ -121,8 +121,8 @@ class BuildExecutionPlanRequest:
     def __post_init__(self) -> None:
         if self.crate is None:
             raise ValidationError("BuildExecutionPlanRequest.crate cannot be None")
-        if not str(self.run_directory).strip():
-            raise ValidationError("BuildExecutionPlanRequest.run_directory cannot be empty")
+        if not str(self.workspace_directory).strip():
+            raise ValidationError("BuildExecutionPlanRequest.workspace_directory cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,7 +183,7 @@ class DefaultBuildExecutionPlanService:
         submission = ExecutionSubmission(
             command=command,
             backend=backend,
-            run_directory=context.run_directory,
+            workspace_directory=context.workspace_directory,
             log_directory=context.log_directory,
             results_directory=context.results_directory,
         )
@@ -222,9 +222,9 @@ class DefaultBuildExecutionPlanService:
     ) -> ExecutionContext:
         return ExecutionContext(
             backend=backend,
-            run_directory=request.run_directory,
-            log_directory=request.run_directory / self._log_dir_name,
-            results_directory=request.run_directory / self._results_dir_name,
+            workspace_directory=request.workspace_directory,
+            log_directory=request.workspace_directory / self._log_dir_name,
+            results_directory=request.workspace_directory / self._results_dir_name,
         )
 
     def _build_command(
@@ -275,7 +275,7 @@ class DefaultBuildExecutionPlanService:
         return RuntimeCommand(
             executable=parts[0],
             arguments=tuple(arguments),
-            working_directory=request.run_directory,
+            working_directory=request.workspace_directory/self._results_dir_name,
         )
 
     def _strip_local_unsupported_flags(self, arguments: list[str]) -> list[str]:

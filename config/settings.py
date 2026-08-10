@@ -55,19 +55,19 @@ class AppSettings:
     def run_prefix(self) -> str:
         return "reproducibility_service_"
 
-    def run_directory(self, run_id: str) -> Path:
+    def workspace_directory(self, run_id: str) -> Path:
         if not run_id.strip():
             raise ValueError("run_id cannot be empty")
         return self.runs_root / f"{self.run_prefix}{run_id}"
 
-    def workflow_root(self, run_directory: Path) -> Path:
-        return run_directory / self.workflow_dir_name
+    def workflow_root(self, workspace_directory: Path) -> Path:
+        return workspace_directory / self.workflow_dir_name
 
-    def log_directory(self, run_directory: Path) -> Path:
-        return run_directory / self.log_dir_name
+    def log_directory(self, workspace_directory: Path) -> Path:
+        return workspace_directory / self.log_dir_name
 
-    def results_directory(self, run_directory: Path) -> Path:
-        return run_directory / self.results_dir_name
+    def results_directory(self, workspace_directory: Path) -> Path:
+        return workspace_directory / self.results_dir_name
 
     def with_default_backend(self, backend: str) -> AppSettings:
         return replace(self, default_backend=backend)

@@ -281,7 +281,7 @@ def print_execution_plan(plan: ExecutionPlan) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Backend", plan.backend.value)
     table.add_row("Command", plan.command.as_string())
-    table.add_row("Run directory", str(plan.context.run_directory))
+    table.add_row("Run directory", str(plan.context.workspace_directory))
     table.add_row("Provenance", "enabled" if plan.provenance_enabled else "disabled")
     console.print(Panel(table, title="4. Execution plan", border_style="green", title_align="left"))
 

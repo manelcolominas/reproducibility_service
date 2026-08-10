@@ -108,15 +108,15 @@ def run_app(argv: list[str] | None = None) -> int:
     run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
     source_path = Path(args.source).expanduser()
     runs_root = source_path.resolve().parent
-    run_directory = runs_root / f"reproducibility_service_{run_id}"
+    workspace_directory = runs_root / f"reproducibility_service_{run_id}"
 
-    logger = _build_run_logger(run_directory)
+    logger = _build_run_logger(workspace_directory)
     logger.info("source=%s", args.source)
 
     view.print_banner()
 
     try:
-        crate, plan_result = _run_pipeline(args, settings, run_directory, logger)
+        crate, plan_result = _run_pipeline(args, settings, workspace_directory, logger)
     except ServiceError as exc:
         logger.exception("service_error=%s details=%s", exc.message, exc.details)
         view.print_error(exc.message, exc.details)
@@ -151,7 +151,7 @@ def run_app(argv: list[str] | None = None) -> int:
     return 0 if outcome.succeeded else 1
 
 
-def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory: Path, logger: logging.Logger):
+def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_directory: Path, logger: logging.Logger):
     file_system = LocalFileSystem()
 
     import_service = DefaultImportCrateService(
@@ -178,7 +178,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
     import_result = view.run_with_spinner(
         "Importing crate source...",
         import_service.execute,
-        ImportCrateRequest(raw_source=args.source, run_directory=run_directory),
+        ImportCrateRequest(raw_source=args.source, workspace_directory=workspace_directory),
     )
     view.print_import_result(import_result)
 
@@ -221,7 +221,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
             "[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]"
         ).lower().startswith("y")
 
-    plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_flag)
+    plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_flag)
     logger.info(
         "resolved_command=%s backend=%s provenance_enabled=%s",
         plan_result.plan.command.as_string(),
@@ -232,7 +232,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
     if not args.yes and view.console.input( "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]" ).lower().startswith("y"):
-        plan_result = _update_plan_with_selected_flags( args=args, plan_service=plan_service, crate=crate, run_directory=run_directory, provenance_enabled=provenance_flag, current_plan=plan_result, logger=logger)
+        plan_result = _update_plan_with_selected_flags( args=args, plan_service=plan_service, crate=crate, workspace_directory=workspace_directory, provenance_enabled=provenance_flag, current_plan=plan_result, logger=logger)
 
     view.print_execution_plan(plan_result.plan)
 
@@ -240,7 +240,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
         provenance_result = provenance_service.execute(
             PrepareProvenanceRequest(
                 crate=crate,
-                provenance_root=run_directory,
+                provenance_root=workspace_directory,
                 submitter_name=args.submitter_name,
                 submitter_email=args.submitter_email,
                 submitter_organization=args.submitter_org,
@@ -255,13 +255,13 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, run_directory
     return crate, plan_result
 
 
-def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Path, provenance_enabled: bool):
+def _build_plan(args: argparse.Namespace, plan_service, crate, workspace_directory: Path, provenance_enabled: bool):
     backend = ExecutionBackend(args.backend)
     try:
         return plan_service.execute(
             BuildExecutionPlanRequest(
                 crate=crate,
-                run_directory=run_directory,
+                workspace_directory=workspace_directory,
                 backend=backend,
                 provenance_enabled=provenance_enabled,
                 extra_flags=tuple(args.extra_flag),
@@ -277,7 +277,7 @@ def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Pa
         return plan_service.execute(
             BuildExecutionPlanRequest(
                 crate=crate,
-                run_directory=run_directory,
+                workspace_directory=workspace_directory,
                 backend=backend,
                 provenance_enabled=provenance_enabled,
                 extra_flags=tuple(args.extra_flag),
@@ -285,11 +285,11 @@ def _build_plan(args: argparse.Namespace, plan_service, crate, run_directory: Pa
             )
         )
 
-def _build_run_logger(run_directory: Path) -> logging.Logger:
-    log_dir = run_directory / "log"
+def _build_run_logger(workspace_directory: Path) -> logging.Logger:
+    log_dir = workspace_directory / "log"
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    logger = logging.getLogger(f"reproducibility_service.{run_directory.name}")
+    logger = logging.getLogger(f"reproducibility_service.{workspace_directory.name}")
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
@@ -305,7 +305,7 @@ def _update_plan_with_selected_flags(
     args: argparse.Namespace,
     plan_service,
     crate,
-    run_directory: Path,
+    workspace_directory: Path,
     provenance_enabled: bool,
     current_plan,
     logger: logging.Logger,
@@ -324,7 +324,7 @@ def _update_plan_with_selected_flags(
     )
     args.extra_flag = []
 
-    plan_result = _build_plan(args, plan_service, crate, run_directory, provenance_enabled)
+    plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_enabled)
     logger.info(
         "resolved_command=%s backend=%s provenance_enabled=%s",
         plan_result.plan.command.as_string(),

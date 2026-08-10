@@ -505,7 +505,7 @@ class SubprocessExecutionSubmitter:
     """Runs the built COMPSs command as a local subprocess."""
 
     def submit(self, submission: ExecutionSubmission) -> ExecutionOutcome:
-        submission.run_directory.mkdir(parents=True, exist_ok=True)
+        submission.workspace_directory.mkdir(parents=True, exist_ok=True)
         submission.log_directory.mkdir(parents=True, exist_ok=True)
         submission.results_directory.mkdir(parents=True, exist_ok=True)
 
@@ -520,15 +520,17 @@ class SubprocessExecutionSubmitter:
                  open(stderr_path, "w", encoding="utf-8") as stderr_file:
                 completed = subprocess.run(
                     submission.command.as_list(),
-                    cwd=str(submission.run_directory),
+                    cwd=str(submission.command.working_directory or submission.workspace_directory),
+                    #cwd=str(submission.command.working_directory),
                     stdout=stdout_file,
                     stderr=stderr_file,
                     check=False,
                 )
             try:
                 self.move_generated_provenance_crate(
-                    run_directory=submission.run_directory,
+                    workspace_directory=submission.workspace_directory,
                     results_directory=submission.results_directory,
+                    execution_directory=submission.command.working_directory 
                 )
             except OSError as exc:
                 if error_message:
@@ -551,7 +553,7 @@ class SubprocessExecutionSubmitter:
         finished_at = datetime.now(timezone.utc)
         context = ExecutionContext(
             backend=submission.backend,
-            run_directory=submission.run_directory,
+            workspace_directory=submission.workspace_directory,
             log_directory=submission.log_directory,
             results_directory=submission.results_directory,
         )
@@ -569,26 +571,45 @@ class SubprocessExecutionSubmitter:
         )
         return ExecutionOutcome(result=result, submission=submission)
 
+
     def move_generated_provenance_crate(
         self,
-        run_directory: Path,
+        workspace_directory: Path,
         results_directory: Path,
+        execution_directory: Path | None = None,
     ) -> list[str]:
         moved: list[str] = []
-
-        for candidate in run_directory.glob("COMPSs_RO-Crate*"):
-            if not candidate.is_dir():
+    
+        search_roots: list[Path] = []
+        if execution_directory is not None:
+            search_roots.append(execution_directory)
+        search_roots.append(workspace_directory)
+    
+        seen: set[str] = set()
+        for root in search_roots:
+            root_key = str(root.resolve())
+            if root_key in seen:
                 continue
-
-            destination = results_directory / candidate.name
-
-            if destination.exists():
-                suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-                destination = results_directory / f"{candidate.name}_{suffix}"
-
-            shutil.move(str(candidate), str(destination))
-            moved.append(destination.name)
-
+            seen.add(root_key)
+    
+            for candidate in root.glob("COMPSs_RO-Crate*"):
+                if not (candidate.is_dir() or candidate.is_file()):
+                    continue
+    
+                destination = results_directory / candidate.name
+    
+                # Already inside results: nothing to move
+                if candidate.parent.resolve() == results_directory.resolve():
+                    moved.append(candidate.name)
+                    continue
+    
+                if destination.exists():
+                    suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                    destination = results_directory / f"{candidate.name}_{suffix}"
+    
+                shutil.move(str(candidate), str(destination))
+                moved.append(destination.name)
+    
         return moved
 
 __all__ = [
