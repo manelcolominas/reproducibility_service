@@ -126,7 +126,7 @@ def build_workflow_metadata(
     description: str = "",
     version: str | None = None,
     authors: tuple[WorkflowParticipant, ...] = (),
-    submitter: WorkflowParticipant | None = None,
+    agent: WorkflowParticipant | None = None,
     data_persistence: DataPersistenceKind = DataPersistenceKind.UNKNOWN,
     source_metadata_path: Path | None = None,
 ) -> WorkflowMetadata:
@@ -135,7 +135,7 @@ def build_workflow_metadata(
         description=description,
         version=version,
         authors=authors,
-        submitter=submitter,
+        agent=agent,
         data_persistence=data_persistence,
         source_metadata_path=source_metadata_path,
     )

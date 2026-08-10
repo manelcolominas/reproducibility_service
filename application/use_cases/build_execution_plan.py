@@ -162,7 +162,7 @@ class DefaultBuildExecutionPlanService:
         self,
         backend_detector: ExecutionBackendDetector | None = None,
         log_dir_name: str = "log",
-        results_dir_name: str = "Results",
+        results_dir_name: str = "Result",
     ) -> None:
         self._backend_detector = backend_detector
         self._log_dir_name = log_dir_name

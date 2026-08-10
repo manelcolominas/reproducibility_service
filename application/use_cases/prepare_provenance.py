@@ -29,7 +29,7 @@ from application.ports.file_system import DirectoryCreateRequest, FileSystemMana
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, MetadataError, ValidationError
 from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant
-
+from domain.models.crate import CrateSummary, DataPersistenceKind, WorkflowMetadata, WorkflowParticipant
 
 class PrepareProvenanceStatus(str, Enum):
     PENDING = "pending"
@@ -43,11 +43,11 @@ class PrepareProvenanceStatus(str, Enum):
 class PrepareProvenanceRequest:
     crate: CrateSummary
     provenance_root: Path
-    submitter_name: str
-    submitter_email: str | None = None
-    submitter_organization: str | None = None
-    submitter_orcid: str | None = None
-    submitter_ror: str | None = None
+    agent_name: str
+    agent_email: str | None = None
+    agent_organization: str | None = None
+    agent_orcid: str | None = None
+    agent_ror: str | None = None
     write_metadata_file: bool = True
     preserve_existing_metadata: bool = True
     overwrite_existing: bool = False
@@ -57,8 +57,8 @@ class PrepareProvenanceRequest:
             raise ValidationError("PrepareProvenanceRequest.crate cannot be None")
         if not str(self.provenance_root).strip():
             raise ValidationError("PrepareProvenanceRequest.provenance_root cannot be empty")
-        if not self.submitter_name.strip():
-            raise ValidationError("PrepareProvenanceRequest.submitter_name cannot be empty")
+        if not self.agent_name.strip():
+            raise ValidationError("PrepareProvenanceRequest.agent_name cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +68,7 @@ class PrepareProvenancePlan:
     metadata_path: Path | None = None
     output_path: Path | None = None
     existing_metadata: WorkflowMetadata | None = None
-    submitter: WorkflowParticipant | None = None
+    agent: WorkflowParticipant | None = None
     target_metadata_path: Path | None = None
 
     def __post_init__(self) -> None:
@@ -159,13 +159,13 @@ class DefaultPrepareProvenanceService:
                 details="crate location does not provide a usable path",
             )
 
-        submitter = WorkflowParticipant(
-            role="submitter",
-            name=request.submitter_name,
-            email=request.submitter_email,
-            organization_name=request.submitter_organization,
-            orcid=request.submitter_orcid,
-            ror=request.submitter_ror,
+        agent = WorkflowParticipant(
+            role="agent",
+            name=request.agent_name,
+            email=request.agent_email,
+            organization_name=request.agent_organization,
+            orcid=request.agent_orcid,
+            ror=request.agent_ror,
         )
 
         target_metadata_path = provenance_root / "ro-crate-info.yaml"
@@ -173,7 +173,7 @@ class DefaultPrepareProvenanceService:
             request=request,
             provenance_root=provenance_root,
             metadata_path=metadata_path,
-            submitter=submitter,
+            agent=agent,
             target_metadata_path=target_metadata_path,
         )
 
@@ -219,19 +219,19 @@ class DefaultPrepareProvenanceService:
     ) -> WorkflowMetadata:
         existing = request.crate.metadata
 
-        submitter = WorkflowParticipant(
-            role="submitter",
-            name=request.submitter_name,
-            email=request.submitter_email,
-            organization_name=request.submitter_organization,
-            orcid=request.submitter_orcid,
-            ror=request.submitter_ror,
+        agent = WorkflowParticipant(
+            role="agent",
+            name=request.agent_name,
+            email=request.agent_email,
+            organization_name=request.agent_organization,
+            orcid=request.agent_orcid,
+            ror=request.agent_ror,
         )
 
         authors = existing.authors
-        if request.preserve_existing_metadata and existing.submitter is not None:
+        if request.preserve_existing_metadata and existing.agent is not None:
             notes = list()
-            notes.append("Existing submitter metadata was preserved in the domain model")
+            notes.append("Existing agent metadata was preserved in the domain model")
             _ = notes
 
         return WorkflowMetadata(
@@ -239,7 +239,7 @@ class DefaultPrepareProvenanceService:
             description=existing.description,
             version=existing.version,
             authors=authors,
-            submitter=submitter,
+            agent=agent,
             license=existing.license,
             created_at=existing.created_at,
             generated_at=datetime.now(timezone.utc),
@@ -273,34 +273,59 @@ class DefaultPrepareProvenanceService:
 def _participant_to_dict(participant: WorkflowParticipant) -> dict[str, Any]:
     return {
         "name": participant.name,
-        "e-mail": participant.email or "",
-        "orcid": participant.orcid or "",
-        "organisation_name": participant.organization_name or "",
-        "ror": participant.ror or "",
+        # "e-mail": participant.email or "",
+        # "orcid": participant.orcid or "",
+        # "organisation_name": participant.organization_name or "",
+        # "ror": participant.ror or "",
     }
 
 
-def render_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -> str:
-    """Render provenance metadata as an ro-crate-info.yaml document.
+def _load_base_ro_crate_info(metadata: WorkflowMetadata) -> dict[str, Any] | None:
+    path = metadata.source_metadata_path
+    if path is None or path.name != "ro-crate-info.yaml" or not path.is_file():
+        return None
 
-    Mirrors the structure of the COMPSs ro-crate-info.yaml template.
-    """
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return raw if isinstance(raw, dict) else None
+
+
+def _render_fallback_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -> str:
     sources = [artifact.path for artifact in crate.index.sources]
-    sources_main_file = sources[0] if sources else ""
 
     document: dict[str, Any] = {
         "COMPSs Workflow Information": {
             "name": metadata.name,
             "description": metadata.description,
-            "license": metadata.license or "Apache-2.0",
             "sources": sources,
-            "sources_main_file": sources_main_file,
-            "data_persistence": metadata.data_persistence.value == "true",
+            "data_persistence": metadata.data_persistence == DataPersistenceKind.TRUE,
         },
-        "Authors": [_participant_to_dict(author) for author in metadata.authors] or [],
-        "Submitter": _participant_to_dict(metadata.submitter) if metadata.submitter else {},
+        "Authors": [_participant_to_dict(author) for author in metadata.authors],
+        "Agent": _participant_to_dict(metadata.agent) if metadata.agent else {},
     }
     return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+
+
+def render_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -> str:
+    base_document = _load_base_ro_crate_info(metadata)
+    if base_document is None:
+        return _render_fallback_ro_crate_info_yaml(metadata, crate)
+
+    workflow_info = base_document.get("COMPSs Workflow Information")
+    if not isinstance(workflow_info, dict):
+        workflow_info = {}
+        base_document["COMPSs Workflow Information"] = workflow_info
+
+    # Keep original workflow/authors data, but refresh core values if needed.
+    workflow_info["name"] = metadata.name
+    workflow_info["description"] = metadata.description
+    workflow_info["data_persistence"] = metadata.data_persistence == DataPersistenceKind.TRUE
+
+    if "Authors" not in base_document or not isinstance(base_document.get("Authors"), list):
+        base_document["Authors"] = [_participant_to_dict(author) for author in metadata.authors]
+
+    base_document["Agent"] = _participant_to_dict(metadata.agent) if metadata.agent else {}
+
+    return yaml.safe_dump(base_document, sort_keys=False, allow_unicode=True)
 
 
 def has_updated_metadata(result: PrepareProvenanceResult) -> bool:

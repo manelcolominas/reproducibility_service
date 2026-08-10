@@ -78,7 +78,7 @@ class ExecutionPlanner(Protocol):
 
 
 @runtime_checkable
-class ExecutionSubmitter(Protocol):
+class ExecutionAgent(Protocol):
     def submit(self, submission: ExecutionSubmission) -> ExecutionOutcome:
         ...
 

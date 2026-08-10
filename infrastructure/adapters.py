@@ -349,15 +349,15 @@ class CrateMetadataParser:
         json_candidates = sorted(root.rglob("ro-crate-metadata.json"))
         yaml_candidates = sorted(root.rglob("ro-crate-info.yaml"))
 
-        if json_candidates:
-            path = json_candidates[0]
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            return MetadataDocument(source=request.source, format=MetadataFormat.RO_CRATE_JSON, raw=raw, path=path)
-
         if yaml_candidates:
             path = yaml_candidates[0]
             raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             return MetadataDocument(source=request.source, format=MetadataFormat.COMPSS_YAML, raw=raw, path=path)
+
+        if json_candidates:
+                    path = json_candidates[0]
+                    raw = json.loads(path.read_text(encoding="utf-8"))
+                    return MetadataDocument(source=request.source, format=MetadataFormat.RO_CRATE_JSON, raw=raw, path=path)
 
         raise MetadataParseError(
             f"No ro-crate-metadata.json or ro-crate-info.yaml found under {root}"
@@ -381,40 +381,41 @@ class CrateMetadataNormalizer:
         raw = document.raw
         workflow_info = raw.get("COMPSs Workflow Information") or {}
         authors_raw = raw.get("Authors") or []
-        submitter_raw = raw.get("Submitter") or {}
-
+        agent_raw = raw.get("Agent") or {}
+    
         warnings: list[str] = []
         placeholder_names = {"", "Name of your COMPSs application"}
-        name = workflow_info.get("name") or ""
-        if name.strip() in placeholder_names:
+    
+        name = str(workflow_info.get("name") or "").strip()
+        if name in placeholder_names:
             warnings.append("Workflow name is missing or still the template placeholder")
-            name = name.strip() or "unnamed-workflow"
-
-        authors = tuple(
-            participant for participant in (
-                self._participant(entry, role="author") for entry in authors_raw
-            ) if participant is not None
-        )
-        submitter = self._participant(submitter_raw, role="submitter")
-
+            name = name or "unnamed-workflow"
+    
+        authors = self._participants(authors_raw, role="author")
+        agent = self._participant(agent_raw, role="agent")
+    
         metadata = WorkflowMetadata(
             name=name,
-            description=workflow_info.get("description", ""),
+            description=str(workflow_info.get("description") or ""),
             authors=authors,
-            submitter=submitter,
+            agent=agent,
             license=workflow_info.get("license"),
             data_persistence=self._parse_data_persistence(workflow_info.get("data_persistence")),
             source_metadata_path=document.path,
         )
-
+    
         sources_raw = workflow_info.get("sources") or []
         sources = tuple(
-            WorkflowArtifact(kind=ArtifactKind.SOURCE, name=Path(str(item)).name, path=str(item))
+            WorkflowArtifact(
+                kind=ArtifactKind.SOURCE,
+                name=Path(str(item)).name,
+                path=str(item),
+            )
             for item in sources_raw
             if str(item).strip()
         )
         index = CrateIndex(sources=sources)
-
+    
         crate_root = document.path.parent if document.path else Path(document.source.location)
         crate = CrateSummary(
             source=CrateSource(kind=CrateSourceKind.DIRECTORY, value=str(crate_root)),
@@ -422,9 +423,13 @@ class CrateMetadataNormalizer:
             metadata=metadata,
             index=index,
         )
-
+    
         return MetadataNormalizationResult(
-            document=document, metadata=metadata, index=index, crate=crate, warnings=tuple(warnings),
+            document=document,
+            metadata=metadata,
+            index=index,
+            crate=crate,
+            warnings=tuple(warnings),
         )
 
     def _normalize_ro_crate_json(self, document: MetadataDocument) -> MetadataNormalizationResult:
@@ -454,10 +459,30 @@ class CrateMetadataNormalizer:
             warnings=("RO-Crate JSON parsing is minimal in this MVP: only name/description are read",),
         )
 
-    def _participant(self, raw: dict, role: str) -> WorkflowParticipant | None:
+    def _participants(self, raw: object, role: str) -> tuple[WorkflowParticipant, ...]:
+        if isinstance(raw, list):
+            entries = raw
+        elif isinstance(raw, dict):
+            entries = [raw]
+        else:
+            return ()
+
+        participants: list[WorkflowParticipant] = []
+        for entry in entries:
+            participant = self._participant(entry, role=role)
+            if participant is not None:
+                participants.append(participant)
+        return tuple(participants)
+
+
+    def _participant(self, raw: object, role: str) -> WorkflowParticipant | None:
+        if not isinstance(raw, dict):
+            return None
+
         name = str(raw.get("name") or "").strip()
         if not name:
             return None
+
         return WorkflowParticipant(
             name=name,
             role=role,
@@ -501,7 +526,7 @@ class ShutilExecutionBackendDetector:
         return ExecutionBackend.LOCAL
 
 
-class SubprocessExecutionSubmitter:
+class SubprocessExecutionAgent:
     """Runs the built COMPSs command as a local subprocess."""
 
     def submit(self, submission: ExecutionSubmission) -> ExecutionOutcome:
@@ -520,8 +545,7 @@ class SubprocessExecutionSubmitter:
                  open(stderr_path, "w", encoding="utf-8") as stderr_file:
                 completed = subprocess.run(
                     submission.command.as_list(),
-                    cwd=str(submission.command.working_directory or submission.workspace_directory),
-                    #cwd=str(submission.command.working_directory),
+                    cwd=str(submission.results_directory or submission.command.working_directory or submission.workspace_directory),
                     stdout=stdout_file,
                     stderr=stderr_file,
                     check=False,
@@ -530,7 +554,7 @@ class SubprocessExecutionSubmitter:
                 self.move_generated_provenance_crate(
                     workspace_directory=submission.workspace_directory,
                     results_directory=submission.results_directory,
-                    execution_directory=submission.command.working_directory 
+                    execution_directory=submission.results_directory,
                 )
             except OSError as exc:
                 if error_message:
@@ -571,46 +595,58 @@ class SubprocessExecutionSubmitter:
         )
         return ExecutionOutcome(result=result, submission=submission)
 
-
     def move_generated_provenance_crate(
-        self,
-        workspace_directory: Path,
-        results_directory: Path,
-        execution_directory: Path | None = None,
-    ) -> list[str]:
+            self,
+            workspace_directory: Path,
+            results_directory: Path,
+            execution_directory: Path | None = None
+            ) -> list[str]:
         moved: list[str] = []
-    
+
+        results_directory.mkdir(parents=True, exist_ok=True)
+        resolved_results = results_directory.resolve()
+
         search_roots: list[Path] = []
         if execution_directory is not None:
             search_roots.append(execution_directory)
         search_roots.append(workspace_directory)
-    
-        seen: set[str] = set()
+
+        seen_roots: set[str] = set()
+        seen_candidates: set[str] = set()
         for root in search_roots:
-            root_key = str(root.resolve())
-            if root_key in seen:
+            if not root.exists():
                 continue
-            seen.add(root_key)
-    
-            for candidate in root.glob("COMPSs_RO-Crate*"):
+
+            root_key = str(root.resolve())
+            if root_key in seen_roots:
+                continue
+            seen_roots.add(root_key)
+
+            for candidate in root.rglob("COMPSs_RO-Crate*"):
                 if not (candidate.is_dir() or candidate.is_file()):
                     continue
-    
-                destination = results_directory / candidate.name
-    
-                # Already inside results: nothing to move
-                if candidate.parent.resolve() == results_directory.resolve():
+
+                candidate_resolved = candidate.resolve()
+                candidate_key = str(candidate_resolved)
+                if candidate_key in seen_candidates:
+                    continue
+                seen_candidates.add(candidate_key)
+
+                # Ja està dins Result: no cal moure, però ho comptem.
+                if candidate_resolved.is_relative_to(resolved_results):
                     moved.append(candidate.name)
                     continue
-    
+
+                destination = results_directory / candidate.name
                 if destination.exists():
                     suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
                     destination = results_directory / f"{candidate.name}_{suffix}"
-    
+
                 shutil.move(str(candidate), str(destination))
                 moved.append(destination.name)
-    
+
         return moved
+
 
 __all__ = [
     "LocalFileSystem",
@@ -620,5 +656,5 @@ __all__ = [
     "CrateMetadataParser",
     "CrateMetadataNormalizer",
     "ShutilExecutionBackendDetector",
-    "SubprocessExecutionSubmitter",
+    "SubprocessExecutionAgent",
 ]

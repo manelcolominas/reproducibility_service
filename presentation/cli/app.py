@@ -71,7 +71,7 @@ from infrastructure.adapters import (
     LocalCrateSourceValidator,
     LocalFileSystem,
     ShutilExecutionBackendDetector,
-    SubprocessExecutionSubmitter,
+    SubprocessExecutionAgent,
 )
 from presentation.cli import view
 
@@ -91,11 +91,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)"
     )
     parser.add_argument("--provenance", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
-    parser.add_argument("--submitter-name", default="Unknown Submitter")
-    parser.add_argument("--submitter-email")
-    parser.add_argument("--submitter-org")
-    parser.add_argument("--submitter-orcid")
-    parser.add_argument("--submitter-ror")
+    parser.add_argument("--agent-name", default="Unknown Agent")
+    parser.add_argument("--agent-email")
+    parser.add_argument("--agent-org")
+    parser.add_argument("--agent-orcid")
+    parser.add_argument("--agent-ror")
     parser.add_argument("--new-dataset", help="Optional dataset directory to copy into the crate before running")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     return parser
@@ -139,8 +139,8 @@ def run_app(argv: list[str] | None = None) -> int:
 
     view.console.print(f"Running submission command: {plan_result.plan.command.as_string()}")
 
-    submitter = SubprocessExecutionSubmitter()
-    outcome = view.run_with_spinner("Executing workflow...", submitter.submit, plan_result.submission)
+    agent = SubprocessExecutionAgent()
+    outcome = view.run_with_spinner("Executing workflow...", agent.submit, plan_result.submission)
     view.print_final_summary(outcome)
 
     logger.info(
@@ -240,12 +240,12 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
         provenance_result = provenance_service.execute(
             PrepareProvenanceRequest(
                 crate=crate,
-                provenance_root=workspace_directory,
-                submitter_name=args.submitter_name,
-                submitter_email=args.submitter_email,
-                submitter_organization=args.submitter_org,
-                submitter_orcid=args.submitter_orcid,
-                submitter_ror=args.submitter_ror,
+                provenance_root=plan_result.context.results_directory,
+                agent_name=args.agent_name,
+                agent_email=args.agent_email,
+                agent_organization=args.agent_org,
+                agent_orcid=args.agent_orcid,
+                agent_ror=args.agent_ror,
             )
         )
         if provenance_result.created_metadata_file:
