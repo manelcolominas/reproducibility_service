@@ -221,6 +221,18 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
             "[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]"
         ).lower().startswith("y")
 
+    # New: ask participant name only when provenance is enabled and interactive mode is active
+    if provenance_flag and not args.yes:
+        wants_name = view.console.input(
+            "[yellow]Do you want to provide your name ? [y/N]: [/yellow]"
+        ).lower().startswith("y")
+        if wants_name:
+            typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
+            if typed_name:
+                args.participant_name = typed_name
+            if not typed_name:
+                view.console.print("[yellow]Empty name provided, keeping default participant name.[/yellow]")
+
     plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_flag)
     logger.info(
         "resolved_command=%s backend=%s provenance_enabled=%s",
