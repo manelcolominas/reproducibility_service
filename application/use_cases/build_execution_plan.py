@@ -62,7 +62,7 @@ _LOCAL_UNSUPPORTED_FLAGS = {
     "--forward_time_limit",
     "--storage_home",
     "--storage_props",
-    "--agents",
+    "--participants",
     "--num_nodes",
     "--num_switches",
     "--type_cfg",

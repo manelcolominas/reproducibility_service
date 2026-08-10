@@ -69,7 +69,7 @@ class CrateLocation:
 @dataclass(frozen=True, slots=True)
 class WorkflowParticipant:
     name: str
-    role: str = "agent"
+    role: str = "participant"
     email: str | None = None
     organization_name: str | None = None
     orcid: str | None = None
@@ -88,7 +88,7 @@ class WorkflowMetadata:
     description: str = ""
     version: str | None = None
     authors: tuple[WorkflowParticipant, ...] = ()
-    agent: WorkflowParticipant | None = None
+    participant: WorkflowParticipant | None = None
     license: str | None = None
     crate_version: str | None = None
     compss_version: str | None = None
@@ -101,8 +101,8 @@ class WorkflowMetadata:
         if not self.name.strip():
             raise ValueError("WorkflowMetadata.name cannot be empty")
 
-    def with_agent(self, agent: WorkflowParticipant | None) -> WorkflowMetadata:
-        return replace(self, agent=agent)
+    def with_participant(self, participant: WorkflowParticipant | None) -> WorkflowMetadata:
+        return replace(self, participant=participant)
 
 
 @dataclass(frozen=True, slots=True)

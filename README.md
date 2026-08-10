@@ -20,7 +20,7 @@ This is an automatic reproducibility service designed to help reproduce COMPSs w
 
 ## Features
 
-1. **Provenance Generation**: The program prompts you for a provenance flag (`-p` flag for `runcompss`). It automatically fetches the experiment details from the metadata and only asks for the `agent` details.
+1. **Provenance Generation**: The program prompts you for a provenance flag (`-p` flag for `runcompss`). It automatically fetches the experiment details from the metadata and only asks for the `participant` details.
 
 2. **New Dataset Feature**: If you want to reproduce the same experiment with a new dataset, simply provide the path to the new dataset.
    > **Note**: The new dataset should follow the exact same directory structure as the old one for the paths to be correctly mapped.
@@ -47,7 +47,7 @@ This is an automatic reproducibility service designed to help reproduce COMPSs w
 
 1. If a folder path is provided in the `compss_submission_command_line`, the path should end with a `/`.
 2. The service does not support experiments with file paths inside the source code, as these paths cannot be easily mapped.
-3. The `data_persistence = False` examples are only supposed to work on the original SLURM cluster where paths related to the experiment are accessible (i.e. the new agent may need to request access permissions).
+3. The `data_persistence = False` examples are only supposed to work on the original SLURM cluster where paths related to the experiment are accessible (i.e. the new participant may need to request access permissions).
 
 ---
 ### How to Use via Chameleon

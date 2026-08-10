@@ -381,7 +381,7 @@ class CrateMetadataNormalizer:
         raw = document.raw
         workflow_info = raw.get("COMPSs Workflow Information") or {}
         authors_raw = raw.get("Authors") or []
-        agent_raw = raw.get("Agent") or {}
+        participant_raw = raw.get("Participant") or {}
     
         warnings: list[str] = []
         placeholder_names = {"", "Name of your COMPSs application"}
@@ -392,13 +392,13 @@ class CrateMetadataNormalizer:
             name = name or "unnamed-workflow"
     
         authors = self._participants(authors_raw, role="author")
-        agent = self._participant(agent_raw, role="agent")
+        participant = self._participant(participant_raw, role="participant")
     
         metadata = WorkflowMetadata(
             name=name,
             description=str(workflow_info.get("description") or ""),
             authors=authors,
-            agent=agent,
+            participant=participant,
             license=workflow_info.get("license"),
             data_persistence=self._parse_data_persistence(workflow_info.get("data_persistence")),
             source_metadata_path=document.path,
@@ -526,7 +526,7 @@ class ShutilExecutionBackendDetector:
         return ExecutionBackend.LOCAL
 
 
-class SubprocessExecutionAgent:
+class SubprocessExecutionParticipant:
     """Runs the built COMPSs command as a local subprocess."""
 
     def submit(self, submission: ExecutionSubmission) -> ExecutionOutcome:
@@ -656,5 +656,5 @@ __all__ = [
     "CrateMetadataParser",
     "CrateMetadataNormalizer",
     "ShutilExecutionBackendDetector",
-    "SubprocessExecutionAgent",
+    "SubprocessExecutionParticipant",
 ]

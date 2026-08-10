@@ -23,11 +23,11 @@ Authors:
     ror: https://ror.org/YYYYYYYYY
       # Find them in ror.org
 
-# NOTE: PLEASE FILL THE agent INFORMATION
+# NOTE: PLEASE FILL THE participant INFORMATION
 Agent:
   name: Name
-  e-mail: agent@email.com
+  e-mail: participant@email.com
   orcid: https://orcid.org/XXXX-XXXX-XXXX-XXXX
-  organisation_name: agent Institution name
+  organisation_name: participant Institution name
   ror: https://ror.org/XXXXXXXXX
     # Find them in ror.org

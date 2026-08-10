@@ -71,7 +71,7 @@ from infrastructure.adapters import (
     LocalCrateSourceValidator,
     LocalFileSystem,
     ShutilExecutionBackendDetector,
-    SubprocessExecutionAgent,
+    SubprocessExecutionParticipant,
 )
 from presentation.cli import view
 
@@ -91,11 +91,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)"
     )
     parser.add_argument("--provenance", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
-    parser.add_argument("--agent-name", default="Unknown Agent")
-    parser.add_argument("--agent-email")
-    parser.add_argument("--agent-org")
-    parser.add_argument("--agent-orcid")
-    parser.add_argument("--agent-ror")
+    parser.add_argument("--participant-name", default="Unknown Participant")
+    parser.add_argument("--participant-email")
+    parser.add_argument("--participant-org")
+    parser.add_argument("--participant-orcid")
+    parser.add_argument("--participant-ror")
     parser.add_argument("--new-dataset", help="Optional dataset directory to copy into the crate before running")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     return parser
@@ -139,8 +139,8 @@ def run_app(argv: list[str] | None = None) -> int:
 
     view.console.print(f"Running submission command: {plan_result.plan.command.as_string()}")
 
-    agent = SubprocessExecutionAgent()
-    outcome = view.run_with_spinner("Executing workflow...", agent.submit, plan_result.submission)
+    participant = SubprocessExecutionParticipant()
+    outcome = view.run_with_spinner("Executing workflow...", participant.submit, plan_result.submission)
     view.print_final_summary(outcome)
 
     logger.info(
@@ -241,11 +241,11 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
             PrepareProvenanceRequest(
                 crate=crate,
                 provenance_root=plan_result.context.results_directory,
-                agent_name=args.agent_name,
-                agent_email=args.agent_email,
-                agent_organization=args.agent_org,
-                agent_orcid=args.agent_orcid,
-                agent_ror=args.agent_ror,
+                participant_name=args.participant_name,
+                participant_email=args.participant_email,
+                participant_organization=args.participant_org,
+                participant_orcid=args.participant_orcid,
+                participant_ror=args.participant_ror,
             )
         )
         if provenance_result.created_metadata_file:
