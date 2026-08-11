@@ -384,7 +384,7 @@ def _render_fallback_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: Crate
             "data_persistence": metadata.data_persistence == DataPersistenceKind.TRUE,
         },
         "Authors": [_participant_to_dict(author) for author in metadata.authors],
-        "Participant": _participant_to_dict(metadata.participant) if metadata.participant else {},
+        "Agent": _participant_to_dict(metadata.participant) if metadata.participant else {},
     }
     return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
@@ -421,8 +421,9 @@ def render_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -
     if "Authors" not in base_document or not isinstance(base_document.get("Authors"), list):
         base_document["Authors"] = [_participant_to_dict(author) for author in metadata.authors]
 
-    base_document["Participant"] = _participant_to_dict(metadata.participant) if metadata.participant else {}
-
+    base_document["Agent"] = _participant_to_dict(metadata.participant) if metadata.participant else {}
+    base_document.pop("Participant", None)
+    
     _sanitize_sources_main_file(workflow_info, workflow_info.get("sources") or [])
     return yaml.safe_dump(base_document, sort_keys=False, allow_unicode=True)
 
