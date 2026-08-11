@@ -28,7 +28,7 @@ import yaml
 from application.ports.file_system import DirectoryCreateRequest, FileSystemManager
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, MetadataError, ValidationError
-from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant
+from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, WorkflowArtifact
 from domain.models.crate import CrateSummary, DataPersistenceKind, WorkflowMetadata, WorkflowParticipant
 
 class PrepareProvenanceStatus(str, Enum):
@@ -37,6 +37,90 @@ class PrepareProvenanceStatus(str, Enum):
     PREPARED = "prepared"
     PUBLISHED = "published"
     FAILED = "failed"
+
+
+_PLACEHOLDER_SOURCES = {
+    "/absolute_path_to/dir_1/",
+    "relative_path_to/dir_2/",
+    "main_file.py",
+    "relative_path/aux_file_1.py",
+    "/abs_path/aux_file_2.py",
+}
+
+_PLACEHOLDER_MAIN = {"my_main_file.py", "main_file.py", ""}
+
+
+def _is_placeholder_source(value: str) -> bool:
+    text = value.strip()
+    return (not text) or (text in _PLACEHOLDER_SOURCES) or ("absolute_path_to" in text)
+
+def _existing_path_from_source(raw_source: str, crate_root: Path) -> Path | None:
+    raw = raw_source.strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    candidate = path if path.is_absolute() else (crate_root / path)
+    try:
+        candidate = candidate.resolve()
+    except OSError:
+        return None
+    return candidate if candidate.exists() else None
+
+
+def _collect_real_sources(crate: CrateSummary) -> list[str]:
+    crate_root = crate.location.working_path or crate.location.original_path
+    if crate_root is None:
+        return []
+
+    resolved: list[str] = []
+    seen: set[str] = set()
+
+    # Prefer declared crate sources when they exist on disk.
+    for artifact in crate.index.sources:
+        raw = str(artifact.path).strip()
+        if _is_placeholder_source(raw):
+            continue
+        candidate = _existing_path_from_source(raw, crate_root)
+        if candidate is None:
+            continue
+        normalized = str(candidate)
+        if normalized not in seen:
+            seen.add(normalized)
+            resolved.append(normalized)
+    # Fallback for common COMPSs layouts in imported crates.
+    for relative in ("application_sources/src", "application_sources", "src"):
+        candidate = (crate_root / relative).resolve()
+        if candidate.exists():
+            normalized = str(candidate)
+            if normalized not in seen:
+                seen.add(normalized)
+                resolved.append(normalized)
+
+    return resolved
+
+
+def _sanitize_sources_main_file(workflow_info: dict[str, Any], sources: list[str]) -> None:
+    current = str(workflow_info.get("sources_main_file") or "").strip()
+    if current in _PLACEHOLDER_MAIN:
+        workflow_info.pop("sources_main_file", None)
+        return
+
+    if not sources:
+        return
+
+    current_name = Path(current).name
+    found = False
+    for source in sources:
+        source_path = Path(source)
+        if source_path.is_file() and source_path.name == current_name:
+            found = True
+            break
+        if source_path.is_dir() and (source_path / current_name).exists():
+            found = True
+            break
+
+    if not found:
+        workflow_info.pop("sources_main_file", None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,7 +374,7 @@ def _load_base_ro_crate_info(metadata: WorkflowMetadata) -> dict[str, Any] | Non
 
 
 def _render_fallback_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -> str:
-    sources = [artifact.path for artifact in crate.index.sources]
+    sources = _collect_real_sources(crate)
 
     document: dict[str, Any] = {
         "COMPSs Workflow Information": {
@@ -320,11 +404,26 @@ def render_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -
     workflow_info["description"] = metadata.description
     workflow_info["data_persistence"] = metadata.data_persistence == DataPersistenceKind.TRUE
 
+    if "license" not in workflow_info and metadata.license:
+        workflow_info["license"] = metadata.license
+
+    # IMPORTANT:
+    # If the input ro-crate-info.yaml was a template, its sources are placeholders.
+    # Replace them with real, existing paths from the imported crate.
+    real_sources = _collect_real_sources(crate)
+    if real_sources:
+        workflow_info["sources"] = real_sources
+    else:
+        existing_sources = workflow_info.get("sources")
+        if not isinstance(existing_sources, list):
+            workflow_info["sources"] = []
+
     if "Authors" not in base_document or not isinstance(base_document.get("Authors"), list):
         base_document["Authors"] = [_participant_to_dict(author) for author in metadata.authors]
 
     base_document["Participant"] = _participant_to_dict(metadata.participant) if metadata.participant else {}
 
+    _sanitize_sources_main_file(workflow_info, workflow_info.get("sources") or [])
     return yaml.safe_dump(base_document, sort_keys=False, allow_unicode=True)
 
 

@@ -261,16 +261,19 @@ class DefaultBuildExecutionPlanService:
             crate_root=request.crate.location.working_path,
         )
 
-        _PROVENANCE_FLAGS = {"--provenance", "-p"}
+        # _PROVENANCE_FLAGS = {"--provenance", "-p"}
         
-        arguments = [
-            argument
-            for argument in arguments
-            if argument not in _PROVENANCE_FLAGS and not argument.startswith("--provenance=")
-        ]
+        # arguments = [
+        #     argument
+        #     for argument in arguments
+        #     if argument not in _PROVENANCE_FLAGS and not argument.startswith("--provenance=")
+        # ]
         
         if request.provenance_enabled:
-            arguments.insert(0, "--provenance")
+            if execution_directory is None:
+                raise BuildExecutionPlanFailure("Could not determine execution directory for provenance config")
+            provenance_config = (execution_directory / "ro-crate-info.yaml").resolve()
+            arguments.insert(0, f"--provenance={provenance_config}")
         if request.extra_flags:
             arguments = list(request.extra_flags) + arguments
         if request.changed_values:
@@ -282,6 +285,36 @@ class DefaultBuildExecutionPlanService:
             arguments=tuple(arguments),
             working_directory=execution_directory,
         )
+
+
+    def _strip_provenance_flags(self, arguments: list[str]) -> list[str]:
+        """
+        Remove provenance flags from a command line, including:
+          - --provenance
+          - -p
+          - --provenance=<yaml>
+          - --provenance <yaml>
+          - -p <yaml>
+        """
+        cleaned: list[str] = []
+        i = 0
+        while i < len(arguments):
+            token = arguments[i]
+
+            if token in {"--provenance", "-p"}:
+                i += 1
+                if i < len(arguments) and not arguments[i].startswith("-"):
+                    i += 1
+                continue
+
+            if token.startswith("--provenance="):
+                i += 1
+                continue
+
+            cleaned.append(token)
+            i += 1
+        return cleaned
+    
 
     def _strip_local_unsupported_flags(self, arguments: list[str]) -> list[str]:
         """Drop scheduler-only flags when running locally."""

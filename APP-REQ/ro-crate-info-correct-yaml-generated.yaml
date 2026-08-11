@@ -1,0 +1,38 @@
+# NOTE: NO NEED TO FILL BELOW INFORMATION AS IT WILL BE FILLED AUTOMATICALLY BY THE RS SERVICE
+COMPSs Workflow Information:
+  name: Wordcount COMPSs application
+  # OPtIONAL
+  description: Wordcount COMPSs application that counts the number of words in a text file
+  # OPTIONAL 
+  license: Apache-2.0
+  # MANDATORY FOR THE GENERATION OF THE RO-Crate : List of sources of your COMPSs application. It can be a list of directories and/or files. The paths can be absolute or relative to the location of the ro-crate-info.yaml file. like: /absolute_path_to/dir_1/, relative_path_to/dir_2/, main_file.py, relative_path/aux_file_1.py, /abs_path/aux_file_2.py
+  # FOR THE CASE OF THE GENERATION OF THE RO-Crate in the REPRODUCIBILITY SERVICE, the source has to be filled with the absolute path of the sources of your COMPSs application in the REPRODUCIBILITY SERVICE DIRECTORY.
+  sources: [/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/reproducibility_service_20260811_144126/Workflow/application_sources/src]
+  #OPTIONAL: If you want to specify the main file of your COMPSs application,
+  # CURRENTLY ONLY DATA PERSISTENCE FALSE IS SUPPORTED BY THE RS SERVICE
+  # OPTIONAL: If you want to specify the main file of your COMPSs application, you can do it here. If not specified, the RS service will try to find it automatically.
+  data_persistence: False
+
+# NOTE: AUTHORS INFORMATION WILL BE EXTRACTED FROM THE CRATE
+Authors:
+  - name: Rafael Colominas
+    e-mail: rafael.colominas@email.com
+    orcid: https://orcid.org/XXXX-XXXX-XXXX-XXXX
+    organisation_name: Institution_1 name
+    ror: https://ror.org/XXXXXXXXX
+      # Find them in ror.org
+  - name: Raül Sirvent
+    e-mail: raul.sirvent@email.com
+    orcid: https://orcid.org/YYYY-YYYY-YYYY-YYYY
+    organisation_name: Institution_2 name
+    ror: https://ror.org/YYYYYYYYY
+      # Find them in ror.org
+
+# NOTE: PLEASE FILL THE SUBMITTER INFORMATION
+Agent:
+  name: Manel Colominas
+  e-mail: manel.colominas@email.com
+  orcid: https://orcid.org/XXXX-XXXX-XXXX-XXXX
+  organisation_name: Submitter Institution name
+  ror: https://ror.org/XXXXXXXXX
+    # Find them in ror.org

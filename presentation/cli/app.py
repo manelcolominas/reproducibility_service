@@ -90,7 +90,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)"
     )
-    parser.add_argument("--provenance", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
+    parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
     parser.add_argument("--participant-name", default="Unknown Participant")
     parser.add_argument("--participant-email")
     parser.add_argument("--participant-org")
