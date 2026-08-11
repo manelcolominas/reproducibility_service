@@ -50,6 +50,9 @@ class ExecutionSubmission:
     log_directory: Path
     results_directory: Path
 
+    @property
+    def execution_directory(self) -> Path:
+        return self.results_directory
 
 @dataclass(frozen=True, slots=True)
 class ExecutionOutcome:

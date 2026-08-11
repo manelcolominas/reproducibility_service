@@ -62,7 +62,7 @@ _LOCAL_UNSUPPORTED_FLAGS = {
     "--forward_time_limit",
     "--storage_home",
     "--storage_props",
-    "--participants",
+    "--agents",
     "--num_nodes",
     "--num_switches",
     "--type_cfg",
@@ -170,8 +170,12 @@ class DefaultBuildExecutionPlanService:
 
     def execute(self, request: BuildExecutionPlanRequest) -> BuildExecutionPlanResult:
         backend = self._select_backend(request)
-        command = self._build_command(request, backend)
         context = self._build_context(request, backend)
+        command = self._build_command(
+            request=request,
+            backend=backend,
+            execution_directory=context.execution_directory,
+        )
         plan = ExecutionPlan(
             backend=backend,
             command=command,
@@ -231,6 +235,7 @@ class DefaultBuildExecutionPlanService:
         self,
         request: BuildExecutionPlanRequest,
         backend: ExecutionBackend,
+        execution_directory: Path | None = None,
         ) -> RuntimeCommand:
         raw_command = request.submission_command or self._discover_command(request.crate)
         if not raw_command:
@@ -275,7 +280,7 @@ class DefaultBuildExecutionPlanService:
         return RuntimeCommand(
             executable=parts[0],
             arguments=tuple(arguments),
-            working_directory=request.workspace_directory/self._results_dir_name,
+            working_directory=execution_directory,
         )
 
     def _strip_local_unsupported_flags(self, arguments: list[str]) -> list[str]:

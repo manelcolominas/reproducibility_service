@@ -545,7 +545,7 @@ class SubprocessExecutionParticipant:
                  open(stderr_path, "w", encoding="utf-8") as stderr_file:
                 completed = subprocess.run(
                     submission.command.as_list(),
-                    cwd=str(submission.results_directory or submission.command.working_directory or submission.workspace_directory),
+                    cwd=str(submission.command.working_directory or submission.execution_directory or submission.workspace_directory),
                     stdout=stdout_file,
                     stderr=stderr_file,
                     check=False,

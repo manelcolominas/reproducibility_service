@@ -67,6 +67,14 @@ class ExecutionContext:
     preserve_logs: bool = True
     cleanup_on_failure: bool = False
 
+    @property
+    def execution_directory(self) -> Path:
+        return self.results_directory
+
+    @property
+    def working_directory(self) -> Path:
+        return self.results_directory
+
     def __post_init__(self) -> None:
         if not str(self.workspace_directory).strip():
             raise ValueError("ExecutionContext.workspace_directory cannot be empty")
