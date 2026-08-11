@@ -269,11 +269,13 @@ class DefaultBuildExecutionPlanService:
         #     if argument not in _PROVENANCE_FLAGS and not argument.startswith("--provenance=")
         # ]
         
+        arguments = self._strip_provenance_flags(arguments)
+
         if request.provenance_enabled:
             if execution_directory is None:
                 raise BuildExecutionPlanFailure("Could not determine execution directory for provenance config")
             provenance_config = (execution_directory / "ro-crate-info.yaml").resolve()
-            arguments.insert(0, f"--provenance={provenance_config}")
+            arguments.insert(0, f"--provenance")
         if request.extra_flags:
             arguments = list(request.extra_flags) + arguments
         if request.changed_values:
