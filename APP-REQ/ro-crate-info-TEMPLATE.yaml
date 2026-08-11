@@ -1,11 +1,18 @@
 # NOTE: NO NEED TO FILL BELOW INFORMATION AS IT WILL BE FILLED AUTOMATICALLY BY THE RS SERVICE
 COMPSs Workflow Information:
-  name: Name of your COMPSs application
-  description: Detailed description of your COMPSs application
+  name: Name of the COMPSs application
+  # OPtIONAL
+  description: Description of the COMPSs application
+  # OPTIONAL 
   license: Apache-2.0
-  sources: [/absolute_path_to/dir_1/, relative_path_to/dir_2/, main_file.py, relative_path/aux_file_1.py, /abs_path/aux_file_2.py]
-  sources_main_file: my_main_file.py
+  # MANDATORY FOR THE GENERATION OF THE RO-Crate : List of sources of your COMPSs application. It can be a list of directories and/or files.
+  # FOR THE CASE OF THE GENERATION OF THE RO-Crate in the REPRODUCIBILITY SERVICE, the source has to be filled with the absolute path of the sources of your COMPSs application in the REPRODUCIBILITY SERVICE DIRECTORY.
+  sources: [/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/reproducibility_service_20260811_144126/Workflow/application_sources/src]
+
+  # OPTIONAL: If you want to specify the main file of your COMPSs application, you can do it here. If not specified, the RS service will try to find it automatically
+  sources_main_file: main.py
   # CURRENTLY ONLY DATA PERSISTENCE FALSE IS SUPPORTED BY THE RS SERVICE
+  # OPTIONAL: If you want to specify the main file of your COMPSs application, you can do it here. If not specified, the RS service will try to find it automatically.
   data_persistence: False
 
 # NOTE: AUTHORS INFORMATION WILL BE EXTRACTED FROM THE CRATE
