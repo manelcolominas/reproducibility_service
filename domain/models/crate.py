@@ -46,7 +46,7 @@ class ArtifactKind(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class CrateSource:
-    kind: CrateSourceKind
+    type: CrateSourceKind
     value: str
 
     def __post_init__(self) -> None:
@@ -107,7 +107,7 @@ class WorkflowMetadata:
 
 @dataclass(frozen=True, slots=True)
 class WorkflowArtifact:
-    kind: ArtifactKind
+    type: ArtifactKind
     name: str
     path: str
     metadata_id: str | None = None

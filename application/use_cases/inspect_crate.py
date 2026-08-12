@@ -115,7 +115,7 @@ class DefaultInspectCrateService:
 
     def build_plan(self, request: InspectCrateRequest) -> InspectCratePlan:
         metadata_source = MetadataSource(
-            kind=MetadataSourceKind.DIRECTORY,
+            type=MetadataSourceKind.DIRECTORY,
             location=str(request.crate_root),
             format_hint=MetadataFormat.UNKNOWN,
         )

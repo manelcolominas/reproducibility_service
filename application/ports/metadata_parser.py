@@ -48,7 +48,7 @@ class MetadataSourceKind(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class MetadataSource:
-    kind: MetadataSourceKind
+    type: MetadataSourceKind
     location: str
     format_hint: MetadataFormat = MetadataFormat.UNKNOWN
 

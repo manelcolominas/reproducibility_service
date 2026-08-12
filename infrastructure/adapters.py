@@ -222,23 +222,23 @@ class LocalCrateSourceResolver:
     def resolve(self, raw_source: str) -> CrateSource:
         value = raw_source.strip()
         if value.startswith(("http://", "https://")):
-            return CrateSource(kind=CrateSourceKind.URL, value=value)
+            return CrateSource(type=CrateSourceKind.URL, value=value)
         if value.lower().endswith(".zip"):
-            return CrateSource(kind=CrateSourceKind.ZIP, value=str(Path(value).expanduser()))
-        return CrateSource(kind=CrateSourceKind.DIRECTORY, value=str(Path(value).expanduser()))
+            return CrateSource(type=CrateSourceKind.ZIP, value=str(Path(value).expanduser()))
+        return CrateSource(type=CrateSourceKind.DIRECTORY, value=str(Path(value).expanduser()))
 
 
 class LocalCrateSourceValidator:
     """Checks that a resolved CrateSource is actually usable."""
 
     def validate(self, source: CrateSource) -> SourceValidationResult:
-        if source.kind == CrateSourceKind.DIRECTORY:
+        if source.type == CrateSourceKind.DIRECTORY:
             return self._validate_directory(source)
-        if source.kind == CrateSourceKind.ZIP:
+        if source.type == CrateSourceKind.ZIP:
             return self._validate_zip(source)
-        if source.kind == CrateSourceKind.URL:
+        if source.type == CrateSourceKind.URL:
             return self._validate_url(source)
-        raise UnsupportedSourceError(f"Unsupported crate source kind: {source.kind}")
+        raise UnsupportedSourceError(f"Unsupported crate source type: {source.type}")
 
     def _validate_directory(self, source: CrateSource) -> SourceValidationResult:
         path = Path(source.value)
@@ -300,13 +300,13 @@ class LocalCrateSourceAcquirer:
         destination_root = Path(destination_root)
         destination_root.mkdir(parents=True, exist_ok=True)
 
-        if source.kind == CrateSourceKind.DIRECTORY:
+        if source.type == CrateSourceKind.DIRECTORY:
             return self._acquire_directory(source, destination_root)
-        if source.kind == CrateSourceKind.ZIP:
+        if source.type == CrateSourceKind.ZIP:
             return self._acquire_zip(source, destination_root)
-        if source.kind == CrateSourceKind.URL:
+        if source.type == CrateSourceKind.URL:
             return self._acquire_url(source, destination_root)
-        raise UnsupportedSourceError(f"Unsupported crate source kind: {source.kind}")
+        raise UnsupportedSourceError(f"Unsupported crate source type: {source.type}")
 
     def _acquire_directory(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
         source_root = Path(source.value)
@@ -435,7 +435,7 @@ class CrateMetadataNormalizer:
         sources_raw = workflow_info.get("sources") or []
         sources = tuple(
             WorkflowArtifact(
-                kind=ArtifactKind.SOURCE,
+                type=ArtifactKind.SOURCE,
                 name=Path(str(item)).name,
                 path=str(item),
             )
@@ -446,7 +446,7 @@ class CrateMetadataNormalizer:
     
         crate_root = document.path.parent if document.path else Path(document.source.location)
         crate = CrateSummary(
-            source=CrateSource(kind=CrateSourceKind.DIRECTORY, value=str(crate_root)),
+            source=CrateSource(type=CrateSourceKind.DIRECTORY, value=str(crate_root)),
             location=CrateLocation(original_path=crate_root, working_path=crate_root),
             metadata=metadata,
             index=index,
@@ -476,7 +476,7 @@ class CrateMetadataNormalizer:
         )
         crate_root = document.path.parent if document.path else Path(document.source.location)
         crate = CrateSummary(
-            source=CrateSource(kind=CrateSourceKind.DIRECTORY, value=str(crate_root)),
+            source=CrateSource(type=CrateSourceKind.DIRECTORY, value=str(crate_root)),
             location=CrateLocation(original_path=crate_root, working_path=crate_root),
             metadata=metadata,
         )

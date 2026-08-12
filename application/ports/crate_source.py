@@ -74,8 +74,8 @@ class CrateSourceAcquirer(Protocol):
 
 
 def is_remote_source(source: CrateSource) -> bool:
-    return source.kind == CrateSourceKind.URL
+    return source.type == CrateSourceKind.URL
 
 
 def is_local_source(source: CrateSource) -> bool:
-    return source.kind in {CrateSourceKind.DIRECTORY, CrateSourceKind.ZIP}
+    return source.type in {CrateSourceKind.DIRECTORY, CrateSourceKind.ZIP}
