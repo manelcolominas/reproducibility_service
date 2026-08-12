@@ -94,7 +94,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)"
     )
     parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
-    parser.add_argument("--participant-name", default="Unknown Participant")
+    parser.add_argument("--participant-name", default=None)
     parser.add_argument("--participant-email")
     parser.add_argument("--participant-org")
     parser.add_argument("--participant-orcid")
@@ -241,7 +241,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
             if typed_name:
                 args.participant_name = typed_name
             if not typed_name:
-                view.console.print("[yellow]Empty name provided, keeping default participant name.[/yellow]")
+                view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
     plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_flag)
     logger.info(

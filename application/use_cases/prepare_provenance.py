@@ -127,7 +127,7 @@ def _sanitize_sources_main_file(workflow_info: dict[str, Any], sources: list[str
 class PrepareProvenanceRequest:
     crate: CrateSummary
     provenance_root: Path
-    participant_name: str
+    participant_name: str | None = None
     participant_email: str | None = None
     participant_organization: str | None = None
     participant_orcid: str | None = None
@@ -141,8 +141,8 @@ class PrepareProvenanceRequest:
             raise ValidationError("PrepareProvenanceRequest.crate cannot be None")
         if not str(self.provenance_root).strip():
             raise ValidationError("PrepareProvenanceRequest.provenance_root cannot be empty")
-        if not self.participant_name.strip():
-            raise ValidationError("PrepareProvenanceRequest.participant_name cannot be empty")
+        # if not self.participant_name.strip():
+        #     raise ValidationError("PrepareProvenanceRequest.participant_name cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)

@@ -76,8 +76,8 @@ class WorkflowParticipant:
     ror: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.name.strip():
-            raise ValueError("WorkflowParticipant.name cannot be empty")
+        # if not self.name.strip():
+        #     raise ValueError("WorkflowParticipant.name cannot be empty")
         if not self.role.strip():
             raise ValueError("WorkflowParticipant.role cannot be empty")
 

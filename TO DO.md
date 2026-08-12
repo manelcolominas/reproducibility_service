@@ -1,4 +1,6 @@
-s'hauria de fer que quan agafi els camps per a fer el ro-crate-info.yaml per al provenance les agafi del ro-crate-metadata.json en el cas que el yaml no existeixi.
+## 1
+
+s'hauria de fer que quan agafi els camps per a fer el ro-crate-info.yaml per al provenance les agafi del ro-crate-metadata.json en el cas que el yaml no existeixi. s'ahuria d'implementar alguna forma de redundància.
 
 COMPSs Workflow Information:
   name: Wordcount COMPSs application
@@ -18,3 +20,4 @@ Authors:
   ror: https://ror.org/05sd8tv96
 Agent:
   name: Manel Colominas
+
