@@ -281,7 +281,8 @@ def print_execution_plan(plan: ExecutionPlan) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Backend", plan.backend.value)
     table.add_row("Command", plan.command.as_string())
-    table.add_row("Run directory", str(plan.context.workspace_directory))
+    table.add_row("Execution directory", str(plan.context.execution_directory))
+    table.add_row("Workspace directory", str(plan.context.workspace_directory))
     table.add_row("Provenance", "enabled" if plan.provenance_enabled else "disabled")
     console.print(Panel(table, title="4. Execution plan", border_style="green", title_align="left"))
 
@@ -290,7 +291,7 @@ def print_provenance_result(result: PrepareProvenanceResult) -> None:
     if result.created_metadata_file:
         console.print(
             Panel(
-                f"Provenance metadata written to:\n{result.created_metadata_file}",
+                f"Provenance metadata will be written to:\n{result.created_metadata_file}",
                 title="Provenance",
                 border_style="green",
                 title_align="left",
