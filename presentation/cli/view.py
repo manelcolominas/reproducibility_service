@@ -280,7 +280,7 @@ def print_verification_table(result: VerifyInputsResult) -> None:
 def print_execution_plan(plan: ExecutionPlan) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Backend", plan.backend.value)
-    table.add_row("Command", plan.command.as_string())
+    table.add_row("Submission Command", plan.command.as_string())
     table.add_row("Execution directory", str(plan.context.execution_directory))
     table.add_row("Workspace directory", str(plan.context.workspace_directory))
     table.add_row("Provenance", "enabled" if plan.provenance_enabled else "disabled")
