@@ -105,7 +105,7 @@ class DefaultVerifyInputsService:
 
     def build_plan(self, request: VerifyInputsRequest) -> VerifyInputsPlan:
         crate = request.crate
-        base_path = crate.location.working_path
+        base_path = crate.location.copied_downloaded_crate_path
         artifacts: list[ArtifactReference] = []
 
         for artifact in crate.all_artifacts:

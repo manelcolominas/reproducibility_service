@@ -124,7 +124,7 @@ class DefaultImportCrateService:
         validator: CrateSourceValidator,
         acquirer: CrateSourceAcquirer,
         file_system: FileSystemManager,
-        workflow_dir_name: str,
+        copied_downloaded_crate_dir_name: str,
         log_dir_name: str,
         results_dir_name: str,
     ) -> None:
@@ -132,7 +132,7 @@ class DefaultImportCrateService:
         self._validator = validator
         self._acquirer = acquirer
         self._file_system = file_system
-        self._workflow_dir_name = workflow_dir_name
+        self._copied_downloaded_crate_dir_name = copied_downloaded_crate_dir_name
         self._log_dir_name = log_dir_name
         self._results_dir_name = results_dir_name
 
@@ -141,7 +141,7 @@ class DefaultImportCrateService:
         validation = self._validator.validate(source)
 
         workspace_root = request.workspace_directory
-        crate_root = workspace_root / self._workflow_dir_name
+        crate_root = workspace_root / self._copied_downloaded_crate_dir_name
         log_dir = workspace_root / self._log_dir_name
         results_dir = workspace_root / self._results_dir_name
 
@@ -181,7 +181,7 @@ class DefaultImportCrateService:
         acquisition = self._acquirer.acquire(plan.source, plan.crate_root)
         location = CrateLocation(
             original_path=acquisition.source_root,
-            working_path=acquisition.prepared_root,
+            copied_downloaded_crate_path=acquisition.prepared_root,
         )
 
         return ImportCrateResult(

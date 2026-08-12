@@ -57,13 +57,13 @@ class CrateSource:
 @dataclass(frozen=True, slots=True)
 class CrateLocation:
     original_path: Path
-    working_path: Path
+    copied_downloaded_crate_path: Path
 
     def __post_init__(self) -> None:
         if not str(self.original_path).strip():
             raise ValueError("CrateLocation.original_path cannot be empty")
-        if not str(self.working_path).strip():
-            raise ValueError("CrateLocation.working_path cannot be empty")
+        if not str(self.copied_downloaded_crate_path).strip():
+            raise ValueError("CrateLocation.copied_downloaded_crate_path cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)

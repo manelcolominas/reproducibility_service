@@ -169,7 +169,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
         validator=LocalCrateSourceValidator(),
         acquirer=LocalCrateSourceAcquirer(),
         file_system=file_system,
-        workflow_dir_name=settings.workflow_dir_name,
+        copied_downloaded_crate_dir_name=settings.copied_downloaded_crate_dir_name,
         log_dir_name=settings.log_dir_name,
         results_dir_name=settings.results_dir_name,
     )
@@ -195,7 +195,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
     inspect_result = view.run_with_spinner(
         "Inspecting crate metadata...",
         inspect_service.execute,
-        InspectCrateRequest(crate_root=import_result.location.working_path),
+        InspectCrateRequest(crate_root=import_result.location.copied_downloaded_crate_path),
     )
     view.print_inspect_result(inspect_result, inspect_result.crate)
 

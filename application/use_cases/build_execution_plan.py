@@ -258,7 +258,7 @@ class DefaultBuildExecutionPlanService:
         # Remap absolute paths from original environment into local imported crate.
         arguments = self._remap_arguments_to_local_crate(
             arguments=arguments,
-            crate_root=request.crate.location.working_path,
+            crate_root=request.crate.location.copied_downloaded_crate_path,
         )
 
         # _PROVENANCE_FLAGS = {"--provenance", "-p"}
@@ -446,7 +446,7 @@ class DefaultBuildExecutionPlanService:
         return text
 
     def _discover_command(self, crate: CrateSummary) -> str | None:
-        crate_root = crate.location.working_path
+        crate_root = crate.location.copied_downloaded_crate_path
 
         # 1) txt file fallback, recursive to support wrapped zip roots
         txt_candidates = [crate_root / "compss_submission_command_line.txt"]

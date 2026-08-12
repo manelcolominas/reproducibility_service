@@ -134,7 +134,7 @@ class DefaultConfigureNewDatasetService:
 
     def build_plan(self, request: ConfigureNewDatasetRequest) -> ConfigureNewDatasetPlan:
         source_root = request.source_dataset_root
-        target_root = request.target_dataset_root or request.crate.location.working_path or request.crate.location.original_path
+        target_root = request.target_dataset_root or request.crate.location.copied_downloaded_crate_path or request.crate.location.original_path
         if target_root is None:
             raise ConfigureNewDatasetFailure(
                 "Could not determine a target dataset root",

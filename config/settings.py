@@ -25,7 +25,7 @@ from pathlib import Path
 class AppSettings:
     service_root: Path
     runs_root: Path
-    workflow_dir_name: str = "Workflow"
+    copied_downloaded_crate_dir_name: str = "RO-Crate"
     log_dir_name: str = "log"
     results_dir_name: str = "Result"
     submission_filename: str = "compss_submission_command_line.txt"
@@ -38,8 +38,8 @@ class AppSettings:
             raise ValueError("service_root cannot be empty")
         if not str(self.runs_root).strip():
             raise ValueError("runs_root cannot be empty")
-        if not self.workflow_dir_name.strip():
-            raise ValueError("workflow_dir_name cannot be empty")
+        if not self.copied_downloaded_crate_dir_name.strip():
+            raise ValueError("copied_downloaded_crate_dir_name cannot be empty")
         if not self.log_dir_name.strip():
             raise ValueError("log_dir_name cannot be empty")
         if not self.results_dir_name.strip():
@@ -61,7 +61,7 @@ class AppSettings:
         return self.runs_root / f"{self.run_prefix}{run_id}"
 
     def workflow_root(self, workspace_directory: Path) -> Path:
-        return workspace_directory / self.workflow_dir_name
+        return workspace_directory / self.copied_downloaded_crate_dir_name
 
     def log_directory(self, workspace_directory: Path) -> Path:
         return workspace_directory / self.log_dir_name

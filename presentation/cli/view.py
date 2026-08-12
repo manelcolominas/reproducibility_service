@@ -225,7 +225,7 @@ def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Source type", result.source.type.value)
     table.add_row("Source name", result.source.value)
-    table.add_row("Working path", str(result.location.working_path))
+    table.add_row("Copied/Downloaded Ro-Crate path", str(result.location.copied_downloaded_crate_path))
     if result.acquisition is not None:
         acquisition_type = _first_true(
             copied=result.acquisition.copied,
