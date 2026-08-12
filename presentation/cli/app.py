@@ -77,10 +77,13 @@ from presentation.cli import view
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    # create an argument parser for the CLI, with a description of the program and its usage
     parser = argparse.ArgumentParser(
         prog="reproducibility_service",
         description="Reproduce a COMPSs workflow run from an RO-Crate.",
     )
+    # source, positional argument, can be a local directory, a .zip file, or a URL
+    # as source is a positional argument, it is mandatory and does not require a flag, doesn't begin with a dash (-). The user must provide it when running the command.
     parser.add_argument("source", help="Local directory, .zip file, or URL of the RO-Crate")
     parser.add_argument("--run-id", help="Identifier for this run (default: random)")
     parser.add_argument(
@@ -104,10 +107,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def run_app(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     settings = build_default_settings()
-    # run_id = args.run_id or uuid.uuid4().hex[:8] # Random 8-character hex string.
     run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-    source_path = Path(args.source).expanduser()
-    runs_root = source_path.resolve().parent
+
+    source_arg = args.source.strip()
+    source_is_url = source_arg.startswith(("http://", "https://"))
+
+    if source_is_url:
+        runs_root = Path.cwd()
+    else:
+        source_path = Path(source_arg).expanduser()
+        runs_root = source_path.resolve().parent
+
     workspace_directory = runs_root / f"reproducibility_service_{run_id}"
 
     logger = _build_run_logger(workspace_directory)

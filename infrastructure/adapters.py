@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen, urlretrieve
+from urllib.error import HTTPError
 
 import yaml
 
@@ -255,17 +256,34 @@ class LocalCrateSourceValidator:
             archive=archive, url=False, message=message,
         )
 
+
     def _validate_url(self, source: CrateSource) -> SourceValidationResult:
-        try:
-            request = Request(source.value, method="HEAD")
-            with urlopen(request, timeout=5) as response:  # noqa: S310 - user-provided source URL
-                reachable = 200 <= response.status < 400
-        except (URLError, ValueError, OSError):
-            reachable = False
+        reachable = False
+        for method in ("HEAD", "GET"):
+            try:
+                request = Request(source.value, method=method)
+                with urlopen(request, timeout=5) as response:
+                    reachable = 200 <= response.status < 400
+                    if reachable:
+                        break
+            except HTTPError:
+                if method == "HEAD":
+                    continue
+                reachable = False
+                break
+            except (URLError, ValueError, OSError):
+                reachable = False
+                break
+    
         message = "" if reachable else f"Could not reach URL: {source.value}"
         return SourceValidationResult(
-            source=source, exists=reachable, readable=reachable, directory=False,
-            archive=False, url=True, message=message,
+            source=source,
+            exists=reachable,
+            readable=reachable,
+            directory=False,
+            archive=False,
+            url=True,
+            message=message,
         )
 
 
