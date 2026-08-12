@@ -27,6 +27,7 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen, urlretrieve
 from urllib.error import HTTPError
+from tempfile import NamedTemporaryFile
 
 import yaml
 
@@ -76,6 +77,11 @@ from domain.models.execution import (
     ExecutionStatus,
 )
 
+BROWSER_HEADERS = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        "Accept": "application/octet-stream,application/zip,application/json,text/html,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
 # --------------------------------------------------------------------------- #
 # File system adapter
@@ -255,18 +261,18 @@ class LocalCrateSourceValidator:
             source=source, exists=exists, readable=readable, directory=False,
             archive=archive, url=False, message=message,
         )
-
-
+    
     def _validate_url(self, source: CrateSource) -> SourceValidationResult:
         reachable = False
         for method in ("HEAD", "GET"):
             try:
-                request = Request(source.value, method=method)
-                with urlopen(request, timeout=5) as response:
-                    reachable = 200 <= response.status < 400
-                    if reachable:
+                request = Request(source.value, method=method, headers=BROWSER_HEADERS)
+                with urlopen(request, timeout=15) as response:
+                    status = getattr(response, "status", None) or response.getcode()
+                    if 200 <= status < 400:
+                        reachable = True
                         break
-            except HTTPError:
+            except HTTPError as exc:
                 if method == "HEAD":
                     continue
                 reachable = False
@@ -325,12 +331,14 @@ class LocalCrateSourceAcquirer:
 
     def _acquire_url(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
         try:
-            download_path, _ = urlretrieve(source.value)  # noqa: S310 - user-provided source URL
-        except (URLError, OSError) as exc:
+            request = Request(source.value, headers=BROWSER_HEADERS, method="GET")
+            with urlopen(request, timeout=30) as response:
+                with NamedTemporaryFile(delete=False, suffix=".zip") as temp_file:
+                    shutil.copyfileobj(response, temp_file)
+                    download_path = Path(temp_file.name)
+        except (URLError, OSError, HTTPError) as exc:
             raise SourceAcquisitionError(f"Could not download crate source: {exc}") from exc
-
-        download_path = Path(download_path)
-        extracted = False
+    
         try:
             if zipfile.is_zipfile(download_path):
                 with zipfile.ZipFile(download_path) as archive:
@@ -339,9 +347,11 @@ class LocalCrateSourceAcquirer:
             else:
                 target_name = Path(source.value).name or "downloaded_crate"
                 shutil.copy2(download_path, destination_root / target_name)
+                extracted = False
         finally:
-            download_path.unlink(missing_ok=True)
-
+            if download_path.exists():
+                download_path.unlink(missing_ok=True)
+    
         return SourceAcquisitionResult(
             source=source,
             source_root=Path(source.value),
