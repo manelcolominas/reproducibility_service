@@ -168,7 +168,7 @@ class PrepareProvenanceResult:
     metadata_document: MetadataDocument | None = None
     normalization: MetadataNormalizationResult | None = None
     updated_metadata: WorkflowMetadata | None = None
-    created_metadata_file: Path | None = None
+    provenance_config_file: Path | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -281,7 +281,7 @@ class DefaultPrepareProvenanceService:
                 request=request,
                 plan=plan,
                 updated_metadata=updated_metadata,
-                created_metadata_file=created_path,
+                provenance_config_file=created_path,
                 warnings=tuple(dict.fromkeys(warnings)),
                 notes=tuple(dict.fromkeys(notes)),
             )
@@ -432,8 +432,8 @@ def has_updated_metadata(result: PrepareProvenanceResult) -> bool:
     return result.updated_metadata is not None
 
 
-def has_created_metadata_file(result: PrepareProvenanceResult) -> bool:
-    return result.created_metadata_file is not None
+def has_provenance_config_file(result: PrepareProvenanceResult) -> bool:
+    return result.provenance_config_file is not None
 
 
 __all__ = [
@@ -446,7 +446,7 @@ __all__ = [
     "PrepareProvenanceStatus",
     "PrepareProvenanceUseCase",
     "ProvenanceWriter",
-    "has_created_metadata_file",
+    "has_provenance_config_file",
     "has_updated_metadata",
     "render_ro_crate_info_yaml",
 ]

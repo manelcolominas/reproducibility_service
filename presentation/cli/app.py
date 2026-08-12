@@ -270,8 +270,8 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
                 participant_ror=args.participant_ror,
             )
         )
-        if provenance_result.created_metadata_file:
-            logger.info("provenance_metadata=%s", provenance_result.created_metadata_file)
+        if provenance_result.provenance_config_file:
+            logger.info("provenance_metadata=%s", provenance_result.provenance_config_file)
         view.print_provenance_result(provenance_result)
 
     return crate, plan_result

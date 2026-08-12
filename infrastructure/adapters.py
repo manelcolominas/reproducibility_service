@@ -578,17 +578,6 @@ class SubprocessExecutionParticipant:
                     stderr=stderr_file,
                     check=False,
                 )
-            try:
-                self.move_generated_provenance_crate(
-                    workspace_directory=submission.workspace_directory,
-                    results_directory=submission.results_directory,
-                    execution_directory=submission.results_directory,
-                )
-            except OSError as exc:
-                if error_message:
-                    error_message = f"{error_message}; could not move provenance crate(s): {exc}"
-                else:
-                    error_message = f"Could not move provenance crate(s): {exc}"
             return_code = completed.returncode
             status = ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED
             if return_code != 0:
@@ -610,6 +599,14 @@ class SubprocessExecutionParticipant:
             results_directory=submission.results_directory,
         )
         log = ExecutionLog(stdout_path=stdout_path, stderr_path=stderr_path)
+
+        generated_ro_crate_path = self._find_generated_ro_crate_path(submission)
+
+        return_code = completed.returncode
+        status = ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED
+        if return_code != 0:
+            error_message = f"Process exited with code {return_code}"
+
         result = ExecutionResult(
             status=status,
             command=submission.command,
@@ -620,61 +617,17 @@ class SubprocessExecutionParticipant:
             finished_at=finished_at,
             summary_message="Execution succeeded" if status == ExecutionStatus.SUCCEEDED else "Execution failed",
             error_message=error_message,
+            generated_ro_crate_path=generated_ro_crate_path,
         )
         return ExecutionOutcome(result=result, submission=submission)
 
-    def move_generated_provenance_crate(
-            self,
-            workspace_directory: Path,
-            results_directory: Path,
-            execution_directory: Path | None = None
-            ) -> list[str]:
-        moved: list[str] = []
-
-        results_directory.mkdir(parents=True, exist_ok=True)
-        resolved_results = results_directory.resolve()
-
-        search_roots: list[Path] = []
-        if execution_directory is not None:
-            search_roots.append(execution_directory)
-        search_roots.append(workspace_directory)
-
-        seen_roots: set[str] = set()
-        seen_candidates: set[str] = set()
-        for root in search_roots:
-            if not root.exists():
-                continue
-
-            root_key = str(root.resolve())
-            if root_key in seen_roots:
-                continue
-            seen_roots.add(root_key)
-
-            for candidate in root.rglob("COMPSs_RO-Crate*"):
-                if not (candidate.is_dir() or candidate.is_file()):
-                    continue
-
-                candidate_resolved = candidate.resolve()
-                candidate_key = str(candidate_resolved)
-                if candidate_key in seen_candidates:
-                    continue
-                seen_candidates.add(candidate_key)
-
-                # Ja està dins Result: no cal moure, però ho comptem.
-                if candidate_resolved.is_relative_to(resolved_results):
-                    moved.append(candidate.name)
-                    continue
-
-                destination = results_directory / candidate.name
-                if destination.exists():
-                    suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-                    destination = results_directory / f"{candidate.name}_{suffix}"
-
-                shutil.move(str(candidate), str(destination))
-                moved.append(destination.name)
-
-        return moved
-
+    def _find_generated_ro_crate_path(self, submission: ExecutionSubmission) -> Path:
+        generated_ro_crate_path = None
+        for candidate in sorted(submission.results_directory.rglob("COMPSs_RO-Crate*"), key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True):
+            if candidate.is_dir() or candidate.is_file():
+                generated_ro_crate_path = candidate.resolve()
+                break
+        return generated_ro_crate_path
 
 __all__ = [
     "LocalFileSystem",

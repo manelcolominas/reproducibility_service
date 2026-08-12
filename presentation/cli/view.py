@@ -288,10 +288,10 @@ def print_execution_plan(plan: ExecutionPlan) -> None:
 
 
 def print_provenance_result(result: PrepareProvenanceResult) -> None:
-    if result.created_metadata_file:
+    if result.provenance_config_file:
         console.print(
             Panel(
-                f"Provenance metadata will be written to:\n{result.created_metadata_file}",
+                f"Provenance config file will be written to:\n{result.provenance_config_file}",
                 title="Provenance",
                 border_style="green",
                 title_align="left",
@@ -320,6 +320,8 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
     table.add_row("Stdout log", str(outcome.result.log.stdout_path))
     table.add_row("Stderr log", str(outcome.result.log.stderr_path))
     table.add_row("Results directory", str(outcome.submission.results_directory))
+    if outcome.result.generated_ro_crate_path is not None:
+        table.add_row("Generated RO-Crate artifact at", str(outcome.result.generated_ro_crate_path))
     if outcome.result.error_message:
         table.add_row("Error", outcome.result.error_message)
 
@@ -422,35 +424,3 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
             seen.add(flag)
 
     return extracted
-    if not current_command:
-        return []
-
-    extracted: list[str] = []
-    seen: set[str] = set()
-    index = 1
-
-    while index < len(current_command):
-        token = current_command[index]
-
-        if not token.startswith("--"):
-            index += 1
-            continue
-
-        if token in {"--provenance", "-p"}:
-            flag = token
-            index += 1
-        elif "=" in token:
-            flag = token
-            index += 1
-        elif index + 1 < len(current_command) and not current_command[index + 1].startswith("-"):
-            flag = f"{token}={current_command[index + 1]}"
-            index += 2
-        else:
-            flag = token
-            index += 1
-
-        if flag not in seen:
-            extracted.append(flag)
-            seen.add(flag)
-
-    return [flag for flag in extracted if _flag_base(flag) not in {"--provenance", "-p"}]

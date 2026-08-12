@@ -121,6 +121,7 @@ class ExecutionResult:
     finished_at: datetime | None = None
     summary_message: str = ""
     error_message: str | None = None
+    generated_ro_crate_path: Path | None = None
 
     @property
     def succeeded(self) -> bool:
