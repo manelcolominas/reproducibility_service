@@ -133,7 +133,7 @@ def run_app(argv: list[str] | None = None) -> int:
         return 1
     except KeyboardInterrupt:
         logger.info("final_status=aborted_by_user")
-        view.console.print("\n[yellow]Aborted by user.[/yellow]")
+        view.console.print("\n[yellow]User aborted reproducibility service.[/yellow]")
         return 130
 
     if plan_result is None:

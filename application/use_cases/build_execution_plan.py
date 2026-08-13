@@ -22,7 +22,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
-import json
 import os
 
 from application.ports.executor import (
@@ -447,61 +446,57 @@ class DefaultBuildExecutionPlanService:
 
     def _discover_command(self, crate: CrateSummary) -> str | None:
         crate_root = crate.location.copied_downloaded_crate_path
-
-        # 1) txt file fallback, recursive to support wrapped zip roots
-        txt_candidates = [crate_root / "compss_submission_command_line.txt"]
-        txt_candidates.extend(sorted(crate_root.rglob("compss_submission_command_line.txt")))
-
-        for path in txt_candidates:
-            if not path.is_file():
-                continue
-            first_line = path.read_text(encoding="utf-8").splitlines()
-            if not first_line:
-                continue
-            command = self._normalize_submission_command(first_line[0])
+    
+        for path in [crate_root / "compss_submission_command_line.txt", *sorted(crate_root.rglob("compss_submission_command_line.txt"))]:
+            if path.is_file():
+                first_line = path.read_text(encoding="utf-8").splitlines()
+                if first_line:
+                    command = self._normalize_submission_command(first_line[0])
+                    if command:
+                        return command
+    
+        rocrate = self._load_rocrate(crate_root)
+        if rocrate:
+            command = self._extract_command_from_rocrate(rocrate)
             if command:
                 return command
-
-        # 2) ro-crate-metadata.json fallback(s), recursive
-        for metadata_path in sorted(crate_root.rglob("ro-crate-metadata.json")):
-            command = self._extract_command_from_rocrate_json(metadata_path)
-            if command:
-                return command
-
+    
         return None
-
-    def _extract_command_from_rocrate_json(self, metadata_path: Path) -> str | None:
+    
+    
+    def _load_rocrate(self, crate_root: Path) -> ROCrate | None:
         try:
-            raw = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            return ROCrate(crate_root)
+        except Exception:
             return None
-
-        graph = raw.get("@graph")
-        if not isinstance(graph, list):
-            return None
-
-        # 1) COMPSs Workflow Run Crate entity
+    
+    
+    def _extract_command_from_rocrate(self, crate: ROCrate) -> str | None:
+        graph = list(crate.get_entities())
+    
+        # 1. Prefer the workflow-level entity
+        main_entity = crate.root_dataset.get("mainEntity")
         for entity in graph:
-            entity_id = str(entity.get("@id") or entity.get("id") or "")
-            if "#COMPSs_Workflow_Run_Crate_" in entity_id:
+            if entity == main_entity:
                 command = self._normalize_submission_command(entity.get("description"))
                 if command:
                     return command
-
-        # 2) CreateAction
+    
+        # 2. Then prefer the first matching CreateAction
         for entity in graph:
             if self._is_create_action(entity):
                 command = self._normalize_submission_command(entity.get("description"))
                 if command:
                     return command
-
-        # 3) Any entity description
+    
+        # 3. Then any other usable description
         for entity in graph:
             command = self._normalize_submission_command(entity.get("description"))
             if command:
                 return command
-
+    
         return None
+
 
     def _normalize_submission_command(self, value: object) -> str | None:
         if not isinstance(value, str):

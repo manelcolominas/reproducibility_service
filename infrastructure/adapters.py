@@ -377,15 +377,15 @@ class CrateMetadataParser:
         json_candidates = sorted(root.rglob("ro-crate-metadata.json"))
         yaml_candidates = sorted(root.rglob("ro-crate-info.yaml"))
 
+        if json_candidates:
+            path = json_candidates[0]
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            return MetadataDocument(source=request.source, format=MetadataFormat.RO_CRATE_JSON, raw=raw, path=path)
+
         if yaml_candidates:
             path = yaml_candidates[0]
             raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             return MetadataDocument(source=request.source, format=MetadataFormat.COMPSS_YAML, raw=raw, path=path)
-
-        if json_candidates:
-                    path = json_candidates[0]
-                    raw = json.loads(path.read_text(encoding="utf-8"))
-                    return MetadataDocument(source=request.source, format=MetadataFormat.RO_CRATE_JSON, raw=raw, path=path)
 
         raise MetadataParseError(
             f"No ro-crate-metadata.json or ro-crate-info.yaml found under {root}"
@@ -428,7 +428,7 @@ class CrateMetadataNormalizer:
             authors=authors,
             participant=participant,
             license=workflow_info.get("license"),
-            data_persistence=self._parse_data_persistence(workflow_info.get("data_persistence")),
+            data_persistence=self._infer_data_persistence(crate_root),
             source_metadata_path=document.path,
         )
     
@@ -462,30 +462,156 @@ class CrateMetadataNormalizer:
 
     def _normalize_ro_crate_json(self, document: MetadataDocument) -> MetadataNormalizationResult:
         graph = document.raw.get("@graph") or []
-        root_entity_id = None
-        for entity in graph:
-            if entity.get("@id") == "ro-crate-metadata.json":
-                root_entity_id = (entity.get("about") or {}).get("@id")
-                break
-        root_entity = next((e for e in graph if e.get("@id") == root_entity_id), {})
+        entities_by_id = {
+            entity.get("@id"): entity
+            for entity in graph
+            if isinstance(entity, dict) and entity.get("@id")
+        }
+
+        root_entity = self._find_root_entity(graph)
+        compss_entity = entities_by_id.get("#compss", {})
+        compss_version = compss_entity.get("version")
+
+        run_entity = self._find_run_entity(root_entity, entities_by_id)
+        execution_site = self._extract_execution_site(run_entity)
+
+        authors = self._resolve_authors(root_entity, entities_by_id)
+        sources = self._resolve_sources(root_entity, entities_by_id)
+
+        crate_root = document.path.parent if document.path else Path(document.source.location)
 
         metadata = WorkflowMetadata(
-            name=root_entity.get("name") or "unnamed-workflow",
-            description=root_entity.get("description", ""),
+            name=str(root_entity.get("name") or "unnamed-workflow"),
+            description=str(root_entity.get("description") or ""),
+            license=root_entity.get("license"),
+            authors=authors,
+            compss_version=compss_version,
+            execution_site=execution_site,
+            data_persistence=self._infer_data_persistence(crate_root),
             source_metadata_path=document.path,
         )
-        crate_root = document.path.parent if document.path else Path(document.source.location)
+
+        index = CrateIndex(sources=sources)
         crate = CrateSummary(
             source=CrateSource(type=CrateSourceKind.DIRECTORY, value=str(crate_root)),
             location=CrateLocation(original_path=crate_root, copied_downloaded_crate_path=crate_root),
             metadata=metadata,
+            index=index,
         )
+
         return MetadataNormalizationResult(
             document=document,
             metadata=metadata,
+            index=index,
             crate=crate,
-            warnings=("RO-Crate JSON parsing is minimal in this MVP: only name/description are read",),
         )
+
+    def _find_root_entity(self, graph: list[dict]) -> dict:
+        for entity in graph:
+            if entity.get("@id") == "./":
+                return entity
+        for entity in graph:
+            if entity.get("@id") == "ro-crate-metadata.json":
+                about = entity.get("about")
+                if isinstance(about, dict):
+                    root_id = about.get("@id")
+                    if root_id:
+                        return next((item for item in graph if item.get("@id") == root_id), {})
+        return {}
+
+    def _find_run_entity(self, root_entity: dict, entities_by_id: dict[str, dict]) -> dict:
+        mentions = root_entity.get("mentions")
+        mention_id = mentions.get("@id") if isinstance(mentions, dict) else None
+        if mention_id and mention_id in entities_by_id:
+            return entities_by_id[mention_id]
+
+        for entity in entities_by_id.values():
+            entity_type = entity.get("@type")
+            if entity_type == "CreateAction" or (isinstance(entity_type, list) and "CreateAction" in entity_type):
+                return entity
+        return {}
+
+    def _extract_execution_site(self, run_entity: dict) -> str | None:
+        name = str(run_entity.get("name") or "")
+        marker = " execution at "
+        if marker in name:
+            tail = name.split(marker, 1)[1]
+            return tail.split(" with JOB_ID", 1)[0].strip() or None
+
+        entity_id = str(run_entity.get("@id") or "")
+        if "marenostrum" in entity_id:
+            tail = entity_id.split("marenostrum", 1)[1]
+            return "marenostrum" + tail.split("_", 1)[0]
+
+        return None
+
+    def _resolve_authors(self, root_entity: dict, entities_by_id: dict[str, dict]) -> tuple[WorkflowParticipant, ...]:
+        creator_ids = root_entity.get("creator") or []
+        if isinstance(creator_ids, dict):
+            creator_ids = [creator_ids]
+
+        authors: list[WorkflowParticipant] = []
+        for creator in creator_ids:
+            creator_id = creator.get("@id") if isinstance(creator, dict) else None
+            if not creator_id:
+                continue
+            person = entities_by_id.get(creator_id, {})
+            name = str(person.get("name") or "").strip()
+            if not name:
+                continue
+            authors.append(
+                WorkflowParticipant(
+                    name=name,
+                    role="author",
+                    email=self._extract_email(person),
+                    organization_name=self._extract_organization_name(person, entities_by_id),
+                    orcid=creator_id if creator_id.startswith("https://orcid.org/") else None,
+                )
+            )
+        return tuple(authors)
+
+    def _resolve_sources(self, root_entity: dict, entities_by_id: dict[str, dict]) -> tuple[WorkflowArtifact, ...]:
+        sources: list[WorkflowArtifact] = []
+
+        main_entity = root_entity.get("mainEntity")
+        main_entity_id = main_entity.get("@id") if isinstance(main_entity, dict) else None
+        if main_entity_id:
+            source_entity = entities_by_id.get(main_entity_id, {})
+            name = str(source_entity.get("name") or Path(main_entity_id).name)
+            sources.append(
+                WorkflowArtifact(
+                    type=ArtifactKind.SOURCE,
+                    name=name,
+                    path=main_entity_id,
+                )
+            )
+
+        return tuple(sources)
+
+    def _infer_data_persistence(self, crate_root: Path) -> DataPersistenceKind:
+        dataset_dir = crate_root / "dataset"
+        return DataPersistenceKind.TRUE if dataset_dir.is_dir() else DataPersistenceKind.FALSE
+
+    def _extract_email(self, person: dict) -> str | None:
+        contact = person.get("contactPoint")
+        if isinstance(contact, dict):
+            email = contact.get("email")
+            if email:
+                return str(email)
+        return None
+
+    def _extract_organization_name(
+        self,
+        person: dict,
+        entities_by_id: dict[str, dict],
+    ) -> str | None:
+        affiliation = person.get("affiliation")
+        affiliation_id = affiliation.get("@id") if isinstance(affiliation, dict) else None
+        if not affiliation_id:
+            return None
+        org = entities_by_id.get(affiliation_id, {})
+        name = str(org.get("name") or "").strip()
+        return name or None
 
     def _participants(self, raw: object, role: str) -> tuple[WorkflowParticipant, ...]:
         if isinstance(raw, list):
@@ -501,7 +627,6 @@ class CrateMetadataNormalizer:
             if participant is not None:
                 participants.append(participant)
         return tuple(participants)
-
 
     def _participant(self, raw: object, role: str) -> WorkflowParticipant | None:
         if not isinstance(raw, dict):
@@ -529,6 +654,8 @@ class CrateMetadataNormalizer:
         if text in {"false", "no"}:
             return DataPersistenceKind.FALSE
         return DataPersistenceKind.UNKNOWN
+
+    
 
 
 # --------------------------------------------------------------------------- #

@@ -96,6 +96,7 @@ class WorkflowMetadata:
     source_metadata_path: Path | None = None
     generated_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    execution_site: str | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
