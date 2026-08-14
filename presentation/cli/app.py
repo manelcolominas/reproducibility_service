@@ -205,7 +205,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         inspect_service.execute,
         InspectCrateRequest(crate_root=import_result.location.copied_downloaded_crate_path),
     )
-    view.print_inspect_result(inspect_result, inspect_result.crate)
+    view.print_inspect_result(inspect_result, inspect_result.crate, args.command)
 
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")

@@ -407,6 +407,8 @@ class LocalPyCompssMetadataInspector:
         import subprocess
 
         target = document.path if document.path is not None else Path(document.source.location)
+        # if you want the verbose output
+        #command = [self._executable, "inspect", "-v", str(target)]
         command = [self._executable, "inspect", str(target)]
 
         try:
