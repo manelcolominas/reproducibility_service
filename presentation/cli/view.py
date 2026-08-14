@@ -24,7 +24,7 @@ view stays trivially testable/replaceable.
 
 from __future__ import annotations
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
@@ -242,20 +242,34 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None)
         return
 
     table = Table.grid(padding=(0, 1))
-    table.add_row("Name", crate.metadata.name)
-    table.add_row("Description", crate.metadata.description or "[dim]-[/dim]")
     table.add_row("COMPSs version", crate.metadata.compss_version or "[dim]-[/dim]")
     table.add_row("Executed at", crate.metadata.execution_site or "[dim]-[/dim]")
     table.add_row("License", crate.metadata.license or "[dim]-[/dim]")
     table.add_row("Data persistence", crate.metadata.data_persistence.value)
     table.add_row("Authors", str(len(crate.metadata.authors)))
     table.add_row("Sources", str(len(crate.index.sources)))
-    console.print(Panel(table, title="2. Metadata inspected", border_style="green", title_align="left"))
+
+    body = table
+    if result.inspect_output:
+        body = Group(
+            Text(result.inspect_output.rstrip()),
+            Text(""),
+            table,
+        )
+
+    console.print(
+        Panel(
+            body,
+            title="2. Metadata inspected",
+            border_style="green",
+            title_align="left",
+        )
+    )
 
     if result.warnings:
         for warning in result.warnings:
             console.print(f"  [yellow]![/yellow] {warning}")
-
+            
 
 def print_verification_table(result: VerifyInputsResult) -> None:
     table = Table(title="3. Input verification", show_lines=False)

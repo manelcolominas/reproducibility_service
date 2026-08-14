@@ -103,9 +103,17 @@ class MetadataNormalizer(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True)
+class MetadataInspectionResult:
+    ok: bool
+    stdout: str | None = None
+    stderr: str | None = None
+    warning: str | None = None
+
+
 @runtime_checkable
 class MetadataInspector(Protocol):
-    def inspect(self, document: MetadataDocument) -> tuple[str, ...]:
+    def inspect(self, document: MetadataDocument) -> MetadataInspectionResult:
         ...
 
 

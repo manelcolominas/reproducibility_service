@@ -68,6 +68,7 @@ from infrastructure.adapters import (
     LocalCrateSourceResolver,
     LocalCrateSourceValidator,
     LocalFileSystem,
+    LocalPyCompssMetadataInspector,
     ShutilExecutionBackendDetector,
     SubprocessExecutionParticipant,
 )
@@ -180,7 +181,9 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         results_dir_name=settings.results_dir_name,
     )
     inspect_service = DefaultInspectCrateService(
-        parser=CrateMetadataParser(), normalizer=CrateMetadataNormalizer()
+        parser=CrateMetadataParser(),
+        normalizer=CrateMetadataNormalizer(),
+        inspector=LocalPyCompssMetadataInspector(),
     )
     verify_service = DefaultVerifyInputsService(file_system=file_system)
     plan_service = DefaultBuildExecutionPlanService(

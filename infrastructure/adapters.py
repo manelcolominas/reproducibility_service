@@ -21,6 +21,7 @@ import json
 import os
 import shutil
 import subprocess
+from sys import executable
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +49,8 @@ from application.ports.file_system import (
 from application.ports.metadata_parser import (
     MetadataDocument,
     MetadataFormat,
+    MetadataInspectionResult,
+    MetadataInspector,
     MetadataNormalizationResult,
     MetadataParseRequest,
 )
@@ -298,9 +301,6 @@ class LocalCrateSourceAcquirer:
 
     def acquire(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
         destination_root = Path(destination_root)
-
-        
-
         destination_root.mkdir(parents=True, exist_ok=True)
 
         if source.type == CrateSourceKind.DIRECTORY:
@@ -394,6 +394,52 @@ class CrateMetadataParser:
             f"No ro-crate-metadata.json or ro-crate-info.yaml found under {root}"
         )
 
+
+class LocalPyCompssMetadataInspector:
+    """Runs pycompss inspect on the crate metadata source."""
+
+    def __init__(self, executable: str = "pycompss") -> None:
+        self._executable = executable
+
+    def inspect(self, document: MetadataDocument) -> MetadataInspectionResult:
+        target = document.path if document.path is not None else Path(document.source.location)
+        command = [self._executable, "inspect", str(target)]
+
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            return MetadataInspectionResult(
+                ok=False,
+                warning="pycompss inspect unavailable: executable 'pycompss' not found",
+            )
+        except OSError as exc:
+            return MetadataInspectionResult(
+                ok=False,
+                warning=f"pycompss inspect could not be executed: {exc}",
+            )
+
+        stdout = (completed.stdout or "").rstrip()
+        stderr = (completed.stderr or "").rstrip()
+
+        if completed.returncode == 0:
+            return MetadataInspectionResult(
+                ok=True,
+                stdout=stdout or None,
+                stderr=stderr or None,
+            )
+
+        details = stderr or stdout or "no diagnostic output"
+        return MetadataInspectionResult(
+            ok=False,
+            stdout=stdout or None,
+            stderr=stderr or None,
+            warning=f"pycompss inspect failed (exit code {completed.returncode}): {details}",
+        )
 
 class CrateMetadataNormalizer:
     """Turns a parsed MetadataDocument into domain models."""
