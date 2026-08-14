@@ -205,7 +205,21 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         inspect_service.execute,
         InspectCrateRequest(crate_root=import_result.location.copied_downloaded_crate_path),
     )
-    view.print_inspect_result(inspect_result, inspect_result.crate, args.command)
+    
+    if inspect_result.crate is None:
+        logger.info("final_status=invalid_crate_metadata")
+        view.print_error("Could not build a usable crate summary from the metadata found.")
+        return None, None
+    
+    crate = inspect_result.crate
+
+    original_submission_command = plan_service._discover_command(crate)
+
+    view.print_inspect_result(
+        inspect_result,
+        crate,
+        original_submission_command,
+    )
 
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")

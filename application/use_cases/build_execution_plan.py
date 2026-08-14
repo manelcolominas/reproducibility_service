@@ -23,6 +23,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 import os
+from rocrate.rocrate import ROCrate
 
 from application.ports.executor import (
     ExecutionBackendDetector,
