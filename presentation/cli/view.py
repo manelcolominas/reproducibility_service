@@ -225,14 +225,14 @@ def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Source type", result.source.type.value)
     table.add_row("Source name", result.source.value)
-    table.add_row("Copied/Downloaded Ro-Crate path", str(result.location.copied_downloaded_crate_path))
+    table.add_row("Ro-Crate path", str(result.location.copied_downloaded_crate_path))
     if result.acquisition is not None:
         acquisition_type = _first_true(
             copied=result.acquisition.copied,
             extracted=result.acquisition.extracted,
             downloaded=result.acquisition.downloaded,
         )
-        table.add_row("Acquisition", acquisition_type)
+        #table.add_row("Acquisition", acquisition_type)
     console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
 
 
@@ -242,17 +242,19 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None)
         return
 
     table = Table.grid(padding=(0, 1))
-    table.add_row("COMPSs version", crate.metadata.compss_version or "[dim]-[/dim]")
-    table.add_row("Executed at", crate.metadata.execution_site or "[dim]-[/dim]")
-    #table.add_row("License", crate.metadata.license or "[dim]-[/dim]")
-    table.add_row("Data persistence", crate.metadata.data_persistence.value)
-    #table.add_row("Authors", str(len(crate.metadata.authors)))
-    #table.add_row("Sources", str(len(crate.index.sources)))
+    table.add_column(style="bold cyan", no_wrap=True)
+    table.add_column(style="white")
+    #table.add_row("COMPSs version",f"[green]{crate.metadata.compss_version or '[dim]-[/dim]'}[/green]")
+    #table.add_row("Executed at",f"[magenta]{crate.metadata.execution_site or '[dim]-[/dim]'}[/magenta]")
+    #table.add_row("License",f"[yellow]{crate.metadata.license or '[dim]-[/dim]'}[/yellow]")
+    table.add_row("Data persistence","[green]true[/green]" if crate.metadata.data_persistence.value == "true" else f"[red]{crate.metadata.data_persistence.value}[/red]")
+    #table.add_row("Authors", f"[blue]{len(crate.metadata.authors)}[/blue]")
+    #table.add_row("Sources", f"[blue]{len(crate.index.sources)}[/blue]")
 
     body = table
     if result.inspect_output:
         body = Group(
-            Text(result.inspect_output.rstrip()),
+            Text.from_ansi(result.inspect_output.rstrip()),
             Text(""),
             table,
         )
@@ -260,7 +262,7 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None)
     console.print(
         Panel(
             body,
-            title="2. Metadata inspected",
+            title="[bold green]2. Metadata inspected[/bold green]",
             border_style="green",
             title_align="left",
         )
