@@ -244,10 +244,10 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None)
     table = Table.grid(padding=(0, 1))
     table.add_row("COMPSs version", crate.metadata.compss_version or "[dim]-[/dim]")
     table.add_row("Executed at", crate.metadata.execution_site or "[dim]-[/dim]")
-    table.add_row("License", crate.metadata.license or "[dim]-[/dim]")
+    #table.add_row("License", crate.metadata.license or "[dim]-[/dim]")
     table.add_row("Data persistence", crate.metadata.data_persistence.value)
-    table.add_row("Authors", str(len(crate.metadata.authors)))
-    table.add_row("Sources", str(len(crate.index.sources)))
+    #table.add_row("Authors", str(len(crate.metadata.authors)))
+    #table.add_row("Sources", str(len(crate.index.sources)))
 
     body = table
     if result.inspect_output:
