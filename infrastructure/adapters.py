@@ -298,6 +298,9 @@ class LocalCrateSourceAcquirer:
 
     def acquire(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
         destination_root = Path(destination_root)
+
+        
+
         destination_root.mkdir(parents=True, exist_ok=True)
 
         if source.type == CrateSourceKind.DIRECTORY:

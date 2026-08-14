@@ -115,7 +115,12 @@ def run_app(argv: list[str] | None = None) -> int:
     else:
         source_path = Path(source_arg).expanduser().resolve()
         runs_root = source_path.parent
-        shared_crate_directory = source_path
+
+        if source_path.suffix.lower() == ".zip":
+            # Extract into a folder next to the archive, not into the archive file itself
+            shared_crate_directory = source_path.with_suffix("")
+        else:
+            shared_crate_directory = source_path
 
     workspace_directory = runs_root / f"reproducibility_service_{run_id}"
 
