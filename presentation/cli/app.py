@@ -39,10 +39,7 @@ from application.use_cases.build_execution_plan import (
     BuildExecutionPlanRequest,
     DefaultBuildExecutionPlanService,
 )
-from application.use_cases.configure_new_dataset import (
-    ConfigureNewDatasetRequest,
-    DefaultConfigureNewDatasetService,
-)
+
 from application.use_cases.import_crate import (
     DefaultImportCrateService,
     ImportCrateRequest,
@@ -60,6 +57,7 @@ from application.use_cases.verify_inputs import (
     VerifyInputsRequest,
     VerifyInputsStatus,
 )
+from config import settings
 from config.settings import AppSettings, build_default_settings
 from domain.errors import ServiceError
 from domain.models.execution import ExecutionBackend
@@ -99,10 +97,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--participant-org")
     parser.add_argument("--participant-orcid")
     parser.add_argument("--participant-ror")
-    parser.add_argument("--new-dataset", help="Optional dataset directory to copy into the crate before running")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     return parser
-
 
 def run_app(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
@@ -114,11 +110,15 @@ def run_app(argv: list[str] | None = None) -> int:
 
     if source_is_url:
         runs_root = Path.cwd()
+        shared_crate_directory = runs_root / settings.copied_downloaded_crate_dir_name
+
     else:
-        source_path = Path(source_arg).expanduser()
-        runs_root = source_path.resolve().parent
+        source_path = Path(source_arg).expanduser().resolve()
+        runs_root = source_path.parent
+        shared_crate_directory = source_path
 
     workspace_directory = runs_root / f"reproducibility_service_{run_id}"
+
 
     logger = _build_run_logger(workspace_directory)
     logger.info("source=%s", args.source)
@@ -126,7 +126,7 @@ def run_app(argv: list[str] | None = None) -> int:
     view.print_banner()
 
     try:
-        crate, plan_result = _run_pipeline(args, settings, workspace_directory, logger)
+        crate, plan_result = _run_pipeline(args, settings, workspace_directory, shared_crate_directory, logger)
     except ServiceError as exc:
         logger.exception("service_error=%s details=%s", exc.message, exc.details)
         view.print_error(exc.message, exc.details)
@@ -161,7 +161,8 @@ def run_app(argv: list[str] | None = None) -> int:
     return 0 if outcome.succeeded else 1
 
 
-def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_directory: Path, logger: logging.Logger):
+def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_directory: Path, shared_crate_directory: Path, logger: logging.Logger ):
+
     file_system = LocalFileSystem()
 
     import_service = DefaultImportCrateService(
@@ -176,7 +177,6 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
     inspect_service = DefaultInspectCrateService(
         parser=CrateMetadataParser(), normalizer=CrateMetadataNormalizer()
     )
-    dataset_service = DefaultConfigureNewDatasetService(file_system=file_system)
     verify_service = DefaultVerifyInputsService(file_system=file_system)
     plan_service = DefaultBuildExecutionPlanService(
         backend_detector=ShutilExecutionBackendDetector(),
@@ -188,7 +188,7 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
     import_result = view.run_with_spinner(
         "Importing crate source...",
         import_service.execute,
-        ImportCrateRequest(raw_source=args.source, workspace_directory=workspace_directory),
+        ImportCrateRequest(raw_source=args.source, workspace_directory=workspace_directory, crate_directory=shared_crate_directory,reuse_existing_crate=True)
     )
     view.print_import_result(import_result)
 
@@ -205,14 +205,6 @@ def _run_pipeline(args: argparse.Namespace, settings: AppSettings, workspace_dir
         return None, None
 
     crate = inspect_result.crate
-
-    if args.new_dataset:
-        dataset_result = dataset_service.execute(
-            ConfigureNewDatasetRequest(crate=crate, source_dataset_root=Path(args.new_dataset))
-        )
-        view.console.print(
-            f"  Dataset staged: {len(dataset_result.copied_items)} item(s) copied into the crate\n"
-        )
 
     verify_result = verify_service.execute(VerifyInputsRequest(crate=crate))
     view.print_verification_table(verify_result)
@@ -368,7 +360,6 @@ def _replace_submission_flags(
     updated_parts = [command_parts[0], *selected_flags, *positional_arguments]
     return " ".join(updated_parts)
 
-
 PROVENANCE_FLAGS = {"--provenance", "-p"}
 
 def _strip_all_long_flags(arguments: list[str]) -> list[str]:
@@ -385,26 +376,6 @@ def _strip_all_long_flags(arguments: list[str]) -> list[str]:
         if token.startswith("--"):
             index += 1
             if "=" not in token and index < len(arguments) and not arguments[index].startswith("-"):
-                index += 1
-            continue
-
-        filtered.append(token)
-        index += 1
-
-    return filtered
-
-
-def _strip_toggleable_flags(arguments: list[str], toggleable_bases: set[str]) -> list[str]:
-    filtered: list[str] = []
-    index = 0
-
-    while index < len(arguments):
-        token = arguments[index]
-        base = _flag_base(token)
-
-        if base in toggleable_bases:
-            index += 1
-            if token == base and index < len(arguments) and not arguments[index].startswith("-"):
                 index += 1
             continue
 

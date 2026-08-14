@@ -51,12 +51,17 @@ class ImportCrateRequest:
     raw_source: str
     workspace_directory: Path
     create_workspace: bool = True
+    crate_directory: Path | None = None
+    reuse_existing_crate: bool = True
+
 
     def __post_init__(self) -> None:
         if not self.raw_source.strip():
             raise ValidationError("ImportCrateRequest.raw_source cannot be empty")
         if not str(self.workspace_directory).strip():
             raise ValidationError("ImportCrateRequest.workspace_directory cannot be empty")
+        if self.crate_directory is not None and not str(self.crate_directory).strip():
+            raise ValidationError("ImportCrateRequest.crate_directory cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +146,7 @@ class DefaultImportCrateService:
         validation = self._validator.validate(source)
 
         workspace_root = request.workspace_directory
-        crate_root = workspace_root / self._copied_downloaded_crate_dir_name
+        crate_root = request.crate_directory or (workspace_root / self._copied_downloaded_crate_dir_name)
         log_dir = workspace_root / self._log_dir_name
         results_dir = workspace_root / self._results_dir_name
 
@@ -160,28 +165,40 @@ class DefaultImportCrateService:
 
         if not plan.validation.is_valid:
             raise ImportCrateFailure(
-                "Source validation failed",
-                details=plan.validation.message or "the source is not usable",
+            "Source validation failed",
+            details=plan.validation.message or "the source is not usable",
             )
 
         if request.create_workspace:
             self._file_system.create_directory(
-                DirectoryCreateRequest(path=plan.workspace_root, parents=True, exist_ok=True)
+            DirectoryCreateRequest(path=plan.workspace_root, parents=True, exist_ok=True)
             )
             self._file_system.create_directory(
-                DirectoryCreateRequest(path=plan.crate_root, parents=True, exist_ok=True)
+            DirectoryCreateRequest(path=plan.crate_root, parents=True, exist_ok=True)
             )
             self._file_system.create_directory(
-                DirectoryCreateRequest(path=plan.log_dir, parents=True, exist_ok=True)
+            DirectoryCreateRequest(path=plan.log_dir, parents=True, exist_ok=True)
             )
             self._file_system.create_directory(
-                DirectoryCreateRequest(path=plan.results_dir, parents=True, exist_ok=True)
+            DirectoryCreateRequest(path=plan.results_dir, parents=True, exist_ok=True)
             )
 
-        acquisition = self._acquirer.acquire(plan.source, plan.crate_root)
+        reused = request.reuse_existing_crate and self._looks_like_crate(plan.crate_root)
+
+        if reused:
+            acquisition = SourceAcquisitionResult(
+            source=plan.source,
+            source_root=plan.crate_root,
+            prepared_root=plan.crate_root,
+            )
+            notes = ("Existing crate reused",)
+        else:
+            acquisition = self._acquirer.acquire(plan.source, plan.crate_root)
+            notes = ("Crate source prepared successfully",)
+
         location = CrateLocation(
-            original_path=acquisition.source_root,
-            copied_downloaded_crate_path=acquisition.prepared_root,
+        original_path=acquisition.source_root,
+        copied_downloaded_crate_path=acquisition.prepared_root,
         )
 
         return ImportCrateResult(
@@ -191,5 +208,14 @@ class DefaultImportCrateService:
             validation=plan.validation,
             acquisition=acquisition,
             location=location,
-            notes=("Crate source prepared successfully",),
-        )
+            notes=notes,
+            )
+
+    def _looks_like_crate(self, crate_root: Path) -> bool:
+        if not crate_root.exists():
+            return False
+        if (crate_root / "ro-crate-metadata.json").is_file():
+            return True
+        if (crate_root / "ro-crate-info.yaml").is_file():
+            return True
+        return any(crate_root.rglob("ro-crate-metadata.json")) or any(crate_root.rglob("ro-crate-info.yaml"))
