@@ -182,9 +182,15 @@ console = Console()
 def _option_flag_base(flag_spec: str) -> str:
     return flag_spec.split("=", 1)[0]
 
+def _option_takes_value(flag_spec: str) -> bool:
+    return "=" in flag_spec
+
 LOCAL_FLAG_BASES = {_option_flag_base(flag) for flag, _ in LOCAL_FLAG_OPTIONS}
 SLURM_FLAG_BASES = {_option_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS}
 SLURM_ONLY_FLAG_BASES = SLURM_FLAG_BASES - LOCAL_FLAG_BASES
+VALUE_FLAG_BASES = {
+    _option_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if _option_takes_value(flag)
+}
 
 def _flag_base(flag: str) -> str:
     return flag.split("=", 1)[0]
@@ -433,7 +439,8 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
         if "=" in token:
             flag = token
             index += 1
-        elif index + 1 < len(current_command) and not current_command[index + 1].startswith("-"):
+
+        elif (_flag_base(token) in VALUE_FLAG_BASES and index + 1 < len(current_command) and not current_command[index + 1].startswith("-")):
             flag = f"{token}={current_command[index + 1]}"
             index += 2
         else:

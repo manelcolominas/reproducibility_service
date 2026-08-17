@@ -396,8 +396,9 @@ def _strip_all_long_flags(arguments: list[str]) -> list[str]:
             continue
 
         if token.startswith("--"):
+            flag_base = token.split("=", 1)[0]
             index += 1
-            if "=" not in token and index < len(arguments) and not arguments[index].startswith("-"):
+            if "=" not in token and flag_base in view.VALUE_FLAG_BASES and index < len(arguments) and not arguments[index].startswith("-"):
                 index += 1
             continue
 
