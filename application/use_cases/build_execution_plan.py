@@ -45,64 +45,60 @@ from domain.models.execution import (
 
 _COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
 
-_LOCAL_UNSUPPORTED_FLAGS = {
-    "--heterogeneous",
-    "--sc_cfg",
-    "--exec_time",
-    "--job_name",
-    "--queue",
-    "--reservation",
-    "--job_execution_dir",
-    "--pre_env_script",
-    "--extra_submit_flag",
-    "--storage_container_image",
-    "--storage_cpu_affinity",
-    "--constraints",
-    "--project_name",
-    "--qos",
-    "--forward_cpus_per_node",
-    "--job_dependency",
-    "--forward_time_limit",
-    "--storage_home",
-    "--storage_props",
-    "--agents",
-    "--num_nodes",
-    "--num_switches",
-    "--type_cfg",
-    "--master",
-    "--workers",
-    "--cpus_per_node",
-    "--gpus_per_node",
-    "--fpgas_per_node",
-    "--io_executors",
-    "--fpga_reprogram",
-    "--max_tasks_per_node",
-    "--node_memory",
-    "--node_storage_bandwidth",
-    "--network",
-    "--prolog",
-    "--epilog",
-    "--master_working_dir",
-    "--worker_working_dir",
-    "--worker_in_master_cpus",
-    "--worker_in_master_memory",
-    "--worker_port_range",
-    "--jvm_worker_in_master_opts",
-    "--container_image",
-    "--container_compss_path",
-    "--container_opts",
-    "--elasticity",
-    "--automatic_scaling",
-    "--jupyter_notebook",
-    "--ipython",
-    "--ear",
-    "--pythonpath",
-    "--workers",
-}
-
-_PATH_VALUE_FLAGS = {
-    "--pythonpath",
-}
+# _LOCAL_UNSUPPORTED_FLAGS = {
+#     "--heterogeneous",
+#     "--sc_cfg",
+#     "--exec_time",
+#     "--job_name",
+#     "--queue",
+#     "--reservation",
+#     "--job_execution_dir",
+#     "--pre_env_script",
+#     "--extra_submit_flag",
+#     "--storage_container_image",
+#     "--storage_cpu_affinity",
+#     "--constraints",
+#     "--project_name",
+#     "--qos",
+#     "--forward_cpus_per_node",
+#     "--job_dependency",
+#     "--forward_time_limit",
+#     "--storage_home",
+#     "--storage_props",
+#     "--agents",
+#     "--num_nodes",
+#     "--num_switches",
+#     "--type_cfg",
+#     "--master",
+#     "--workers",
+#     "--cpus_per_node",
+#     "--gpus_per_node",
+#     "--fpgas_per_node",
+#     "--io_executors",
+#     "--fpga_reprogram",
+#     "--max_tasks_per_node",
+#     "--node_memory",
+#     "--node_storage_bandwidth",
+#     "--network",
+#     "--prolog",
+#     "--epilog",
+#     "--master_working_dir",
+#     "--worker_working_dir",
+#     "--worker_in_master_cpus",
+#     "--worker_in_master_memory",
+#     "--worker_port_range",
+#     "--jvm_worker_in_master_opts",
+#     "--container_image",
+#     "--container_compss_path",
+#     "--container_opts",
+#     "--elasticity",
+#     "--automatic_scaling",
+#     "--jupyter_notebook",
+#     "--ipython",
+#     "--ear",
+#     "--pythonpath",
+#     "--workers",
+# }
 
 class FlagValueKind(str, Enum):
     NONE = "none"
@@ -122,16 +118,151 @@ class FlagDefinition:
     repeatable: bool = False
     prefer_equals: bool = False
 
+def _flag_display_name(flag: FlagDefinition) -> str:
+    if flag.value_kind == FlagValueKind.NONE:
+        return flag.name
+
+    if flag.prefer_equals:
+        return f"{flag.name}=<value>"
+    return f"{flag.name}=<value>"  # same for the UI prompt; both are acceptable
+
+def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
+    choices: list[tuple[str, str]] = []
+
+    for flag in FLAG_DEFINITIONS:
+        if backend not in flag.backend_scope:
+            continue
+
+        display = flag.name if flag.value_kind == FlagValueKind.NONE else f"{flag.name}=<value>"
+        choices.append((display, flag.description))
+
+    return choices
+
 FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--debug", "Enable debug mode", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d",)),
     FlagDefinition("--log_level", "Set log level", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--lang", "Language for the COMPSs runtime", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--num_nodes", "Number of nodes", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--queue", "SLURM queue", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--pythonpath", "Python path", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--graph", "Enable or disable graph generation", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--tracing", "Enable or configure tracing", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--monitoring", "Monitoring period in milliseconds", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--external_debugger", "External debugger port", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--jmx_port", "JMX port", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--task_execution", "Task execution mode", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--storage_impl", "Storage implementation", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--storage_conf", "Storage configuration file", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--project", "Project file", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--resources", "Resources file", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--socket", "Runtime socket", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--summary", "Print execution summary", (ExecutionBackend.LOCAL,), FlagValueKind.NONE),
+    FlagDefinition("--extrae_config_file", "Extrae config file", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--extrae_config_file_python", "Python Extrae config file", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--trace_label", "Trace label", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--tracing_task_dependencies", "Trace task dependencies", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--generate_trace", "Generate trace", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--delete_trace_packages", "Delete trace packages", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--custom_threads", "Enable custom threads", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--comm", "Communication implementation", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--conn", "Connection implementation", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--streaming", "Streaming mode", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--streaming_master_name", "Streaming master name", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--streaming_master_port", "Streaming master port", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--scheduler", "Scheduler implementation", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--scheduler_config_file", "Scheduler config file", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--checkpoint", "Checkpoint implementation", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--checkpoint_params", "Checkpoint parameters", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--checkpoint_folder", "Checkpoint folder", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--library_path", "Library path", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--classpath", "Classpath", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--appdir", "Application directory", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--env_script", "Environment script", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--log_dir", "Log directory", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--master_working_dir", "Master working directory", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--uuid", "UUID", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--master_name", "Master name", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--master_port", "Master port", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--jvm_master_opts", "JVM options for master", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--jvm_workers_opts", "JVM options for workers", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--cpu_affinity", "CPU affinity", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--gpu_affinity", "GPU affinity", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--fpga_affinity", "FPGA affinity", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--fpga_reprogram", "FPGA reprogramming command", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--io_executors", "I/O executors", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--task_count", "Task count", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--input_profile", "Input profile", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--output_profile", "Output profile", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--PyObject_serialize", "PyObject serialization", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--persistent_worker_c", "Persistent worker for C tasks", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--enable_external_adaptation", "Enable external adaptation", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--gen_coredump", "Generate core dump", (ExecutionBackend.LOCAL,), FlagValueKind.NONE),
+    FlagDefinition("--keep_workingdir", "Keep working directory", (ExecutionBackend.LOCAL,), FlagValueKind.NONE),
+    FlagDefinition("--python_interpreter", "Python interpreter", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--python_propagate_virtual_environment", "Propagate Python virtual environment", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--python_mpi_worker", "MPI worker for Python tasks", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--python_memory_profile", "Python memory profile", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--python_cache_profiler", "Cache profiler", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--wall_clock_limit", "Wall clock limit", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--shutdown_in_node_failure", "Shutdown on node failure", (ExecutionBackend.LOCAL,), FlagValueKind.BOOL, prefer_equals=True),
     FlagDefinition("--provenance", "Enable provenance", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p",)),
+    FlagDefinition("--provenance_folder", "Provenance folder", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--zip_provenance", "Generate ZIP provenance output", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z",)),
+
+    # SLURM-only
+    FlagDefinition("--heterogeneous", "Enable heterogeneous execution", (ExecutionBackend.SLURM,), FlagValueKind.NONE),
+    FlagDefinition("--sc_cfg", "Scheduler configuration name", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--exec_time", "Execution time limit in minutes", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--job_name", "SLURM job name", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--queue", "Target SLURM queue", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--reservation", "SLURM reservation", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--job_execution_dir", "Job execution directory", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--pre_env_script", "Pre-environment script", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--extra_submit_flag", "Extra SLURM submit flag", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--storage_container_image", "Storage container image", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--storage_cpu_affinity", "Storage CPU affinity", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--constraints", "SLURM constraints", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--project_name", "Project name", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--qos", "Quality of service", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--forward_cpus_per_node", "Forward CPUs per node", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--job_dependency", "Job dependency", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--forward_time_limit", "Forward time limit", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--storage_home", "Storage home", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--storage_props", "Storage properties", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--participants", "Participants", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--num_nodes", "Number of nodes", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--num_switches", "Number of switches", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--type_cfg", "Type config file", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--master", "Master node type", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--workers", "Worker node types and counts", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--cpus_per_node", "CPUs per node", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--gpus_per_node", "GPUs per node", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--fpgas_per_node", "FPGAs per node", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--fpga_reprogram", "FPGA reprogramming command", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--max_tasks_per_node", "Maximum tasks per node", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--node_memory", "Node memory", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--node_storage_bandwidth", "Node storage bandwidth", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--network", "Network type", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--prolog", "Prolog script", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--epilog", "Epilog script", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--master_working_dir", "Master working directory", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--worker_working_dir", "Worker working directory", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--worker_in_master_cpus", "Worker CPUs in master", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--worker_in_master_memory", "Worker memory in master", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--worker_port_range", "Worker port range", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--jvm_worker_in_master_opts", "JVM options for workers in master", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--container_image", "Container image", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--container_compss_path", "COMPSs path inside container", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--container_opts", "Container options", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--elasticity", "Elasticity max extra nodes", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--automatic_scaling", "Automatic scaling option", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--jupyter_notebook", "Jupyter notebook path", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--ipython", "Enable IPython shell", (ExecutionBackend.SLURM,), FlagValueKind.NONE),
+    FlagDefinition("--ear", "Recovery execution option", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
 )
+
+_LOCAL_UNSUPPORTED_FLAGS = {
+    flag.name
+    for flag in FLAG_DEFINITIONS
+    if ExecutionBackend.LOCAL not in flag.backend_scope
+}
 
 class SubmissionCommandEditKind(str, Enum):
     ADD = "add"
@@ -182,7 +313,6 @@ class BuildExecutionPlanRequest:
         if not str(self.workspace_directory).strip():
             raise ValidationError("BuildExecutionPlanRequest.workspace_directory cannot be empty")
 
-
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanResult:
     status: BuildExecutionPlanStatus
@@ -199,7 +329,6 @@ class BuildExecutionPlanResult:
     @property
     def ready(self) -> bool:
         return self.status == BuildExecutionPlanStatus.READY
-
 
 @runtime_checkable
 class BuildExecutionPlanUseCase(Protocol):
@@ -317,32 +446,27 @@ class DefaultBuildExecutionPlanService:
 
         return self.serialize_submission_command(parsed, working_directory=execution_directory)
 
-
-    def serialize_submission_command(
-        self,
-        parsed: ParsedSubmissionCommand,
-        working_directory: Path | None = None,
-    ) -> RuntimeCommand:
+    def serialize_submission_command(self, parsed: ParsedSubmissionCommand, working_directory: Path | None = None) -> RuntimeCommand:
         arguments: list[str] = []
-    
+
         for flag in parsed.flags:
             if flag.value is None:
                 arguments.append(flag.token)
                 continue
-    
+
             definition = None
             if flag.definition_name:
                 definition = self.resolve_flag_definition(flag.definition_name)
-    
+
             if definition is not None and definition.prefer_equals:
                 arguments.append(f"{flag.token}={flag.value}")
             elif "=" in flag.token:
                 arguments.append(f"{flag.token}={flag.value}")
             else:
                 arguments.extend([flag.token, flag.value])
-    
+
         arguments.extend(parsed.positionals)
-    
+
         return RuntimeCommand(
             executable=parsed.executable,
             arguments=tuple(arguments),
