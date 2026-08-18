@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+import token
 from typing import Protocol, runtime_checkable
 import os
 from rocrate.rocrate import ROCrate
@@ -303,7 +304,7 @@ class DefaultBuildExecutionPlanService:
         if not raw_command:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
 
-        schema = FLAG_BY_NAME
+        schema = {flag.name: flag for flag in FLAG_DEFINITIONS}
         crate_root = request.crate.location.copied_downloaded_crate_path
 
         parsed = self.parse_submission_command(raw_command, schema)
@@ -353,7 +354,6 @@ class DefaultBuildExecutionPlanService:
             working_directory=working_directory,
         )
 
-
     def parse_submission_command(self, raw_command: str, schema: dict[str, FlagDefinition]) -> ParsedSubmissionCommand:
         parts = [part for part in raw_command.strip().split() if part]
         if not parts:
@@ -372,36 +372,50 @@ class DefaultBuildExecutionPlanService:
                 index += 1
                 continue
 
-            canonical = token
+            token_name = token.split("=", 1)[0]
+            canonical_name = self.canonical_name(token_name)
+            definition = self.validate_flag_token(token_name, backend=None)
+
+            if definition is None:
+                raise BuildExecutionPlanFailure(f"Unknown flag: {token}")
+
+            canonical_name = definition.name
             value = None
             raw_tokens = [token]
 
             if "=" in token:
-                canonical, value = token.split("=", 1)
+                _, value = token.split("=", 1)
             else:
-                definition = schema.get(token)
-                if definition and definition.value_kind != FlagValueKind.NONE:
-                    if index + 1 < len(parts) and not parts[index + 1].startswith("-"):
-                        value = parts[index + 1]
-                        raw_tokens.append(parts[index + 1])
-                        index += 1
+                if definition.value_kind != FlagValueKind.NONE:
+                    if index + 1 >= len(parts) or parts[index + 1].startswith("-"):
+                        raise BuildExecutionPlanFailure(f"Flag {definition.name} requires a value")
+                    value = parts[index + 1]
+                    raw_tokens.append(parts[index + 1])
+                    index += 1
 
-            definition_name = FLAG_BY_ALIAS.get(canonical, canonical if canonical in schema else None)
+            if definition.value_kind == FlagValueKind.NONE and value is not None:
+                raise BuildExecutionPlanFailure(f"Flag {definition.name} does not accept a value")
+
             flags.append(
                 ParsedFlag(
-                    definition_name=definition_name,
-                    token=canonical,
+                    definition_name=definition.name,
+                    token=canonical_name,
                     value=value,
                     raw_tokens=tuple(raw_tokens),
                 )
             )
             index += 1
 
-        return ParsedSubmissionCommand(executable=executable, flags=tuple(flags), positionals=tuple(positionals))
+        return ParsedSubmissionCommand(
+            executable=executable,
+            flags=tuple(flags),
+            positionals=tuple(positionals),
+        )
 
-
-    def canonical_name(self, name: str) -> str:
-        base = self.normalize_name(name)
+    def canonical_name(self, token: str | None) -> str | None:
+        if token is None:
+            return None
+        base = token.split("=", 1)[0].strip()
         return FLAG_BY_ALIAS.get(base, base)
 
     def flag_matches(self, flag: ParsedFlag, target: str) -> bool:
@@ -419,23 +433,38 @@ class DefaultBuildExecutionPlanService:
         self,
         parsed: ParsedSubmissionCommand,
         edits: tuple[SubmissionCommandEdit, ...],
-        ) -> ParsedSubmissionCommand:
+    ) -> ParsedSubmissionCommand:
         flags = list(parsed.flags)
 
         for edit in edits:
             target = self.canonical_name(edit.name)
+            definition = self.resolve_flag_definition(edit.name)
+
+            if definition is None:
+                definition = next(
+                    (flag for flag in FLAG_DEFINITIONS if flag.name == target or target in flag.aliases),
+                    None,
+                )
 
             first_idx = next(
-            (i for i, flag in enumerate(flags) if self.flag_matches(flag, target)),
-            None,
+                (i for i, flag in enumerate(flags) if self.flag_matches(flag, target)),
+                None,
             )
 
             if edit.kind == SubmissionCommandEditKind.ADD:
+                if definition is not None and definition.repeatable:
+                    flags.append(self.build_flag(edit.name, edit.value))
+                    continue
+
                 if first_idx is not None:
                     existing_token = flags[first_idx].token.split("=", 1)[0]
                     flags[first_idx] = self.build_flag(existing_token, edit.value)
+                else:
+                    flags.append(self.build_flag(edit.name, edit.value))
+
             elif edit.kind == SubmissionCommandEditKind.REMOVE:
                 flags = [flag for flag in flags if not self.flag_matches(flag, target)]
+
             elif edit.kind == SubmissionCommandEditKind.SET_VALUE:
                 if first_idx is not None:
                     existing_token = flags[first_idx].token.split("=", 1)[0]
@@ -444,41 +473,43 @@ class DefaultBuildExecutionPlanService:
                     flags.append(self.build_flag(edit.name, edit.value))
 
         return ParsedSubmissionCommand(
-        executable=parsed.executable,
-        flags=tuple(flags),
-        positionals=parsed.positionals,
+            executable=parsed.executable,
+            flags=tuple(flags),
+            positionals=parsed.positionals,
         )
 
     def strip_provenance(self, parsed: ParsedSubmissionCommand) -> ParsedSubmissionCommand:
         filtered = [
-            flag for flag in parsed.flags
-            if flag.token not in {"--provenance", "-p"} and flag.definition_name not in {"--provenance", "-p"}
+            flag
+            for flag in parsed.flags
+            if self.canonical_name(flag.token) not in {"--provenance", "-p"}
+            and self.canonical_name(flag.definition_name) not in {"--provenance", "-p"}
         ]
         return ParsedSubmissionCommand(
             executable=parsed.executable,
             flags=tuple(filtered),
             positionals=parsed.positionals,
         )
-
     
-    def strip_unsupported_for_backend(self,
+    def strip_unsupported_for_backend(
+        self,
         parsed: ParsedSubmissionCommand,
         backend: ExecutionBackend,
     ) -> ParsedSubmissionCommand:
         if backend != ExecutionBackend.LOCAL:
             return parsed
-
+    
         filtered_flags = [
             flag
             for flag in parsed.flags
-            if flag.token not in _LOCAL_UNSUPPORTED_FLAGS and flag.definition_name not in _LOCAL_UNSUPPORTED_FLAGS
+            if self.canonical_name(flag.token) not in _LOCAL_UNSUPPORTED_FLAGS
+            and self.canonical_name(flag.definition_name) not in _LOCAL_UNSUPPORTED_FLAGS
         ]
         return ParsedSubmissionCommand(
             executable=parsed.executable,
             flags=tuple(filtered_flags),
             positionals=parsed.positionals,
         )
-
 
     def normalize_executable(self,
         parsed: ParsedSubmissionCommand,
@@ -491,7 +522,6 @@ class DefaultBuildExecutionPlanService:
             flags=parsed.flags,
             positionals=parsed.positionals,
         )
-
 
     def remap_paths(self, parsed: ParsedSubmissionCommand, crate_root: Path) -> ParsedSubmissionCommand:
         remapped_flags: list[ParsedFlag] = []
@@ -691,3 +721,23 @@ class DefaultBuildExecutionPlanService:
             value=value,
             raw_tokens=raw_tokens,
         )
+
+    def resolve_flag_definition(self, name: str | None) -> FlagDefinition | None:
+        if not name:
+            return None
+        canonical = self.canonical_name(name)
+        return FLAG_BY_NAME.get(canonical)
+
+    def validate_flag_token(self, token: str, backend: ExecutionBackend | None = None) -> FlagDefinition | None:
+        canonical = self.canonical_name(token)
+        if canonical is None:
+            return None
+    
+        definition = self.resolve_flag_definition(canonical)
+        if definition is None:
+            return None
+    
+        if backend is not None and backend not in definition.backend_scope:
+            return None
+    
+        return definition
