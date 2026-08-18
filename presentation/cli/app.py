@@ -300,7 +300,7 @@ def _build_plan(
     workspace_directory: Path,
     provenance_enabled: bool,
     submission_edits: tuple[SubmissionCommandEdit, ...] = (),
-):
+    ):
     backend = ExecutionBackend(args.backend)
 
     cli_extra_edits: list[SubmissionCommandEdit] = []
@@ -322,9 +322,9 @@ def _build_plan(
                     value=None,
                 )
             )
-
+    
     merged_edits = tuple(cli_extra_edits) + tuple(submission_edits)
-
+    
     try:
         return plan_service.execute(
             BuildExecutionPlanRequest(
@@ -336,11 +336,14 @@ def _build_plan(
                 submission_edits=merged_edits,
             )
         )
-    except BuildExecutionPlanFailure:
+    except BuildExecutionPlanFailure as exc:
         if args.yes or args.command:
             raise
+    
+        reason = str(exc).strip() or "unknown error"
         manual_command = Prompt.ask(
-            "[yellow]Could not find a submission command in the crate. Enter one manually (e.g. 'runcompss main.py')[/yellow]"
+            "[yellow]Could not use the submission command from the crate "
+            f"({reason}). Enter one manually (e.g. 'runcompss main.py')[/yellow]"
         )
         return plan_service.execute(
             BuildExecutionPlanRequest(

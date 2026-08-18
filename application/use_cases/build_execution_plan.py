@@ -120,13 +120,15 @@ class FlagDefinition:
     value_kind: FlagValueKind = FlagValueKind.NONE
     aliases: tuple[str, ...] = ()
     repeatable: bool = False
+    prefer_equals: bool = False
 
 FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--debug", "Enable debug mode", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d",)),
-    FlagDefinition("--log_level", "Set log level", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING),
-    FlagDefinition("--num_nodes", "Number of nodes", (ExecutionBackend.SLURM,), FlagValueKind.INT),
-    FlagDefinition("--queue", "SLURM queue", (ExecutionBackend.SLURM,), FlagValueKind.STRING),
-    FlagDefinition("--pythonpath", "Python path", (ExecutionBackend.LOCAL,), FlagValueKind.PATH),
+    FlagDefinition("--log_level", "Set log level", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--lang", "Language for the COMPSs runtime", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--num_nodes", "Number of nodes", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--queue", "SLURM queue", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--pythonpath", "Python path", (ExecutionBackend.LOCAL,), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--provenance", "Enable provenance", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p",)),
     FlagDefinition("--zip_provenance", "Generate ZIP provenance output", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z",)),
 )
@@ -162,22 +164,6 @@ class ParsedSubmissionCommand:
     executable: str
     flags: tuple[ParsedFlag, ...]
     positionals: tuple[str, ...]
-
-# @dataclass(frozen=True, slots=True)
-# class AddFlagEdit:
-#     name: str
-#     value: str | None = None
-
-# @dataclass(frozen=True, slots=True)
-# class RemoveFlagEdit:
-#      name: str
-
-# @dataclass(frozen=True, slots=True)
-# class SetFlagValueEdit:
-#     name: str
-#     value: str | None
-
-# SubmissionCommandEdit = AddFlagEdit | RemoveFlagEdit | SetFlagValueEdit
 
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanRequest:
@@ -332,19 +318,28 @@ class DefaultBuildExecutionPlanService:
         return self.serialize_submission_command(parsed, working_directory=execution_directory)
 
 
-    def serialize_submission_command(self,
+    def serialize_submission_command(
+        self,
         parsed: ParsedSubmissionCommand,
         working_directory: Path | None = None,
     ) -> RuntimeCommand:
         arguments: list[str] = []
+    
         for flag in parsed.flags:
             if flag.value is None:
                 arguments.append(flag.token)
+                continue
+    
+            definition = None
+            if flag.definition_name:
+                definition = self.resolve_flag_definition(flag.definition_name)
+    
+            if definition is not None and definition.prefer_equals:
+                arguments.append(f"{flag.token}={flag.value}")
+            elif "=" in flag.token:
+                arguments.append(f"{flag.token}={flag.value}")
             else:
-                if "=" in flag.token:
-                    arguments.append(f"{flag.token}={flag.value}")
-                else:
-                    arguments.extend([flag.token, flag.value])
+                arguments.extend([flag.token, flag.value])
     
         arguments.extend(parsed.positionals)
     
@@ -362,27 +357,47 @@ class DefaultBuildExecutionPlanService:
         executable = parts[0]
         flags: list[ParsedFlag] = []
         positionals: list[str] = []
-
+        
         index = 1
         while index < len(parts):
             token = parts[index]
-
+        
             if not token.startswith("-"):
                 positionals.append(token)
                 index += 1
                 continue
-
+        
             token_name = token.split("=", 1)[0]
-            canonical_name = self.canonical_name(token_name)
             definition = self.validate_flag_token(token_name, backend=None)
-
+        
+            # Unknown flags are preserved as-is instead of failing.
             if definition is None:
-                raise BuildExecutionPlanFailure(f"Unknown flag: {token}")
-
+                if "=" in token:
+                    raw_name, raw_value = token.split("=", 1)
+                    flags.append(
+                        ParsedFlag(
+                            definition_name=None,
+                            token=raw_name,
+                            value=raw_value,
+                            raw_tokens=(token,),
+                        )
+                    )
+                else:
+                    flags.append(
+                        ParsedFlag(
+                            definition_name=None,
+                            token=token,
+                            value=None,
+                            raw_tokens=(token,),
+                        )
+                    )
+                index += 1
+                continue
+        
             canonical_name = definition.name
             value = None
             raw_tokens = [token]
-
+        
             if "=" in token:
                 _, value = token.split("=", 1)
             else:
@@ -392,10 +407,10 @@ class DefaultBuildExecutionPlanService:
                     value = parts[index + 1]
                     raw_tokens.append(parts[index + 1])
                     index += 1
-
+        
             if definition.value_kind == FlagValueKind.NONE and value is not None:
                 raise BuildExecutionPlanFailure(f"Flag {definition.name} does not accept a value")
-
+        
             flags.append(
                 ParsedFlag(
                     definition_name=definition.name,
@@ -405,7 +420,7 @@ class DefaultBuildExecutionPlanService:
                 )
             )
             index += 1
-
+        
         return ParsedSubmissionCommand(
             executable=executable,
             flags=tuple(flags),
