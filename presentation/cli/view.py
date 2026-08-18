@@ -33,6 +33,10 @@ from rich.text import Text
 
 from InquirerPy import inquirer
 import questionary
+import logging
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
 
 
 from application.ports.executor import ExecutionOutcome
@@ -43,6 +47,8 @@ from application.use_cases.verify_inputs import VerifyInputsResult
 from domain.models.crate import CrateSummary
 from domain.models.verification import VerificationState
 from domain.models.execution import ExecutionPlan, ExecutionBackend
+
+from application.use_cases.build_execution_plan import SubmissionCommandEdit, SubmissionCommandEditKind
 
 LOCAL_FLAG_OPTIONS = [
     ("--graph=<bool>", "Generation of the complete graph (true/false)"),
@@ -195,21 +201,112 @@ VALUE_FLAG_BASES = {
 def _flag_base(flag: str) -> str:
     return flag.split("=", 1)[0]
 
-def _filter_flags_for_backend(
+def edit_submission_command(
     backend: ExecutionBackend,
-    flags: list[str],
-) -> tuple[list[str], list[str]]:
-    if backend != ExecutionBackend.LOCAL:
-        return flags, []
+    current_command: list[str] | None = None,
+) -> list[SubmissionCommandEdit] | None:
+    current_flags = _extract_current_flags(current_command)
+    edits: list[SubmissionCommandEdit] = []
 
-    kept: list[str] = []
-    removed: list[str] = []
-    for flag in flags:
-        if _flag_base(flag) in SLURM_ONLY_FLAG_BASES:
-            removed.append(flag)
-        else:
-            kept.append(flag)
-    return kept, removed
+    while True:
+        action = questionary.select(
+            "What do you want to do?",
+            choices=[
+                "remove a flag",
+                "edit a flag value",
+                "add a new flag",
+                "finish",
+            ],
+        ).ask()
+
+        if action is None:
+            return None
+
+        if action == "finish":
+            break
+
+        if action == "remove a flag":
+            if not current_flags:
+                console.print("[yellow]No flags available to remove.[/yellow]")
+                continue
+            flag = questionary.select("Choose a flag to remove", choices=current_flags).ask()
+            if flag is None:
+                continue
+            edits.append(
+                SubmissionCommandEdit(
+                    kind=SubmissionCommandEditKind.REMOVE,
+                    name=flag.split("=", 1)[0],
+                    value=None,
+                )
+            )
+            current_flags.remove(flag)
+
+        elif action == "edit a flag value":
+            if not current_flags:
+                console.print("[yellow]No flags available to edit.[/yellow]")
+                continue
+            flag = questionary.select("Choose a flag to edit", choices=current_flags).ask()
+            if flag is None:
+                continue
+            value = Prompt.ask(f"New value for {flag}").strip()
+            edits.append(
+                SubmissionCommandEdit(
+                    kind=SubmissionCommandEditKind.SET_VALUE,
+                    name=flag.split("=", 1)[0],
+                    value=value or None,
+                )
+            )
+
+        elif action == "add a new flag":
+            choices = _available_flag_choices(backend, current_flags)
+            if not choices:
+                console.print("[yellow]No flags available to add.[/yellow]")
+                continue
+            selected = questionary.select("Choose a flag to add", choices=choices).ask()
+            if selected is None:
+                continue
+
+            flag_spec = selected.split(" - ", 1)[0]
+            flag_name = flag_spec.split("=", 1)[0]
+            value = _ask_optional_flag_value(flag_spec)
+
+            edits.append(
+                SubmissionCommandEdit(
+                    kind=SubmissionCommandEditKind.ADD,
+                    name=flag_name,
+                    value=value,
+                )
+            )
+            new_item = flag_name if value is None else f"{flag_name}={value}"
+            new_canonical = _canonical_flag_base(new_item)
+            current_flags = [
+                f for f in current_flags
+                if _canonical_flag_base(f) != new_canonical
+            ]
+            current_flags.append(new_item)
+
+    return edits
+
+
+def _available_flag_choices(backend: ExecutionBackend, current_flags: list[str]) -> list[str]:
+    available = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
+    current_bases = {_canonical_flag_base(flag) for flag in current_flags}
+    choices: list[str] = []
+
+    for flag_spec, description in available:
+        base = _canonical_flag_base(flag_spec)
+        if base in current_bases:
+            continue
+        choices.append(f"{flag_spec} - {description}")
+
+    return choices
+
+
+def _ask_optional_flag_value(flag_spec: str) -> str | None:
+    if "=" not in flag_spec:
+        return None
+    value = Prompt.ask(f"Value for {flag_spec.split('=', 1)[0]}").strip()
+    return value or None
 
 
 def print_banner() -> None:
@@ -411,24 +508,30 @@ def select_submission_flags(
     return final_flags
 
 
-def _flag_base(flag: str) -> str:
-    return flag.split("=", 1)[0]
-
-
 PROVENANCE_FLAGS = {"--provenance", "-p"}
+
+FLAG_CANONICAL_MAP = {
+"-p": "--provenance",
+"-d": "--debug",
+"-z": "--zip_provenance",
+}
+
+def _canonical_flag_base(flag: str) -> str:
+    base = _flag_base(flag)
+    return FLAG_CANONICAL_MAP.get(base, base)
 
 def _extract_current_flags(current_command: list[str] | None) -> list[str]:
     if not current_command:
         return []
 
     extracted: list[str] = []
-    seen: set[str] = set()
+    seen_bases: set[str] = set()
     index = 1
 
     while index < len(current_command):
         token = current_command[index]
 
-        if not token.startswith("--"):
+        if not token.startswith("-"):
             index += 1
             continue
 
@@ -439,16 +542,23 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
         if "=" in token:
             flag = token
             index += 1
-
-        elif (_flag_base(token) in VALUE_FLAG_BASES and index + 1 < len(current_command) and not current_command[index + 1].startswith("-")):
+        elif (
+            _flag_base(token) in VALUE_FLAG_BASES
+            and index + 1 < len(current_command)
+            and not current_command[index + 1].startswith("-")
+        ):
             flag = f"{token}={current_command[index + 1]}"
             index += 2
         else:
             flag = token
             index += 1
 
-        if flag not in seen and _flag_base(flag) not in PROVENANCE_FLAGS:
+        canonical_base = _canonical_flag_base(flag)
+        if canonical_base == "--provenance":
+            continue
+
+        if canonical_base not in seen_bases:
             extracted.append(flag)
-            seen.add(flag)
+            seen_bases.add(canonical_base)
 
     return extracted

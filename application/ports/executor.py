@@ -27,7 +27,6 @@ from domain.models.execution import (
     ExecutionContext,
     ExecutionPlan,
     ExecutionResult,
-    ExecutionStatus,
     RuntimeCommand,
 )
 

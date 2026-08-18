@@ -38,6 +38,8 @@ from application.use_cases.build_execution_plan import (
     BuildExecutionPlanFailure,
     BuildExecutionPlanRequest,
     DefaultBuildExecutionPlanService,
+    SubmissionCommandEditKind,
+    SubmissionCommandEdit,
 )
 
 from application.use_cases.import_crate import (
@@ -291,8 +293,38 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     return crate, plan_result
 
 
-def _build_plan(args: argparse.Namespace, plan_service, crate, workspace_directory: Path, provenance_enabled: bool):
+def _build_plan(
+    args: argparse.Namespace,
+    plan_service,
+    crate,
+    workspace_directory: Path,
+    provenance_enabled: bool,
+    submission_edits: tuple[SubmissionCommandEdit, ...] = (),
+):
     backend = ExecutionBackend(args.backend)
+
+    cli_extra_edits: list[SubmissionCommandEdit] = []
+    for raw_flag in args.extra_flag:
+        if "=" in raw_flag:
+            name, value = raw_flag.split("=", 1)
+            cli_extra_edits.append(
+                SubmissionCommandEdit(
+                    kind=SubmissionCommandEditKind.ADD,
+                    name=name.strip(),
+                    value=value.strip() or None,
+                )
+            )
+        else:
+            cli_extra_edits.append(
+                SubmissionCommandEdit(
+                    kind=SubmissionCommandEditKind.ADD,
+                    name=raw_flag.strip(),
+                    value=None,
+                )
+            )
+
+    merged_edits = tuple(cli_extra_edits) + tuple(submission_edits)
+
     try:
         return plan_service.execute(
             BuildExecutionPlanRequest(
@@ -300,8 +332,8 @@ def _build_plan(args: argparse.Namespace, plan_service, crate, workspace_directo
                 workspace_directory=workspace_directory,
                 backend=backend,
                 provenance_enabled=provenance_enabled,
-                extra_flags=tuple(args.extra_flag),
                 submission_command=args.command,
+                submission_edits=merged_edits,
             )
         )
     except BuildExecutionPlanFailure:
@@ -316,8 +348,8 @@ def _build_plan(args: argparse.Namespace, plan_service, crate, workspace_directo
                 workspace_directory=workspace_directory,
                 backend=backend,
                 provenance_enabled=provenance_enabled,
-                extra_flags=tuple(args.extra_flag),
                 submission_command=manual_command,
+                submission_edits=merged_edits,
             )
         )
 
@@ -336,7 +368,6 @@ def _build_run_logger(workspace_directory: Path) -> logging.Logger:
 
     return logger
 
-
 def _update_plan_with_selected_flags(
     args: argparse.Namespace,
     plan_service,
@@ -346,21 +377,35 @@ def _update_plan_with_selected_flags(
     current_plan,
     logger: logging.Logger,
 ):
-    selected_flags = view.select_submission_flags(
+    raw_edits = view.edit_submission_command(
         current_plan.plan.backend,
         current_plan.plan.command.as_list(),
     )
-    if selected_flags is None:
+    if raw_edits is None:
         return current_plan
 
-    args.command = _replace_submission_flags(
-        current_plan.plan.command.as_list(),
-        current_plan.plan.backend,
-        selected_flags,
-    )
+    normalized_edits: list[SubmissionCommandEdit] = []
+    for edit in raw_edits:
+        kind_value = edit.kind.value if hasattr(edit.kind, "value") else str(edit.kind)
+        normalized_edits.append(
+            SubmissionCommandEdit(
+                kind=SubmissionCommandEditKind(kind_value),
+                name=edit.name,
+                value=edit.value,
+            )
+        )
+
+    args.command = current_plan.plan.command.as_string()
     args.extra_flag = []
 
-    plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_enabled)
+    plan_result = _build_plan(
+        args,
+        plan_service,
+        crate,
+        workspace_directory,
+        provenance_enabled,
+        submission_edits=tuple(normalized_edits),
+    )
     logger.info(
         "resolved_command=%s backend=%s provenance_enabled=%s",
         plan_result.plan.command.as_string(),
@@ -369,44 +414,7 @@ def _update_plan_with_selected_flags(
     )
     return plan_result
 
-
-def _replace_submission_flags(
-    command_parts: list[str],
-    backend: ExecutionBackend,
-    selected_flags: list[str],
-) -> str:
-    if not command_parts:
-        return " ".join(selected_flags)
-
-    positional_arguments = _strip_all_long_flags(command_parts[1:])
-    updated_parts = [command_parts[0], *selected_flags, *positional_arguments]
-    return " ".join(updated_parts)
-
 PROVENANCE_FLAGS = {"--provenance", "-p"}
-
-def _strip_all_long_flags(arguments: list[str]) -> list[str]:
-    filtered: list[str] = []
-    index = 0
-
-    while index < len(arguments):
-        token = arguments[index]
-
-        if token in PROVENANCE_FLAGS:
-            index += 1
-            continue
-
-        if token.startswith("--"):
-            flag_base = token.split("=", 1)[0]
-            index += 1
-            if "=" not in token and flag_base in view.VALUE_FLAG_BASES and index < len(arguments) and not arguments[index].startswith("-"):
-                index += 1
-            continue
-
-        filtered.append(token)
-        index += 1
-
-    return filtered
-
 
 def main() -> None:
     raise SystemExit(run_app())

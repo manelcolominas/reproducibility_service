@@ -90,8 +90,6 @@ class ExecutionPlan:
     command: RuntimeCommand
     context: ExecutionContext
     provenance_enabled: bool = False
-    extra_flags: tuple[str, ...] = ()
-    changed_values: tuple[tuple[int, str], ...] = ()
 
     @property
     def command_line(self) -> list[str]:
