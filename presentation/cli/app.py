@@ -91,17 +91,27 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     # I can't ensure this flags work properly, so I will comment them out for now. They are not essential for the basic functionality.
     
+    # Add a flag to allow the user to specify a run identifier. This flag is optional and can be used to provide a custom identifier for the workflow run. If not provided, a random identifier will be generated based on the current timestamp.
     parser.add_argument("--run-id", help="Identifier for this run (default: random)")
+
+    # Add a flag to allow the user to specify the execution backend. The choices are "auto", "local", or "slurm". The default is "auto". This flag is optional and can be used to override the default backend detected from the crate metadata.
     parser.add_argument("--backend", choices=["auto", "local", "slurm"], default="auto", help="Execution backend")
 
+    # Add a flag to allow the user to specify a custom COMPSs submission command. This flag is optional and can be used to override the default command discovered from the crate metadata.
     parser.add_argument("--command", help="Override the COMPSs submission command line")
+
+    # Add a flag to allow the user to specify extra runtime flags for the COMPSs submission command. This flag is optional and can be repeated multiple times to add multiple flags.
     parser.add_argument("--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)")
+
+    # Add a flag to enable provenance. This flag is optional and can be used to enable provenance tracking for the workflow run.
     parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
     # parser.add_argument("--participant-name", default=None)
     # parser.add_argument("--participant-email")
     # parser.add_argument("--participant-org")
     # parser.add_argument("--participant-orcid")
     # parser.add_argument("--participant-ror")
+
+    # Add a flag to skip confirmation prompts, useful for non-interactive runs or automated scripts.
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     return parser
 
