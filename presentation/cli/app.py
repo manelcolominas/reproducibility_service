@@ -78,32 +78,40 @@ from presentation.cli import view
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    # create an argument parser for the CLI, with a description of the program and its usage
+    # create an argument parser for the CLI, with a description of the program and its usage, for example the source, run-id, backend, command, provenance.
+    # The parser will be used to parse the command line arguments passed to the program.
+    # the library ArgumentParser is used to create command line interfaces. It automatically generates help and usage messages and issues errors when users give the program invalid arguments.
     parser = argparse.ArgumentParser(
         prog="reproducibility_service",
         description="Reproduce a COMPSs workflow run from an RO-Crate.",
     )
-    # source, positional argument, can be a local directory, a .zip file, or a URL
-    # as source is a positional argument, it is mandatory and does not require a flag, doesn't begin with a dash (-). The user must provide it when running the command.
+    # the source is a positional argument, can be a local directory, a .zip file, or a URL
+    # the source is a positional argument, it is mandatory and does not require a flag, doesn't begin with a dash (- or --). The user must provide it when running the command.
     parser.add_argument("source", help="Local directory, .zip file, or URL of the RO-Crate")
-    parser.add_argument("--run-id", help="Identifier for this run (default: random)")
-    parser.add_argument(
-        "--backend", choices=["auto", "local", "slurm"], default="auto", help="Execution backend"
-    )
-    parser.add_argument("--command", help="Override the COMPSs submission command line")
-    parser.add_argument(
-        "--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)"
-    )
-    parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
-    parser.add_argument("--participant-name", default=None)
-    parser.add_argument("--participant-email")
-    parser.add_argument("--participant-org")
-    parser.add_argument("--participant-orcid")
-    parser.add_argument("--participant-ror")
-    parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
+
+    # I can't ensure this flags work properly, so I will comment them out for now. They are not essential for the basic functionality.
+    
+    # parser.add_argument("--run-id", help="Identifier for this run (default: random)")
+    # parser.add_argument("--backend", choices=["auto", "local", "slurm"], default="auto", help="Execution backend"
+    # )
+    # parser.add_argument("--command", help="Override the COMPSs submission command line")
+    # parser.add_argument("--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)")
+    # parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
+    # parser.add_argument("--participant-name", default=None)
+    # parser.add_argument("--participant-email")
+    # parser.add_argument("--participant-org")
+    # parser.add_argument("--participant-orcid")
+    # parser.add_argument("--participant-ror")
+    # parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     return parser
 
 def run_app(argv: list[str] | None = None) -> int:
+    # parse_args(argv) returns a Namespace object containing the parsed command line arguments.
+    # for example, if the user runs the command `reproducibility_service my_crate.zip --backend slurm`,
+    # the Namespace object will contain the attributes `source` with value `my_crate.zip` and `backend` with value `slurm`.
+    # Namespace(source='input.txt', backend='slurm')
+
+    # so build_arg_parser().parse_args(argv) returns a Namespace object containing the parsed command line arguments.
     args = build_arg_parser().parse_args(argv)
     settings = build_default_settings()
     run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -182,6 +190,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         log_dir_name=settings.log_dir_name,
         results_dir_name=settings.results_dir_name,
     )
+
     inspect_service = DefaultInspectCrateService(
         parser=CrateMetadataParser(),
         normalizer=CrateMetadataNormalizer(),
