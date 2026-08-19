@@ -432,5 +432,26 @@ def main() -> None:
     raise SystemExit(run_app())
 
 
+# if __name__ == "__main__":
+#     main()
+
+ro_crate_projects_folder = Path("/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/")
+# matmul_files_local
+ro_crate = ro_crate_projects_folder / "matmul_files_local/COMPSs_RO-Crate_20260810_112548"
+
+# matmul_files_mn5
+ro_crate = ro_crate_projects_folder / "matmul_files_mn5/COMPSs_RO-Crate_20260804_112127"
+
+# matmul_objects_local
+ro_crate = ro_crate_projects_folder / "matmul_objects_local/COMPSs_RO-Crate_20260810_113019"
+
+# matmul_objects_mn5
+ro_crate = ro_crate_projects_folder / "matmul_objects_mn5/COMPSs_RO-Crate_20260804_112730"
+
+# wordcount
+ro_crate = ro_crate_projects_folder / "635/workflow-635-1.crate"
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(run_app([
+        str(ro_crate)
+    ]))
