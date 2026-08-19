@@ -91,18 +91,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     # I can't ensure this flags work properly, so I will comment them out for now. They are not essential for the basic functionality.
     
-    # parser.add_argument("--run-id", help="Identifier for this run (default: random)")
+    parser.add_argument("--run-id", help="Identifier for this run (default: random)")
     # parser.add_argument("--backend", choices=["auto", "local", "slurm"], default="auto", help="Execution backend"
     # )
     # parser.add_argument("--command", help="Override the COMPSs submission command line")
     # parser.add_argument("--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)")
-    # parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
+    parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
     # parser.add_argument("--participant-name", default=None)
     # parser.add_argument("--participant-email")
     # parser.add_argument("--participant-org")
     # parser.add_argument("--participant-orcid")
     # parser.add_argument("--participant-ror")
-    # parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
+    parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     return parser
 
 def run_app(argv: list[str] | None = None) -> int:
@@ -432,26 +432,28 @@ def main() -> None:
     raise SystemExit(run_app())
 
 
-# if __name__ == "__main__":
-#     main()
-
-ro_crate_projects_folder = Path("/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/")
-# matmul_files_local
-ro_crate = ro_crate_projects_folder / "matmul_files_local/COMPSs_RO-Crate_20260810_112548"
-
-# matmul_files_mn5
-ro_crate = ro_crate_projects_folder / "matmul_files_mn5/COMPSs_RO-Crate_20260804_112127"
-
-# matmul_objects_local
-ro_crate = ro_crate_projects_folder / "matmul_objects_local/COMPSs_RO-Crate_20260810_113019"
-
-# matmul_objects_mn5
-ro_crate = ro_crate_projects_folder / "matmul_objects_mn5/COMPSs_RO-Crate_20260804_112730"
-
-# wordcount
-ro_crate = ro_crate_projects_folder / "635/workflow-635-1.crate"
-
 if __name__ == "__main__":
-    raise SystemExit(run_app([
-        str(ro_crate)
-    ]))
+    main()
+
+# ro_crate_projects_folder = Path("/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/")
+
+
+# # matmul_files_local
+# # ro_crate = ro_crate_projects_folder / "matmul_files_local/COMPSs_RO-Crate_20260810_112548"
+
+# # # matmul_files_mn5
+# # ro_crate = ro_crate_projects_folder / "matmul_files_mn5/COMPSs_RO-Crate_20260804_112127"
+
+# # # matmul_objects_local
+# # ro_crate = ro_crate_projects_folder / "matmul_objects_local/COMPSs_RO-Crate_20260810_113019"
+
+# # # matmul_objects_mn5
+# # ro_crate = ro_crate_projects_folder / "matmul_objects_mn5/COMPSs_RO-Crate_20260804_112730"
+
+# # wordcount
+# ro_crate = ro_crate_projects_folder / "635/workflow-635-1.crate"
+
+# if __name__ == "__main__":
+#     raise SystemExit(run_app([
+#         str(ro_crate)
+#     ]))

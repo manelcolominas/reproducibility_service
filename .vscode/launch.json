@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug reproducibility_service",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/reproducibility_service.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "args": [
+        "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate"
+      ]
+    }
+  ]
+}
