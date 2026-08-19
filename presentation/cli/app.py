@@ -92,10 +92,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     # I can't ensure this flags work properly, so I will comment them out for now. They are not essential for the basic functionality.
     
     parser.add_argument("--run-id", help="Identifier for this run (default: random)")
-    # parser.add_argument("--backend", choices=["auto", "local", "slurm"], default="auto", help="Execution backend"
-    # )
-    # parser.add_argument("--command", help="Override the COMPSs submission command line")
-    # parser.add_argument("--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)")
+    parser.add_argument("--backend", choices=["auto", "local", "slurm"], default="auto", help="Execution backend")
+
+    parser.add_argument("--command", help="Override the COMPSs submission command line")
+    parser.add_argument("--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)")
     parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
     # parser.add_argument("--participant-name", default=None)
     # parser.add_argument("--participant-email")
