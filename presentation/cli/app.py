@@ -78,8 +78,9 @@ from presentation.cli import view
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    # create an argument parser for the CLI, with a description of the program and its usage, for example the source, run-id, backend, command, provenance.
-    # The parser will be used to parse the command line arguments passed to the program.
+    # c creates and configures the command-line argument parser for the reproducibility service,
+    # defining which inputs the user can provide and how those inputs are parsed into attributes
+    #  that the application uses during execution.
     # the library ArgumentParser is used to create command line interfaces. It automatically generates help and usage messages and issues errors when users give the program invalid arguments.
     parser = argparse.ArgumentParser(
         prog="reproducibility_service",
@@ -89,8 +90,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     # the source is a positional argument, it is mandatory and does not require a flag, doesn't begin with a dash (- or --). The user must provide it when running the command.
     parser.add_argument("source", help="Local directory, .zip file, or URL of the RO-Crate")
 
-    # I can't ensure this flags work properly, so I will comment them out for now. They are not essential for the basic functionality.
-    
+        
     # Add a flag to allow the user to specify a run identifier. This flag is optional and can be used to provide a custom identifier for the workflow run. If not provided, a random identifier will be generated based on the current timestamp.
     parser.add_argument("--run-id", help="Identifier for this run (default: random)")
 
@@ -105,7 +105,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     # Add a flag to enable provenance. This flag is optional and can be used to enable provenance tracking for the workflow run.
     parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
-    # parser.add_argument("--participant-name", default=None)
+    parser.add_argument("--participant-name", default=None)
     # parser.add_argument("--participant-email")
     # parser.add_argument("--participant-org")
     # parser.add_argument("--participant-orcid")
