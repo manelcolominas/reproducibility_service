@@ -129,7 +129,7 @@ class DefaultImportCrateService:
         validator: CrateSourceValidator,
         acquirer: CrateSourceAcquirer,
         file_system: FileSystemManager,
-        copied_downloaded_crate_dir_name: str,
+        original_crate_dir_name: str,
         log_dir_name: str,
         results_dir_name: str,
     ) -> None:
@@ -137,7 +137,7 @@ class DefaultImportCrateService:
         self._validator = validator
         self._acquirer = acquirer
         self._file_system = file_system
-        self._copied_downloaded_crate_dir_name = copied_downloaded_crate_dir_name
+        self._original_crate_dir_name = original_crate_dir_name
         self._log_dir_name = log_dir_name
         self._results_dir_name = results_dir_name
 
@@ -146,7 +146,10 @@ class DefaultImportCrateService:
         validation = self._validator.validate(source)
 
         workspace_root = request.workspace_directory
-        crate_root = request.crate_directory or (workspace_root / self._copied_downloaded_crate_dir_name)
+        crate_name = self._original_crate_dir_name.strip()
+        crate_root = request.crate_directory or (
+            workspace_root if not crate_name else workspace_root / crate_name
+        )
         log_dir = workspace_root / self._log_dir_name
         results_dir = workspace_root / self._results_dir_name
 

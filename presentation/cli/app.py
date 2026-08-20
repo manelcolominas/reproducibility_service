@@ -106,10 +106,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     # Add a flag to enable provenance. This flag is optional and can be used to enable provenance tracking for the workflow run.
     parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
     parser.add_argument("--participant-name", default=None)
-    # parser.add_argument("--participant-email")
-    # parser.add_argument("--participant-org")
-    # parser.add_argument("--participant-orcid")
-    # parser.add_argument("--participant-ror")
+    parser.add_argument("--participant-email")
+    parser.add_argument("--participant-org")
+    parser.add_argument("--participant-orcid")
+    parser.add_argument("--participant-ror")
 
     # Add a flag to skip confirmation prompts, useful for non-interactive runs or automated scripts.
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
@@ -133,8 +133,7 @@ def run_app(argv: list[str] | None = None) -> int:
 
     if source_is_url:
         runs_root = Path.cwd()
-        shared_crate_directory = runs_root / settings.copied_downloaded_crate_dir_name
-
+        shared_crate_directory = runs_root / ".crate_downloaded"
     else:
         source_path = Path(source_arg).expanduser().resolve()
         runs_root = source_path.parent
@@ -146,7 +145,6 @@ def run_app(argv: list[str] | None = None) -> int:
             shared_crate_directory = source_path
 
     workspace_directory = runs_root / f"reproducibility_service_{run_id}"
-
 
     logger = _build_run_logger(workspace_directory)
     logger.info("source=%s", args.source)
@@ -198,7 +196,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         validator=LocalCrateSourceValidator(),
         acquirer=LocalCrateSourceAcquirer(),
         file_system=file_system,
-        copied_downloaded_crate_dir_name=settings.copied_downloaded_crate_dir_name,
+        original_crate_dir_name=settings.original_crate_dir_name,
         log_dir_name=settings.log_dir_name,
         results_dir_name=settings.results_dir_name,
     )
