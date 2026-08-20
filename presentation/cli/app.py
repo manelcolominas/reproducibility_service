@@ -122,7 +122,7 @@ def run_app(argv: list[str] | None = None) -> int:
     # Namespace(source='input.txt', backend='slurm')
 
     # so build_arg_parser().parse_args(argv) allows you to call the source, backend,
-    #  and other arguments from the command line and call them in the code as `args.source`, `args.backend`, etc.
+    #  and other arguments from the command line and call them in the code as `args.source`, `args.backend`, `args.command` , `args.participant_name`, etc.
     args = build_arg_parser().parse_args(argv)
     
     settings = build_default_settings()
