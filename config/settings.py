@@ -75,30 +75,14 @@ class AppSettings:
     def with_default_backend(self, backend: str) -> AppSettings:
         return replace(self, default_backend=backend)
 
-    # def build_default_settings(service_root: Path | None = None) -> AppSettings:
-    #     # returns the default settings, if you don't provide a service_root, it defaults to 
-    #     # /opt/COMPSs/Tools
-    #     # and the original_crate_dir_name is set to an empty string.
-    #     # is just provisional in the pipeline, it will be set to the correct runs_root, crate directory name.
-    #     root = service_root or Path(__file__).resolve().parents[2]
-    #     return AppSettings(
-    #         service_root=root,
-    #         runs_root=root,
-    #         original_crate_dir_name="",
-    #     )
-
-    def build_default_settings( service_root: Path | None = None, runs_root: Path | None = None ) -> AppSettings:
-        root = (service_root or Path(__file__).resolve().parents[2]).resolve()
-        resolved_runs_root = (runs_root or root).resolve()
-        return AppSettings(
-            service_root=root,
-            runs_root=resolved_runs_root,
-            original_crate_dir_name="",
-        )
-
-    def resolve_runs_root_for_source(self, source: str) -> Path:
-        source_arg = source.strip()
-        if source_arg.startswith(("http://", "https://")):
-            return Path.cwd()
-        source_path = Path(source_arg).expanduser().resolve()
-        return source_path.parent
+def build_default_settings(service_root: Path | None = None) -> AppSettings:
+    # returns the default settings, if you don't provide a service_root, it defaults to 
+    # /opt/COMPSs/Tools
+    # and the original_crate_dir_name is set to an empty string.
+    # is just provisional in the pipeline, it will be set to the correct runs_root, crate directory name.
+    root = service_root or Path(__file__).resolve().parents[2]
+    return AppSettings(
+        service_root=root,
+        runs_root=root,
+        original_crate_dir_name="",
+    )
