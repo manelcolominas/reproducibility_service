@@ -124,18 +124,39 @@ def run_app(argv: list[str] | None = None) -> int:
     # so build_arg_parser().parse_args(argv) allows you to call the source, backend,
     #  and other arguments from the command line and call them in the code as `args.source`, `args.backend`, `args.command` , `args.participant_name`, etc.
     args = build_arg_parser().parse_args(argv)
-    
+
+    # Build an AppSettings object with the default settings for the application, which includes
+    # the default_backend = "auto", log_dir_name="log", results_dir_name="Results", submission_filename="compss_submission_command_line.txt",
+    #  metadata_filename="ro-crate-metadata.json", original_crate_dir_name="", runs_root = /opt/COMPSs/Tools, and service_root= /opt/COMPSs/Tools.
     settings = build_default_settings()
+
+    # if was not provided a run_id by the user, generate a run_id based on the current timestamp in the format YYYYMMDD_HHMMSS.
+    # if the user provides a run_id, use that instead.
     run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    # take the source argument provided by the user.
     source_arg = args.source.strip()
+    # if the source argument starts with "http://" or "https://", it is considered a URL, otherwise it is considered a local path.
     source_is_url = source_arg.startswith(("http://", "https://"))
 
+    # if the source is a URL,
     if source_is_url:
+        # runs_root is the directory where is executed the reproducibility service, and shared_crate_directory 
+        # takes the current working where the reproducibility service is launched.
         runs_root = Path.cwd()
+        # .crate_downloaded is a temporary hidden directory, where the RO-Crate will be downloaded and extracted.
         shared_crate_directory = runs_root / ".crate_downloaded"
+
+    # if the source is a local path or zip file.
     else:
+        # source_arg = workflow-635-1.crate
+        # source_path = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate
+        # returns the absolute path of the source argument.
         source_path = Path(source_arg).expanduser().resolve()
+
+        # source_path = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate
+        # parent = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635
+        # it takes the parent directory of the source path,
         runs_root = source_path.parent
 
         if source_path.suffix.lower() == ".zip":
