@@ -179,7 +179,7 @@ def run_app(argv: list[str] | None = None) -> int:
     # just build the path in the code, doesn't create the directory yet.
     workspace_directory = runs_root / f"reproducibility_service_{run_id}"
 
-    # create the workspace_directory if it doesn't exist, including any necessary parent directories.
+    # create the workspace_directory
     workspace_directory.mkdir(parents=True, exist_ok=True)
 
     # build a logger for the reproducibility service run, which will log messages
