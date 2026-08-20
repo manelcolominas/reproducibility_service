@@ -32,6 +32,10 @@ from tempfile import NamedTemporaryFile
 
 import yaml
 
+from email.message import Message
+from pathlib import PurePosixPath
+from urllib.parse import urlparse, unquote
+
 from application.ports.crate_source import (
     SourceAcquisitionResult,
     SourceValidationResult,
@@ -336,19 +340,26 @@ class LocalCrateSourceAcquirer:
         try:
             request = Request(source.value, headers=BROWSER_HEADERS, method="GET")
             with urlopen(request, timeout=30) as response:
+                download_name = self._download_name_from_response(response, source.value)
+    
                 with NamedTemporaryFile(delete=False, suffix=".zip") as temp_file:
                     shutil.copyfileobj(response, temp_file)
                     download_path = Path(temp_file.name)
         except (URLError, OSError, HTTPError) as exc:
             raise SourceAcquisitionError(f"Could not download crate source: {exc}") from exc
     
+        prepared_root = destination_root
         try:
             if zipfile.is_zipfile(download_path):
+                folder_name = self._folder_name_from_download_name(download_name)
+                prepared_root = destination_root.parent / folder_name
+                prepared_root.mkdir(parents=True, exist_ok=True)
+    
                 with zipfile.ZipFile(download_path) as archive:
-                    archive.extractall(destination_root)
+                    archive.extractall(prepared_root)
                 extracted = True
             else:
-                target_name = Path(source.value).name or "downloaded_crate"
+                target_name = Path(download_name).name or "downloaded_crate"
                 shutil.copy2(download_path, destination_root / target_name)
                 extracted = False
         finally:
@@ -358,10 +369,30 @@ class LocalCrateSourceAcquirer:
         return SourceAcquisitionResult(
             source=source,
             source_root=Path(source.value),
-            prepared_root=destination_root,
+            prepared_root=prepared_root,
             downloaded=True,
             extracted=extracted,
         )
+    
+    def _download_name_from_response(self, response, source_url: str) -> str:
+        content_disposition = response.headers.get("Content-Disposition")
+        if content_disposition:
+            message = Message()
+            message["Content-Disposition"] = content_disposition
+            filename = message.get_param("filename", header="Content-Disposition")
+            if filename:
+                return Path(filename).name
+    
+        final_url = response.geturl() or source_url
+        parsed = urlparse(final_url)
+        candidate = PurePosixPath(unquote(parsed.path)).name
+        return candidate or "downloaded_crate.zip"
+    
+    def _folder_name_from_download_name(self, download_name: str) -> str:
+        path = Path(download_name)
+        if path.suffix.lower() == ".zip":
+            return path.with_suffix("").name
+        return path.name
 
 
 # --------------------------------------------------------------------------- #
