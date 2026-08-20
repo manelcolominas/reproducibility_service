@@ -182,6 +182,8 @@ def run_app(argv: list[str] | None = None) -> int:
     # create the workspace_directory if it doesn't exist, including any necessary parent directories.
     workspace_directory.mkdir(parents=True, exist_ok=True)
 
+    # build a logger for the reproducibility service run, which will log messages
+    # to a file in the workspace_directory/log directory.
     logger = _build_run_logger(workspace_directory)
     logger.info("source=%s", args.source)
 
@@ -413,7 +415,7 @@ def _build_plan(
 
 def _build_run_logger(workspace_directory: Path) -> logging.Logger:
     log_dir = workspace_directory / "log"
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(exist_ok=True, parents=True)
 
     logger = logging.getLogger(f"reproducibility_service.{workspace_directory.name}")
     logger.setLevel(logging.INFO)
