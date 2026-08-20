@@ -155,17 +155,32 @@ def run_app(argv: list[str] | None = None) -> int:
         source_path = Path(source_arg).expanduser().resolve()
 
         # source_path = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate
-        # parent = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635
+        # runs_root = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635
         # it takes the parent directory of the source path,
         runs_root = source_path.parent
 
+        # if the source_path is a zip file.
+        # source_path = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate.zip
         if source_path.suffix.lower() == ".zip":
-            # Extract into a folder next to the archive, not into the archive file itself
+            # builds the path (just in the code, doesn't extract the zip file) of the shared_crate_directory by removing the .zip suffix from the source_path.
+            # for example, if the source_path is /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate.zip, 
+            # the shared_crate_directory will be /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate
             shared_crate_directory = source_path.with_suffix("")
+
+        # if the source_path is not a zip file, it is considered a directory,
+        # the shared_crate_directory is set to the source_path itself.
+        # source_path = /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate.zip
         else:
+            # the shared_crate_directory is set to the source_path itself.
             shared_crate_directory = source_path
 
+    # workspace_directory is the directory where the reproducibility service will create its workspace for this run,
+    # and it is constructed by joining the runs_root with a prefix and the reproducibility_service_{run_id}.
+    # just build the path in the code, doesn't create the directory yet.
     workspace_directory = runs_root / f"reproducibility_service_{run_id}"
+
+    # create the workspace_directory if it doesn't exist, including any necessary parent directories.
+    workspace_directory.mkdir(parents=True, exist_ok=True)
 
     logger = _build_run_logger(workspace_directory)
     logger.info("source=%s", args.source)
@@ -398,7 +413,7 @@ def _build_plan(
 
 def _build_run_logger(workspace_directory: Path) -> logging.Logger:
     log_dir = workspace_directory / "log"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(exist_ok=True)
 
     logger = logging.getLogger(f"reproducibility_service.{workspace_directory.name}")
     logger.setLevel(logging.INFO)
