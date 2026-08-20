@@ -78,7 +78,7 @@ from presentation.cli import view
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    # c creates and configures the command-line argument parser for the reproducibility service,
+    # creates and configures the command-line argument parser for the reproducibility service,
     # defining which inputs the user can provide and how those inputs are parsed into attributes
     #  that the application uses during execution.
     # the library ArgumentParser is used to create command line interfaces. It automatically generates help and usage messages and issues errors when users give the program invalid arguments.
@@ -121,8 +121,10 @@ def run_app(argv: list[str] | None = None) -> int:
     # the Namespace object will contain the attributes `source` with value `my_crate.zip` and `backend` with value `slurm`.
     # Namespace(source='input.txt', backend='slurm')
 
-    # so build_arg_parser().parse_args(argv) returns a Namespace object containing the parsed command line arguments.
+    # so build_arg_parser().parse_args(argv) allows you to call the source, backend,
+    #  and other arguments from the command line and call them in the code as `args.source`, `args.backend`, etc.
     args = build_arg_parser().parse_args(argv)
+    
     settings = build_default_settings()
     run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
 
