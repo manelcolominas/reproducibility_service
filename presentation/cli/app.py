@@ -183,7 +183,7 @@ def run_app(argv: list[str] | None = None) -> int:
     workspace_directory.mkdir(parents=True, exist_ok=True)
 
     # build a logger for the reproducibility service run, which will log messages
-    # to a file in the workspace_directory/log directory.
+    # to a rs_log.txt in the workspace_directory/log directory (reproducibility_service_{run_id}/log/rs_log.txt).
     logger = _build_run_logger(workspace_directory)
     logger.info("source=%s", args.source)
 
@@ -414,11 +414,22 @@ def _build_plan(
         )
 
 def _build_run_logger(workspace_directory: Path) -> logging.Logger:
+    # create the path for the log directory
     log_dir = workspace_directory / "log"
+
+    # create the log directory, if it doesn't exist, and create any missing parent directories.
     log_dir.mkdir(exist_ok=True, parents=True)
 
+    # create or retrieve a logger object for the reproducibility service run with the name of the
+    # workspace_directory (reproducibility_service_{timestamp}), which makes that every execution
+    # have its own logger.
     logger = logging.getLogger(f"reproducibility_service.{workspace_directory.name}")
+
+    # set the logger level to INFO, which means that all messages with a severity level of INFO or higher will be logged.
     logger.setLevel(logging.INFO)
+
+    # to avoid propagating log messages to upper level loggers (e.g., the root logger), which could 
+    # result in duplicate log entries, set the propagate attribute of the logger to False.
     logger.propagate = False
 
     if not any(isinstance(handler, logging.FileHandler) for handler in logger.handlers):
