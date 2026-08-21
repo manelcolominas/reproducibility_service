@@ -67,6 +67,7 @@ FLAG_CANONICAL_MAP = {
 "-z": "--zip_provenance",
 }
 
+# Create a single console instance from Rich library to be used throughout the module for rendering output.
 console = Console()
 
 def _option_takes_value(flag_spec: str) -> bool:
@@ -225,12 +226,17 @@ def _available_flag_choices(backend: ExecutionBackend, current_flags: list[str])
 
 def print_banner() -> None:
     console.print(
+        # creates a Panel object of the rich library, which is a box with a border and a title. 
+        # The content of the panel is a Text object that contains the text "COMPSs Reproducibility Service"
+        # in bold cyan color and centered. The panel also has a subtitle that says "reproduce a COMPSs workflow run from an RO-Crate"
+        # and a cyan border style.
         Panel(
             Text("COMPSs Reproducibility Service", style="bold cyan", justify="center"),
             subtitle="reproduce a COMPSs workflow run from an RO-Crate",
             border_style="cyan",
         )
     )
+    # and then it prints it on the console using the console.print() method.
 
 def print_error(message: str, details: str | None = None) -> None:
     body = message if not details else f"{message}\n[dim]{details}[/dim]"

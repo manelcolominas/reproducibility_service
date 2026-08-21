@@ -116,13 +116,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 def run_app(argv: list[str] | None = None) -> int:
-    # parse_args(argv) returns a Namespace object containing the parsed command line arguments.
-    # for example, if the user runs the command `reproducibility_service my_crate.zip --backend slurm`,
-    # the Namespace object will contain the attributes `source` with value `my_crate.zip` and `backend` with value `slurm`.
-    # Namespace(source='input.txt', backend='slurm')
+    # build_arg_parser() creates and configures the ArgumentParser, defining which
+    # command-line arguments are accepted by the program.
+    
+    # parse_args(argv) then parses the arguments contained in argv and returns a
+    # Namespace object with the parsed command line arguments,
 
-    # so build_arg_parser().parse_args(argv) allows you to call the source, backend,
-    #  and other arguments from the command line and call them in the code as `args.source`, `args.backend`, `args.command` , `args.participant_name`, etc.
+    # for example, if the user runs the command:
+    # reproducibility_service workflow-635-1.crate.zip --backend slurm --provenance --participant-name "John Doe" --participant-email "john.doe@example.com" --participant-org "Example Org" --participant-orcid "0000-0001-2345-6789" --participant-ror "https://ror.org/123456789"
+    # the argv list will contain the following elements:
+    # remember that source is positional argument, so it doesn't have a flag, and the rest are optional arguments with flags.
+    # ['workflow-635-1.crate.zip', '--backend', 'slurm', '--provenance', '--participant-name', 'John Doe', '--participant-email', 'john.doe@example.com', '--participant-org', 'Example Org', '--participant-orcid', '0000-0001-2345-6789', '--participant-ror', 'https://ror.org/123456789']
+
+    # parse_args(argv) will then parse these arguments and return a Namespace object with the following attributes:
+    # Namespace(source='workflow-635-1.crate.zip', backend='slurm', command=None, extra_flag=[], provenance=True, participant_name='John Doe', participant_email='john.doe@example.com', participant_org='Example Org', participant_orcid='0000-0001-2345-6789', participant_ror='https://ror.org/123456789', yes=False)
+    # The values can then be accessed in the code using attributes such as:
+    # `args.source`, `args.backend`, `args.command`, `args.participant_name`, `args.participant_email`, `args.participant_org`, `args.participant_orcid`, `args.participant_ror`, `args.yes`, etc.
     args = build_arg_parser().parse_args(argv)
 
     # Build an AppSettings object with the default settings for the application, which includes
@@ -185,12 +194,19 @@ def run_app(argv: list[str] | None = None) -> int:
     # build a logger for the reproducibility service run, which will log messages
     # to a rs_log.txt in the workspace_directory/log directory (reproducibility_service_{run_id}/log/rs_log.txt).
     logger = _build_run_logger(workspace_directory)
+
+    # log the source argument provided by the user, which can be a local directory, a .zip file, or a URL.
+    # this line will add an entry to the log file with the source argument, for example:
+    # 2026-08-20 16:47:40,808 INFO source=workflow-635-1.crate.zip
     logger.info("source=%s", args.source)
 
+    # print the banner of the reproducibility service, which is the name of the service and a little description of it.
     view.print_banner()
 
+    # try to run the pipeline of the reproducibility service,
     try:
         crate, plan_result = _run_pipeline(args, settings, workspace_directory, shared_crate_directory, logger)
+
     except ServiceError as exc:
         logger.exception("service_error=%s details=%s", exc.message, exc.details)
         view.print_error(exc.message, exc.details)
@@ -226,6 +242,22 @@ def run_app(argv: list[str] | None = None) -> int:
 
 
 def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_directory: Path, shared_crate_directory: Path, logger: logging.Logger ):
+    """
+    Runs the pipeline of the reproducibility service.
+
+    Args:
+        args: A Namespace object containing the command-line arguments. args = Namespace(source='workflow-635-1.crate.zip', backend='slurm', command=None, extra_flag=[], provenance=True, participant_name='John Doe', participant_email='john.doe@example.com', participant_org='Example Org', participant_orcid='0000-0001-2345-6789', participant_ror='https://ror.org/123456789', yes=False)
+        settings: An AppSettings object containing the application settings. settings = AppSettings(service_root=PosixPath('/opt/COMPSs/Tools'), runs_root=PosixPath('/opt/COMPSs/Tools'), original_crate_dir_name='', log_dir_name='log', results_dir_name='Results', submission_filename='compss_submission_command_line.txt', metadata_filename='ro-crate-metadata.json', default_backend='auto', enable_provenance_by_default=False)
+        workspace_directory: The workspace directory path. (/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/reproducibility_service_{run_id})
+        shared_crate_directory: The shared crate directory path. (/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate)
+        logger: The logger instance of the reproducibility service run.
+
+    Returns:
+        A tuple containing the crate and the plan result.
+
+    Raises:
+        ServiceError: If an error occurs during the pipeline execution.
+    """
 
     file_system = LocalFileSystem()
 
@@ -421,33 +453,40 @@ def _build_run_logger(workspace_directory: Path) -> logging.Logger:
     log_dir.mkdir(exist_ok=True, parents=True)
 
     # create or retrieve a logger object for the reproducibility service run with the name of the
-    # workspace_directory (reproducibility_service_{timestamp}), which makes that every execution
+    # workspace_directory (reproducibility_service_{run_id}), which makes that every execution
     # have its own logger.
     logger = logging.getLogger(f"reproducibility_service.{workspace_directory.name}")
 
     # set the logger level to INFO, which means that all messages with a severity level of INFO or higher will be logged.
     logger.setLevel(logging.INFO)
 
-    # to avoid propagating log messages to upper level loggers (e.g., the root logger), which could 
+    # to avoid propagating log messages to upper level loggers (e.g., the root logger or reproducibility_service logger), which could 
     # result in duplicate log entries, set the propagate attribute of the logger to False.
     logger.propagate = False
 
+    # check if the logger already has a FileHandler.
+    # logger.handlers is a list of all the handlers attached to the logger. A handler is an object that determines
+    # how log messages are processed and where they are sent (e.g., to a file, to the console, etc.).
     if not any(isinstance(handler, logging.FileHandler) for handler in logger.handlers):
+        # create a FileHandler that writes log messages to a file named "rs_log.txt" in the log directory, with UTF-8 encoding.
         file_handler = logging.FileHandler(log_dir / "rs_log.txt", encoding="utf-8")
+        # set the log message format for the FileHandler to include the timestamp, log level, and the message.
         file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        # add the FileHandler to the logger, so that log messages are written to the file.
         logger.addHandler(file_handler)
 
     return logger
 
 def _update_plan_with_selected_flags(
-    args: argparse.Namespace,
-    plan_service,
-    crate,
-    workspace_directory: Path,
-    provenance_enabled: bool,
-    current_plan,
-    logger: logging.Logger,
-):
+        args: argparse.Namespace,
+        plan_service,
+        crate,
+        workspace_directory: Path,
+        provenance_enabled: bool,
+        current_plan,
+        logger: logging.Logger,
+    ):
+
     raw_edits = view.edit_submission_command(
         current_plan.plan.backend,
         current_plan.plan.command.as_list(),
