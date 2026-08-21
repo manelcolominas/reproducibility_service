@@ -86,44 +86,45 @@ class InspectCrateResult:
         return len(self.warnings) > 0
 
 
-    @runtime_checkable
-    class InspectCrateUseCase(Protocol):
-        def execute(self, request: InspectCrateRequest) -> InspectCrateResult:
-            plan = self.build_plan(request)
-            document = self._parser.parse(plan.parse_request)
-            normalization = self._normalizer.normalize(document)
+    # @runtime_checkable
+    # class InspectCrateUseCase(Protocol):
+    #     def execute(self, request: InspectCrateRequest) -> InspectCrateResult:
+    #         plan = self.build_plan(request)
+    #         document = self._parser.parse(plan.parse_request)
+    #         normalization = self._normalizer.normalize(document)
         
-            crate = normalization.crate
-            if crate is None and normalization.metadata is not None:
-                crate = normalization.metadata  # type: ignore[assignment]
+    #         crate = normalization.crate
+    #         if crate is None and normalization.metadata is not None:
+    #             crate = normalization.metadata  # type: ignore[assignment]
         
-            inspect_output: str | None = None
-            inspector_warnings: tuple[str, ...] = ()
+    #         inspect_output: str | None = None
+    #         inspector_warnings: tuple[str, ...] = ()
         
-            if self._inspector is not None:
-                try:
-                    inspection = self._inspector.inspect(document)
-                    inspect_output = inspection.stdout
-                    if inspection.warning:
-                        inspector_warnings = (inspection.warning,)
-                except Exception as exc:
-                    inspector_warnings = (f"pycompss inspect failed: {exc}",)
+    #         if self._inspector is not None:
+    #             try:
+    #                 inspection = self._inspector.inspect(document)
+    #                 inspect_output = inspection.stdout
+    #                 if inspection.warning:
+    #                     inspector_warnings = (inspection.warning,)
+    #             except Exception as exc:
+    #                 inspector_warnings = (f"pycompss inspect failed: {exc}",)
         
-            warnings = tuple(normalization.warnings) + inspector_warnings
-            notes = tuple(normalization.issues)
+    #         warnings = tuple(normalization.warnings) + inspector_warnings
+    #         notes = tuple(normalization.issues)
         
-            status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
+    #         status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
         
-            return InspectCrateResult(
-                status=status,
-                request=request,
-                document=document,
-                normalization=normalization,
-                crate=crate,
-                warnings=warnings,
-                notes=notes,
-                inspect_output=inspect_output,
-            )
+    #         return InspectCrateResult(
+    #             status=status,
+    #             request=request,
+    #             document=document,
+    #             normalization=normalization,
+    #             crate=crate,
+    #             warnings=warnings,
+    #             notes=notes,
+    #             inspect_output=inspect_output,
+    #         )
+
 
 @runtime_checkable
 class InspectCratePlanner(Protocol):

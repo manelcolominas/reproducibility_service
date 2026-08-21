@@ -23,7 +23,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from application.ports.file_system import FileSystemReader
+from infrastructure.adapters import LocalFileSystem
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import CrateSummary, WorkflowArtifact
 from domain.models.verification import (
@@ -100,7 +100,7 @@ class VerifyInputsFailure(VerifyInputsPortError):
 
 
 class DefaultVerifyInputsService:
-    def __init__(self, file_system: FileSystemReader) -> None:
+    def __init__(self, file_system: LocalFileSystem) -> None:
         self._file_system = file_system
 
     def build_plan(self, request: VerifyInputsRequest) -> VerifyInputsPlan:

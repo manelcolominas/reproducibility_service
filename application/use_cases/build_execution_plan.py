@@ -61,14 +61,6 @@ class FlagDefinition:
     repeatable: bool = False
     prefer_equals: bool = False
 
-def _flag_display_name(flag: FlagDefinition) -> str:
-    if flag.value_kind == FlagValueKind.NONE:
-        return flag.name
-
-    if flag.prefer_equals:
-        return f"{flag.name}=<value>"
-    return f"{flag.name}=<value>"  # same for the UI prompt; both are acceptable
-
 def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
     choices: list[tuple[str, str]] = []
 

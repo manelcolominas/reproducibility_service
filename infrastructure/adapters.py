@@ -96,8 +96,18 @@ BROWSER_HEADERS = {
 
 
 class LocalFileSystem:
-    """Filesystem adapter backed by pathlib/shutil (implements FileSystemManager)."""
+    """
+        The LocalFileSystem class provides an interface for managing files and directories
+        on the local filesystem. It uses Python's pathlib, shutil, and os modules to perform
+        common filesystem operations, such as checking whether a file or directory exists,
+        reading and writing files, creating directories, copying, moving, and deleting files
+        and directories. It also provides methods for retrieving file metadata and manipulating
+        paths. The class acts as an abstraction layer, allowing the rest of the application to
+        interact with the local filesystem without directly depending on the underlying filesystem
+        operations.
+    """
 
+    # verify if a path exists
     def exists(self, path: Path) -> bool:
         return Path(path).exists()
 
@@ -114,28 +124,32 @@ class LocalFileSystem:
             size_bytes=path.stat().st_size if exists and path.is_file() else None,
         )
 
-    def is_file(self, path: Path) -> bool:
-        return Path(path).is_file()
+    # check if a path is a file
+    # def is_file(self, path: Path) -> bool:
+    #     return Path(path).is_file()
 
-    def is_directory(self, path: Path) -> bool:
-        return Path(path).is_dir()
+    # check if a path is a directory
+    # def is_directory(self, path: Path) -> bool:
+    #     return Path(path).is_dir()
 
-    def read_text(self, path: Path, encoding: str = "utf-8") -> str:
-        return Path(path).read_text(encoding=encoding)
+    # read the contents of a text file
+    # def read_text(self, path: Path, encoding: str = "utf-8") -> str:
+    #     return Path(path).read_text(encoding=encoding)
 
-    def list_directory(self, path: Path) -> tuple[DirectoryEntry, ...]:
-        entries = []
-        for child in sorted(Path(path).iterdir()):
-            entries.append(
-                DirectoryEntry(
-                    path=child,
-                    name=child.name,
-                    is_file=child.is_file(),
-                    is_directory=child.is_dir(),
-                    size_bytes=child.stat().st_size if child.is_file() else None,
-                )
-            )
-        return tuple(entries)
+    # list the contents of a directory
+    # def list_directory(self, path: Path) -> tuple[DirectoryEntry, ...]:
+    #     entries = []
+    #     for child in sorted(Path(path).iterdir()):
+    #         entries.append(
+    #             DirectoryEntry(
+    #                 path=child,
+    #                 name=child.name,
+    #                 is_file=child.is_file(),
+    #                 is_directory=child.is_dir(),
+    #                 size_bytes=child.stat().st_size if child.is_file() else None,
+    #             )
+    #         )
+    #     return tuple(entries)
 
     def create_directory(self, request: DirectoryCreateRequest) -> FileSystemOperationResult:
         try:
@@ -144,60 +158,60 @@ class LocalFileSystem:
         except OSError as exc:
             return FileSystemOperationResult(path=request.path, succeeded=False, message=str(exc))
 
-    def copy(self, request: CopyRequest) -> FileSystemOperationResult:
-        source, destination = Path(request.source), Path(request.destination)
-        try:
-            if destination.exists() and not request.overwrite:
-                return FileSystemOperationResult(
-                    path=destination, succeeded=False, message="Destination already exists"
-                )
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            if source.is_dir():
-                if not request.recursive:
-                    return FileSystemOperationResult(
-                        path=destination, succeeded=False, message="Cannot copy a directory non-recursively"
-                    )
-                if destination.exists():
-                    shutil.rmtree(destination)
-                shutil.copytree(source, destination)
-                size = None
-            else:
-                shutil.copy2(source, destination)
-                size = destination.stat().st_size
-            return FileSystemOperationResult(path=destination, succeeded=True, bytes_transferred=size)
-        except OSError as exc:
-            return FileSystemOperationResult(path=destination, succeeded=False, message=str(exc))
+    # def copy(self, request: CopyRequest) -> FileSystemOperationResult:
+    #     source, destination = Path(request.source), Path(request.destination)
+    #     try:
+    #         if destination.exists() and not request.overwrite:
+    #             return FileSystemOperationResult(
+    #                 path=destination, succeeded=False, message="Destination already exists"
+    #             )
+    #         destination.parent.mkdir(parents=True, exist_ok=True)
+    #         if source.is_dir():
+    #             if not request.recursive:
+    #                 return FileSystemOperationResult(
+    #                     path=destination, succeeded=False, message="Cannot copy a directory non-recursively"
+    #                 )
+    #             if destination.exists():
+    #                 shutil.rmtree(destination)
+    #             shutil.copytree(source, destination)
+    #             size = None
+    #         else:
+    #             shutil.copy2(source, destination)
+    #             size = destination.stat().st_size
+    #         return FileSystemOperationResult(path=destination, succeeded=True, bytes_transferred=size)
+    #     except OSError as exc:
+    #         return FileSystemOperationResult(path=destination, succeeded=False, message=str(exc))
 
-    def move(self, request: MoveRequest) -> FileSystemOperationResult:
-        source, destination = Path(request.source), Path(request.destination)
-        try:
-            if destination.exists() and not request.overwrite:
-                return FileSystemOperationResult(
-                    path=destination, succeeded=False, message="Destination already exists"
-                )
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(source), str(destination))
-            return FileSystemOperationResult(path=destination, succeeded=True)
-        except OSError as exc:
-            return FileSystemOperationResult(path=destination, succeeded=False, message=str(exc))
+    # def move(self, request: MoveRequest) -> FileSystemOperationResult:
+    #     source, destination = Path(request.source), Path(request.destination)
+    #     try:
+    #         if destination.exists() and not request.overwrite:
+    #             return FileSystemOperationResult(
+    #                 path=destination, succeeded=False, message="Destination already exists"
+    #             )
+    #         destination.parent.mkdir(parents=True, exist_ok=True)
+    #         shutil.move(str(source), str(destination))
+    #         return FileSystemOperationResult(path=destination, succeeded=True)
+    #     except OSError as exc:
+    #         return FileSystemOperationResult(path=destination, succeeded=False, message=str(exc))
 
-    def delete(self, request: DeleteRequest) -> FileSystemOperationResult:
-        path = Path(request.path)
-        try:
-            if not path.exists():
-                if request.missing_ok:
-                    return FileSystemOperationResult(path=path, succeeded=True, message="Already absent")
-                return FileSystemOperationResult(path=path, succeeded=False, message="Path does not exist")
-            if path.is_dir():
-                if request.recursive:
-                    shutil.rmtree(path)
-                else:
-                    path.rmdir()
-            else:
-                path.unlink()
-            return FileSystemOperationResult(path=path, succeeded=True)
-        except OSError as exc:
-            return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
+    # def delete(self, request: DeleteRequest) -> FileSystemOperationResult:
+    #     path = Path(request.path)
+    #     try:
+    #         if not path.exists():
+    #             if request.missing_ok:
+    #                 return FileSystemOperationResult(path=path, succeeded=True, message="Already absent")
+    #             return FileSystemOperationResult(path=path, succeeded=False, message="Path does not exist")
+    #         if path.is_dir():
+    #             if request.recursive:
+    #                 shutil.rmtree(path)
+    #             else:
+    #                 path.rmdir()
+    #         else:
+    #             path.unlink()
+    #         return FileSystemOperationResult(path=path, succeeded=True)
+    #     except OSError as exc:
+    #         return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
 
     def write_text(self, path: Path, content: str, encoding: str = "utf-8") -> FileSystemOperationResult:
         path = Path(path)
@@ -208,14 +222,14 @@ class LocalFileSystem:
         except OSError as exc:
             return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
 
-    def join(self, *parts: Path | str) -> Path:
-        return Path(*[str(part) for part in parts])
+    # def join(self, *parts: Path | str) -> Path:
+    #     return Path(*[str(part) for part in parts])
 
-    def resolve(self, path: Path, strict: bool = False) -> Path:
-        return Path(path).resolve(strict=strict)
+    # def resolve(self, path: Path, strict: bool = False) -> Path:
+    #     return Path(path).resolve(strict=strict)
 
-    def relative_to(self, path: Path, base: Path) -> Path:
-        return Path(path).relative_to(base)
+    # def relative_to(self, path: Path, base: Path) -> Path:
+    #     return Path(path).relative_to(base)
 
 
 # --------------------------------------------------------------------------- #
@@ -760,18 +774,6 @@ class CrateMetadataNormalizer:
             orcid=raw.get("orcid") or None,
             ror=raw.get("ror") or None,
         )
-
-    def _parse_data_persistence(self, value: object) -> DataPersistenceKind:
-        if isinstance(value, bool):
-            return DataPersistenceKind.TRUE if value else DataPersistenceKind.FALSE
-        text = str(value).strip().lower() if value is not None else ""
-        if text in {"true", "yes"}:
-            return DataPersistenceKind.TRUE
-        if text in {"false", "no"}:
-            return DataPersistenceKind.FALSE
-        return DataPersistenceKind.UNKNOWN
-
-    
 
 
 # --------------------------------------------------------------------------- #

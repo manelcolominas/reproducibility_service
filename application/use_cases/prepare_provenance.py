@@ -25,18 +25,18 @@ from typing import Any, Protocol, runtime_checkable
 
 import yaml
 
-from application.ports.file_system import DirectoryCreateRequest, FileSystemManager
+from application.ports.file_system import DirectoryCreateRequest
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, MetadataError, ValidationError
 from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, WorkflowArtifact
 from domain.models.crate import CrateSummary, DataPersistenceKind, WorkflowMetadata, WorkflowParticipant
+from infrastructure.adapters import LocalFileSystem
 
 class PrepareProvenanceStatus(str, Enum):
     PENDING = "pending"
     VALIDATED = "validated"
     PREPARED = "prepared"
     PUBLISHED = "published"
-    FAILED = "failed"
 
 
 _PLACEHOLDER_SOURCES = {
@@ -231,7 +231,7 @@ class PrepareProvenanceFailure(PrepareProvenancePortError):
 
 
 class DefaultPrepareProvenanceService:
-    def __init__(self, file_system: FileSystemManager) -> None:
+    def __init__(self, file_system: LocalFileSystem) -> None:
         self._file_system = file_system
 
     def build_plan(self, request: PrepareProvenanceRequest) -> PrepareProvenancePlan:

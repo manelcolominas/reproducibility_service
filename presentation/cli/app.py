@@ -259,6 +259,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         ServiceError: If an error occurs during the pipeline execution.
     """
 
+    # create a LocalFileSystem instance to handle file system operations.
     file_system = LocalFileSystem()
 
     import_service = DefaultImportCrateService(
@@ -276,12 +277,15 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         normalizer=CrateMetadataNormalizer(),
         inspector=LocalPyCompssMetadataInspector(),
     )
+
     verify_service = DefaultVerifyInputsService(file_system=file_system)
+
     plan_service = DefaultBuildExecutionPlanService(
         backend_detector=ShutilExecutionBackendDetector(),
         log_dir_name=settings.log_dir_name,
         results_dir_name=settings.results_dir_name,
     )
+
     provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
 
     import_result = view.run_with_spinner(
@@ -289,6 +293,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         import_service.execute,
         ImportCrateRequest(raw_source=args.source, workspace_directory=workspace_directory, crate_directory=shared_crate_directory,reuse_existing_crate=True)
     )
+
     view.print_import_result(import_result)
 
     inspect_result = view.run_with_spinner(
@@ -434,6 +439,7 @@ def _build_plan(
             "[yellow]Could not use the submission command from the crate "
             f"({reason}). Enter one manually (e.g. 'runcompss main.py')[/yellow]"
         )
+
         return plan_service.execute(
             BuildExecutionPlanRequest(
                 crate=crate,
@@ -516,15 +522,15 @@ def _update_plan_with_selected_flags(
         provenance_enabled,
         submission_edits=tuple(normalized_edits),
     )
+
     logger.info(
         "resolved_command=%s backend=%s provenance_enabled=%s",
         plan_result.plan.command.as_string(),
         plan_result.plan.backend.value,
         provenance_enabled,
     )
-    return plan_result
 
-PROVENANCE_FLAGS = {"--provenance", "-p"}
+    return plan_result
 
 def main() -> None:
     raise SystemExit(run_app())

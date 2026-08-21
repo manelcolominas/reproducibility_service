@@ -95,55 +95,55 @@ class FileSystemOperationResult:
             raise ValueError("FileSystemOperationResult.path cannot be empty")
 
 
-@runtime_checkable
-class FileSystemReader(Protocol):
-    def exists(self, path: Path) -> bool:
-        ...
+# @runtime_checkable
+# class FileSystemReader(Protocol):
+#     def exists(self, path: Path) -> bool:
+#         ...
 
-    def metadata(self, path: Path) -> FileMetadata:
-        ...
+#     def metadata(self, path: Path) -> FileMetadata:
+#         ...
 
-    def is_file(self, path: Path) -> bool:
-        ...
+#     def is_file(self, path: Path) -> bool:
+#         ...
 
-    def is_directory(self, path: Path) -> bool:
-        ...
+#     def is_directory(self, path: Path) -> bool:
+#         ...
 
-    def read_text(self, path: Path, encoding: str = "utf-8") -> str:
-        ...
+#     def read_text(self, path: Path, encoding: str = "utf-8") -> str:
+#         ...
 
-    def list_directory(self, path: Path) -> tuple[DirectoryEntry, ...]:
-        ...
-
-
-@runtime_checkable
-class FileSystemWriter(Protocol):
-    def create_directory(self, request: DirectoryCreateRequest) -> FileSystemOperationResult:
-        ...
-
-    def copy(self, request: CopyRequest) -> FileSystemOperationResult:
-        ...
-
-    def move(self, request: MoveRequest) -> FileSystemOperationResult:
-        ...
-
-    def delete(self, request: DeleteRequest) -> FileSystemOperationResult:
-        ...
-
-    def write_text(self, path: Path, content: str, encoding: str = "utf-8") -> FileSystemOperationResult:
-        ...
+#     def list_directory(self, path: Path) -> tuple[DirectoryEntry, ...]:
+#         ...
 
 
-@runtime_checkable
-class FileSystemManager(FileSystemReader, FileSystemWriter, Protocol):
-    def join(self, *parts: Path | str) -> Path:
-        ...
+# @runtime_checkable
+# class FileSystemWriter(Protocol):
+#     def create_directory(self, request: DirectoryCreateRequest) -> FileSystemOperationResult:
+#         ...
 
-    def resolve(self, path: Path, strict: bool = False) -> Path:
-        ...
+#     def copy(self, request: CopyRequest) -> FileSystemOperationResult:
+#         ...
 
-    def relative_to(self, path: Path, base: Path) -> Path:
-        ...
+#     def move(self, request: MoveRequest) -> FileSystemOperationResult:
+#         ...
+
+#     def delete(self, request: DeleteRequest) -> FileSystemOperationResult:
+#         ...
+
+#     def write_text(self, path: Path, content: str, encoding: str = "utf-8") -> FileSystemOperationResult:
+#         ...
+
+
+# @runtime_checkable
+# class FileSystemManager(FileSystemReader, FileSystemWriter, Protocol):
+#     def join(self, *parts: Path | str) -> Path:
+#         ...
+
+#     def resolve(self, path: Path, strict: bool = False) -> Path:
+#         ...
+
+#     def relative_to(self, path: Path, base: Path) -> Path:
+#         ...
 
 
 class FileSystemPortError(FileSystemError):

@@ -32,10 +32,11 @@ from application.ports.crate_source import (
 )
 from application.ports.file_system import (
     DirectoryCreateRequest,
-    FileSystemManager,
+    #FileSystemManager,
 )
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import CrateLocation, CrateSource, CrateSummary
+from infrastructure.adapters import LocalFileSystem
 
 
 class ImportCrateStatus(str, Enum):
@@ -128,7 +129,8 @@ class DefaultImportCrateService:
         resolver: CrateSourceResolver,
         validator: CrateSourceValidator,
         acquirer: CrateSourceAcquirer,
-        file_system: FileSystemManager,
+        #file_system: FileSystemManager,
+        file_system: LocalFileSystem,
         original_crate_dir_name: str,
         log_dir_name: str,
         results_dir_name: str,
