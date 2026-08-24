@@ -21,14 +21,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 import yaml
 
 from application.ports.file_system import DirectoryCreateRequest
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, WorkflowArtifact, DataPersistenceKind
+from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, DataPersistenceKind
 from infrastructure.adapters import LocalFileSystem
 
 class PrepareProvenanceStatus(str, Enum):

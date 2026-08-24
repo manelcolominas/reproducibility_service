@@ -27,17 +27,11 @@ from __future__ import annotations
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
-from InquirerPy import inquirer
 import questionary
-import logging
-from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
-
 
 from application.ports.executor import ExecutionOutcome
 from application.use_cases.inspect_crate import InspectCrateResult

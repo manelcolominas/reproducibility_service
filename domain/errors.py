@@ -40,7 +40,6 @@ class FileSystemError(ServiceError):
 class ExecutionError(ServiceError):
     pass
 
-
 class SourceAcquisitionError(FileSystemError):
     pass
 

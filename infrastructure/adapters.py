@@ -19,22 +19,13 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
-from sys import executable
-import zipfile
+import os
+import pty
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import Request, urlopen, urlretrieve
-from urllib.error import HTTPError
-from tempfile import NamedTemporaryFile
 
 import yaml
-
-from email.message import Message
-from pathlib import PurePosixPath
-from urllib.parse import urlparse, unquote
 
 from application.ports.crate_source import (
     SourceAcquisitionResult,
@@ -168,9 +159,6 @@ class LocalPyCompssMetadataInspector:
         self._executable = executable
 
     def inspect(self, document: MetadataDocument) -> MetadataInspectionResult:
-        import os
-        import pty
-        import subprocess
 
         target = document.path if document.path is not None else Path(document.source.location)
         # if you want the verbose output
@@ -500,7 +488,6 @@ class CrateMetadataNormalizer:
 # --------------------------------------------------------------------------- #
 # Execution adapters
 # --------------------------------------------------------------------------- #
-
 
 class ShutilExecutionBackendDetector:
     """Detects SLURM vs local execution."""

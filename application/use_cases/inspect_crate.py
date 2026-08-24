@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import runtime_checkable
 
 from application.ports.metadata_parser import (
     MetadataDocument,
