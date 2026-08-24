@@ -20,17 +20,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import os
 import pty
 from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
-from application.ports.crate_source import (
-    SourceAcquisitionResult,
-    SourceValidationResult,
-)
 from application.ports.executor import ExecutionOutcome
 from application.ports.file_system import (
     DirectoryCreateRequest,
@@ -68,12 +63,6 @@ from domain.models.execution import (
     ExecutionResult,
     ExecutionStatus,
 )
-
-BROWSER_HEADERS = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-        "Accept": "application/octet-stream,application/zip,application/json,text/html,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
 
 # --------------------------------------------------------------------------- #
 # File system adapter
@@ -267,7 +256,7 @@ class CrateMetadataNormalizer:
             authors=authors,
             participant=participant,
             license=workflow_info.get("license"),
-            data_persistence=self._infer_data_persistence(crate_root),
+            data_persistence=self._infer_data_persistence(root_entity=document.raw, entities_by_id={}),  # Placeholder for data persistence inference
             source_metadata_path=document.path,
         )
     
@@ -326,7 +315,7 @@ class CrateMetadataNormalizer:
             authors=authors,
             compss_version=compss_version,
             execution_site=execution_site,
-            data_persistence=self._infer_data_persistence(crate_root),
+            data_persistence=self._infer_data_persistence(root_entity=root_entity, entities_by_id=entities_by_id),
             source_metadata_path=document.path,
         )
 
@@ -427,9 +416,35 @@ class CrateMetadataNormalizer:
 
         return tuple(sources)
 
-    def _infer_data_persistence(self, crate_root: Path) -> DataPersistenceKind:
-        dataset_dir = crate_root / "dataset"
-        return DataPersistenceKind.TRUE if dataset_dir.is_dir() else DataPersistenceKind.FALSE
+    #  # searching for the data persistence information in the crate root directory by checking if a "dataset" directory exists. If it does, it returns DataPersistenceKind.TRUE, otherwise DataPersistenceKind.FALSE.
+    # def _infer_data_persistence(self, crate_root: Path) -> DataPersistenceKind:
+    #     dataset_dir = crate_root / "dataset"
+    #     return DataPersistenceKind.TRUE if dataset_dir.is_dir() else DataPersistenceKind.FALSE
+
+    def extract_ids(self,value: object) -> list[str]:
+        ids: list[str] = []
+        if isinstance(value, dict):
+            id_value = value.get("@id")
+            if isinstance(id_value, str):
+                ids.append(id_value)
+        elif isinstance(value, list):
+            for item in value:
+                ids.extend(self.extract_ids(item)) 
+        return ids
+
+    def _infer_data_persistence(self, root_entity: dict, entities_by_id: dict[str, dict]) -> DataPersistenceKind:    
+        candidate_ids: list[str] = []
+    
+        candidate_ids.extend(self.extract_ids(root_entity.get("hasPart")))
+    
+        for entity in entities_by_id.values():
+            if isinstance(entity, dict):
+                entity_id = entity.get("@id")
+                if isinstance(entity_id, str):
+                    candidate_ids.append(entity_id)
+    
+        has_dataset_refs = any(item.startswith("dataset/") for item in candidate_ids)
+        return DataPersistenceKind.TRUE if has_dataset_refs else DataPersistenceKind.FALSE
 
     def _extract_email(self, person: dict) -> str | None:
         contact = person.get("contactPoint")
@@ -439,9 +454,7 @@ class CrateMetadataNormalizer:
                 return str(email)
         return None
 
-    def _extract_organization_name(
-        self,
-        person: dict,
+    def _extract_organization_name(self, person: dict,
         entities_by_id: dict[str, dict],
     ) -> str | None:
         affiliation = person.get("affiliation")

@@ -1,0 +1,1228 @@
+{
+    "@context": [
+        "https://w3id.org/ro/crate/1.2/context",
+        "https://w3id.org/ro/terms/workflow-run"
+    ],
+    "@graph": [
+        {
+            "@id": "./",
+            "@type": "Dataset",
+            "author": [
+                {
+                    "@id": "https://orcid.org/0000-0003-0606-2512"
+                }
+            ],
+            "conformsTo": [
+                {
+                    "@id": "https://w3id.org/workflowhub/workflow-ro-crate/1.0"
+                },
+                {
+                    "@id": "https://w3id.org/ro/wfrun/process/0.5"
+                },
+                {
+                    "@id": "https://w3id.org/ro/wfrun/workflow/0.5"
+                }
+            ],
+            "creator": [
+                {
+                    "@id": "https://orcid.org/0000-0003-0606-2512"
+                }
+            ],
+            "datePublished": "2026-08-10T09:25:49+00:00",
+            "description": "Detailed description of your COMPSs application",
+            "hasPart": [
+                {
+                    "@id": "application_sources/src/__init__.py"
+                },
+                {
+                    "@id": "application_sources/src/matmul_files.py"
+                },
+                {
+                    "@id": "complete_graph.svg"
+                },
+                {
+                    "@id": "ro-crate-info.yaml"
+                },
+                {
+                    "@id": "application_sources/src/matmul_tasks.py"
+                },
+                {
+                    "@id": "dataset/A.0.0"
+                },
+                {
+                    "@id": "dataset/A.0.1"
+                },
+                {
+                    "@id": "dataset/A.0.2"
+                },
+                {
+                    "@id": "dataset/A.0.3"
+                },
+                {
+                    "@id": "dataset/A.1.0"
+                },
+                {
+                    "@id": "dataset/A.1.1"
+                },
+                {
+                    "@id": "dataset/A.1.2"
+                },
+                {
+                    "@id": "dataset/A.1.3"
+                },
+                {
+                    "@id": "dataset/A.2.0"
+                },
+                {
+                    "@id": "dataset/A.2.1"
+                },
+                {
+                    "@id": "dataset/A.2.2"
+                },
+                {
+                    "@id": "dataset/A.2.3"
+                },
+                {
+                    "@id": "dataset/A.3.0"
+                },
+                {
+                    "@id": "dataset/A.3.1"
+                },
+                {
+                    "@id": "dataset/A.3.2"
+                },
+                {
+                    "@id": "dataset/A.3.3"
+                },
+                {
+                    "@id": "dataset/B.0.0"
+                },
+                {
+                    "@id": "dataset/B.0.1"
+                },
+                {
+                    "@id": "dataset/B.0.2"
+                },
+                {
+                    "@id": "dataset/B.0.3"
+                },
+                {
+                    "@id": "dataset/B.1.0"
+                },
+                {
+                    "@id": "dataset/B.1.1"
+                },
+                {
+                    "@id": "dataset/B.1.2"
+                },
+                {
+                    "@id": "dataset/B.1.3"
+                },
+                {
+                    "@id": "dataset/B.2.0"
+                },
+                {
+                    "@id": "dataset/B.2.1"
+                },
+                {
+                    "@id": "dataset/B.2.2"
+                },
+                {
+                    "@id": "dataset/B.2.3"
+                },
+                {
+                    "@id": "dataset/B.3.0"
+                },
+                {
+                    "@id": "dataset/B.3.1"
+                },
+                {
+                    "@id": "dataset/B.3.2"
+                },
+                {
+                    "@id": "dataset/B.3.3"
+                },
+                {
+                    "@id": "dataset/C.0.0"
+                },
+                {
+                    "@id": "dataset/C.0.1"
+                },
+                {
+                    "@id": "dataset/C.0.2"
+                },
+                {
+                    "@id": "dataset/C.0.3"
+                },
+                {
+                    "@id": "dataset/C.1.0"
+                },
+                {
+                    "@id": "dataset/C.1.1"
+                },
+                {
+                    "@id": "dataset/C.1.2"
+                },
+                {
+                    "@id": "dataset/C.1.3"
+                },
+                {
+                    "@id": "dataset/C.2.0"
+                },
+                {
+                    "@id": "dataset/C.2.1"
+                },
+                {
+                    "@id": "dataset/C.2.2"
+                },
+                {
+                    "@id": "dataset/C.2.3"
+                },
+                {
+                    "@id": "dataset/C.3.0"
+                },
+                {
+                    "@id": "dataset/C.3.1"
+                },
+                {
+                    "@id": "dataset/C.3.2"
+                },
+                {
+                    "@id": "dataset/C.3.3"
+                },
+                {
+                    "@id": "profiling/localhost-MASTER/mem.svg"
+                },
+                {
+                    "@id": "profiling/localhost-MASTER/cpu.svg"
+                }
+            ],
+            "keywords": [
+                "COMPSs",
+                "RO-Crate"
+            ],
+            "license": "Apache-2.0",
+            "mainEntity": {
+                "@id": "application_sources/src/matmul_files.py"
+            },
+            "mentions": {
+                "@id": "#COMPSs_WRROC_Workflow_Run_Crate_BSC-848810525_287ffd3a-be24-4457-888e-cc73b9a88155"
+            },
+            "name": "Name of your COMPSs application",
+            "publisher": {
+                "@id": "https://ror.org/05sd8tv96"
+            }
+        },
+        {
+            "@id": "ro-crate-metadata.json",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            },
+            "conformsTo": [
+                {
+                    "@id": "https://w3id.org/ro/crate/1.2"
+                },
+                {
+                    "@id": "https://w3id.org/workflowhub/workflow-ro-crate/1.0"
+                }
+            ]
+        },
+        {
+            "@id": "mailto:Raul.Sirvent@bsc.es",
+            "@type": "ContactPoint",
+            "contactType": "Author",
+            "email": "Raul.Sirvent@bsc.es",
+            "identifier": "Raul.Sirvent@bsc.es",
+            "url": "https://orcid.org/0000-0003-0606-2512"
+        },
+        {
+            "@id": "https://ror.org/05sd8tv96",
+            "@type": "Organization",
+            "name": "Barcelona Supercomputing Center"
+        },
+        {
+            "@id": "https://orcid.org/0000-0003-0606-2512",
+            "@type": "Person",
+            "affiliation": {
+                "@id": "https://ror.org/05sd8tv96"
+            },
+            "contactPoint": {
+                "@id": "mailto:Raul.Sirvent@bsc.es"
+            },
+            "name": "Raül Sirvent"
+        },
+        {
+            "@id": "application_sources/src/__init__.py",
+            "@type": [
+                "File",
+                "SoftwareSourceCode"
+            ],
+            "contentSize": 0,
+            "description": "Auxiliary File",
+            "encodingFormat": "text/plain",
+            "name": "__init__.py"
+        },
+        {
+            "@id": "application_sources/src/matmul_files.py",
+            "@type": [
+                "File",
+                "SoftwareSourceCode",
+                "ComputationalWorkflow"
+            ],
+            "contentSize": 1948,
+            "description": "Main file of the COMPSs workflow source files",
+            "encodingFormat": "text/plain",
+            "image": {
+                "@id": "complete_graph.svg"
+            },
+            "name": "matmul_files.py",
+            "programmingLanguage": {
+                "@id": "#compss"
+            }
+        },
+        {
+            "@id": "#compss",
+            "@type": "ComputerLanguage",
+            "alternateName": "COMPSs",
+            "citation": "https://doi.org/10.1007/s10723-013-9272-5",
+            "name": "COMPSs Programming Model",
+            "url": "http://compss.bsc.es/",
+            "version": "3.4"
+        },
+        {
+            "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/92",
+            "@type": "WebSite",
+            "name": "Scalable Vector Graphics"
+        },
+        {
+            "@id": "complete_graph.svg",
+            "@type": [
+                "File",
+                "ImageObject",
+                "WorkflowSketch"
+            ],
+            "about": {
+                "@id": "application_sources/src/matmul_files.py"
+            },
+            "contentSize": 41860,
+            "description": "The graph diagram of the workflow, automatically generated by COMPSs runtime",
+            "encodingFormat": [
+                [
+                    "image/svg+xml",
+                    {
+                        "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/92"
+                    }
+                ]
+            ],
+            "name": "complete_graph.svg",
+            "sha256": "a593d8fe2475cf9f5b2c383d794db7c6d837e4e8d4d1d506152f3acfad8a029e"
+        },
+        {
+            "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/818",
+            "@type": "WebSite",
+            "name": "YAML"
+        },
+        {
+            "@id": "ro-crate-info.yaml",
+            "@type": "File",
+            "contentSize": 1013,
+            "description": "COMPSs Workflow Provenance YAML configuration file",
+            "encodingFormat": [
+                "YAML",
+                {
+                    "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/818"
+                }
+            ],
+            "name": "ro-crate-info.yaml",
+            "sha256": "b4459c7c22f54486c9c87e30fbe5bb7f48793741837798f13dc0a2bc7392081c"
+        },
+        {
+            "@id": "application_sources/src/matmul_tasks.py",
+            "@type": [
+                "File",
+                "SoftwareSourceCode"
+            ],
+            "contentSize": 1549,
+            "description": "Auxiliary File",
+            "encodingFormat": "text/plain",
+            "name": "matmul_tasks.py"
+        },
+        {
+            "@id": "dataset/A.0.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.0.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.0.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.0.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.0.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.0.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.0.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.0.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.1.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.1.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.1.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.1.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.1.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.1.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.1.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.1.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.2.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.2.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.2.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.2.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.2.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.2.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.2.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.2.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.3.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.3.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.3.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.3.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.3.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.3.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/A.3.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "A.3.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.0.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.0.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.0.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.0.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.0.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.0.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.0.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.0.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.1.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.1.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.1.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.1.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.1.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.1.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.1.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.1.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.2.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.2.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.2.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.2.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.2.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.2.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.2.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.2.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.3.0",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.3.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.3.1",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.3.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.3.2",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.3.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/B.3.3",
+            "@type": "File",
+            "contentSize": 64,
+            "dateModified": "2026-08-10T09:25:41+00:00",
+            "name": "B.3.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.0.0",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.0.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.0.1",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.0.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.0.2",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.0.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.0.3",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.0.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.1.0",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.1.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.1.1",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.1.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.1.2",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.1.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.1.3",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.1.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.2.0",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.2.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.2.1",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.2.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.2.2",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.2.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.2.3",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.2.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.3.0",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.3.0",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.3.1",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.3.1",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.3.2",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.3.2",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "dataset/C.3.3",
+            "@type": "File",
+            "contentSize": 80,
+            "dateModified": "2026-08-10T09:25:45+00:00",
+            "name": "C.3.3",
+            "sdDatePublished": "2026-08-10T09:25:49+00:00"
+        },
+        {
+            "@id": "#compss_exit_code",
+            "@type": "PropertyValue",
+            "name": "COMPSS_EXIT_CODE",
+            "value": "0"
+        },
+        {
+            "@id": "#compss_home",
+            "@type": "PropertyValue",
+            "name": "COMPSS_HOME",
+            "value": "/opt/COMPSs"
+        },
+        {
+            "@id": "#compss_profiling_interval",
+            "@type": "PropertyValue",
+            "name": "COMPSS_PROFILING_INTERVAL",
+            "value": "5"
+        },
+        {
+            "@id": "profiling/localhost-MASTER/mem.svg",
+            "@type": [
+                "File",
+                "ImageObject"
+            ],
+            "about": "application_sources/src/matmul_files.py",
+            "contentSize": 32560,
+            "description": "Plot of localhost-MASTER showing the amount of memory used during the execution",
+            "encodingFormat": [
+                "image/svg+xml",
+                {
+                    "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/91"
+                }
+            ],
+            "name": "mem.svg"
+        },
+        {
+            "@id": "profiling/localhost-MASTER/cpu.svg",
+            "@type": [
+                "File",
+                "ImageObject"
+            ],
+            "about": "application_sources/src/matmul_files.py",
+            "contentSize": 30687,
+            "description": "Plot of localhost-MASTER showing the percentage of CPU used during the execution",
+            "encodingFormat": [
+                "image/svg+xml",
+                {
+                    "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/91"
+                }
+            ],
+            "name": "cpu.svg"
+        },
+        {
+            "@id": "mailto:manel.colominas@bsc.es",
+            "@type": "ContactPoint",
+            "contactType": "Agent",
+            "email": "manel.colominas@bsc.es",
+            "identifier": "manel.colominas@bsc.es",
+            "url": "https://orcid.org/0009-0000-4276-6264"
+        },
+        {
+            "@id": "https://orcid.org/0009-0000-4276-6264",
+            "@type": "Person",
+            "affiliation": {
+                "@id": "https://ror.org/05sd8tv96"
+            },
+            "contactPoint": {
+                "@id": "mailto:manel.colominas@bsc.es"
+            },
+            "name": "Manel Colominas"
+        },
+        {
+            "@id": "#localhost.matmul_tasks.multiply.maxTime",
+            "@type": "PropertyValue",
+            "name": "maxTime",
+            "propertyID": "https://w3id.org/ro/terms/compss#maxTime",
+            "unitCode": "https://qudt.org/vocab/unit/MilliSEC",
+            "value": "162"
+        },
+        {
+            "@id": "#localhost.matmul_tasks.multiply.executions",
+            "@type": "PropertyValue",
+            "name": "executions",
+            "propertyID": "https://w3id.org/ro/terms/compss#executions",
+            "value": "64"
+        },
+        {
+            "@id": "#localhost.matmul_tasks.multiply.avgTime",
+            "@type": "PropertyValue",
+            "name": "avgTime",
+            "propertyID": "https://w3id.org/ro/terms/compss#avgTime",
+            "unitCode": "https://qudt.org/vocab/unit/MilliSEC",
+            "value": "45"
+        },
+        {
+            "@id": "#localhost.matmul_tasks.multiply.minTime",
+            "@type": "PropertyValue",
+            "name": "minTime",
+            "propertyID": "https://w3id.org/ro/terms/compss#minTime",
+            "unitCode": "https://qudt.org/vocab/unit/MilliSEC",
+            "value": "26"
+        },
+        {
+            "@id": "#overall.matmul_tasks.multiply.maxTime",
+            "@type": "PropertyValue",
+            "name": "maxTime",
+            "propertyID": "https://w3id.org/ro/terms/compss#maxTime",
+            "unitCode": "https://qudt.org/vocab/unit/MilliSEC",
+            "value": "162"
+        },
+        {
+            "@id": "#overall.matmul_tasks.multiply.executions",
+            "@type": "PropertyValue",
+            "name": "executions",
+            "propertyID": "https://w3id.org/ro/terms/compss#executions",
+            "value": "64"
+        },
+        {
+            "@id": "#overall.matmul_tasks.multiply.avgTime",
+            "@type": "PropertyValue",
+            "name": "avgTime",
+            "propertyID": "https://w3id.org/ro/terms/compss#avgTime",
+            "unitCode": "https://qudt.org/vocab/unit/MilliSEC",
+            "value": "45"
+        },
+        {
+            "@id": "#overall.matmul_tasks.multiply.minTime",
+            "@type": "PropertyValue",
+            "name": "minTime",
+            "propertyID": "https://w3id.org/ro/terms/compss#minTime",
+            "unitCode": "https://qudt.org/vocab/unit/MilliSEC",
+            "value": "26"
+        },
+        {
+            "@id": "#overall.matmul_files.py.executionTime",
+            "@type": "PropertyValue",
+            "name": "executionTime",
+            "propertyID": "https://w3id.org/ro/terms/compss#executionTime",
+            "unitCode": "https://qudt.org/vocab/unit/MilliSEC",
+            "value": "7062"
+        },
+        {
+            "@id": "#localhost-MASTER.cpuAvg",
+            "@type": "PropertyValue",
+            "name": "cpuAvg",
+            "propertyID": "https://w3id.org/ro/terms/compss#cpuAvg",
+            "unitCode": "https://qudt.org/vocab/unit/PERCENT",
+            "value": "25.56"
+        },
+        {
+            "@id": "#localhost-MASTER.cpuMax",
+            "@type": "PropertyValue",
+            "name": "cpuMax",
+            "propertyID": "https://w3id.org/ro/terms/compss#cpuMax",
+            "unitCode": "https://qudt.org/vocab/unit/PERCENT",
+            "value": "25.56"
+        },
+        {
+            "@id": "#localhost-MASTER.memAvg",
+            "@type": "PropertyValue",
+            "name": "memAvg",
+            "propertyID": "https://w3id.org/ro/terms/compss#memAvg",
+            "unitCode": "https://qudt.org/vocab/unit/PERCENT",
+            "value": "33.1"
+        },
+        {
+            "@id": "#localhost-MASTER.memMin",
+            "@type": "PropertyValue",
+            "name": "memMin",
+            "propertyID": "https://w3id.org/ro/terms/compss#memMin",
+            "unitCode": "https://qudt.org/vocab/unit/PERCENT",
+            "value": "33.1"
+        },
+        {
+            "@id": "#localhost-MASTER.memMax",
+            "@type": "PropertyValue",
+            "name": "memMax",
+            "propertyID": "https://w3id.org/ro/terms/compss#memMax",
+            "unitCode": "https://qudt.org/vocab/unit/PERCENT",
+            "value": "33.1"
+        },
+        {
+            "@id": "#localhost-MASTER.byteSent",
+            "@type": "PropertyValue",
+            "name": "byteSent",
+            "propertyID": "https://w3id.org/ro/terms/compss#byteSent",
+            "unitCode": "https://qudt.org/vocab/unit/BYTE",
+            "value": "659344"
+        },
+        {
+            "@id": "#localhost-MASTER.byteRecv",
+            "@type": "PropertyValue",
+            "name": "byteRecv",
+            "propertyID": "https://w3id.org/ro/terms/compss#byteRecv",
+            "unitCode": "https://qudt.org/vocab/unit/BYTE",
+            "value": "687933"
+        },
+        {
+            "@id": "#COMPSs_WRROC_Workflow_Run_Crate_BSC-848810525_287ffd3a-be24-4457-888e-cc73b9a88155",
+            "@type": "CreateAction",
+            "actionStatus": {
+                "@id": "http://schema.org/CompletedActionStatus"
+            },
+            "agent": {
+                "@id": "https://orcid.org/0009-0000-4276-6264"
+            },
+            "description": "runcompss -p src/matmul_files.py 4 4",
+            "endTime": "2026-08-10T09:25:47+00:00",
+            "environment": [
+                {
+                    "@id": "#compss_exit_code"
+                },
+                {
+                    "@id": "#compss_home"
+                },
+                {
+                    "@id": "#compss_profiling_interval"
+                }
+            ],
+            "instrument": {
+                "@id": "application_sources/src/matmul_files.py"
+            },
+            "name": "COMPSs matmul_files.py execution at BSC-848810525",
+            "object": [
+                {
+                    "@id": "dataset/A.0.0"
+                },
+                {
+                    "@id": "dataset/A.0.1"
+                },
+                {
+                    "@id": "dataset/A.0.2"
+                },
+                {
+                    "@id": "dataset/A.0.3"
+                },
+                {
+                    "@id": "dataset/A.1.0"
+                },
+                {
+                    "@id": "dataset/A.1.1"
+                },
+                {
+                    "@id": "dataset/A.1.2"
+                },
+                {
+                    "@id": "dataset/A.1.3"
+                },
+                {
+                    "@id": "dataset/A.2.0"
+                },
+                {
+                    "@id": "dataset/A.2.1"
+                },
+                {
+                    "@id": "dataset/A.2.2"
+                },
+                {
+                    "@id": "dataset/A.2.3"
+                },
+                {
+                    "@id": "dataset/A.3.0"
+                },
+                {
+                    "@id": "dataset/A.3.1"
+                },
+                {
+                    "@id": "dataset/A.3.2"
+                },
+                {
+                    "@id": "dataset/A.3.3"
+                },
+                {
+                    "@id": "dataset/B.0.0"
+                },
+                {
+                    "@id": "dataset/B.0.1"
+                },
+                {
+                    "@id": "dataset/B.0.2"
+                },
+                {
+                    "@id": "dataset/B.0.3"
+                },
+                {
+                    "@id": "dataset/B.1.0"
+                },
+                {
+                    "@id": "dataset/B.1.1"
+                },
+                {
+                    "@id": "dataset/B.1.2"
+                },
+                {
+                    "@id": "dataset/B.1.3"
+                },
+                {
+                    "@id": "dataset/B.2.0"
+                },
+                {
+                    "@id": "dataset/B.2.1"
+                },
+                {
+                    "@id": "dataset/B.2.2"
+                },
+                {
+                    "@id": "dataset/B.2.3"
+                },
+                {
+                    "@id": "dataset/B.3.0"
+                },
+                {
+                    "@id": "dataset/B.3.1"
+                },
+                {
+                    "@id": "dataset/B.3.2"
+                },
+                {
+                    "@id": "dataset/B.3.3"
+                },
+                {
+                    "@id": "dataset/C.0.0"
+                },
+                {
+                    "@id": "dataset/C.0.1"
+                },
+                {
+                    "@id": "dataset/C.0.2"
+                },
+                {
+                    "@id": "dataset/C.0.3"
+                },
+                {
+                    "@id": "dataset/C.1.0"
+                },
+                {
+                    "@id": "dataset/C.1.1"
+                },
+                {
+                    "@id": "dataset/C.1.2"
+                },
+                {
+                    "@id": "dataset/C.1.3"
+                },
+                {
+                    "@id": "dataset/C.2.0"
+                },
+                {
+                    "@id": "dataset/C.2.1"
+                },
+                {
+                    "@id": "dataset/C.2.2"
+                },
+                {
+                    "@id": "dataset/C.2.3"
+                },
+                {
+                    "@id": "dataset/C.3.0"
+                },
+                {
+                    "@id": "dataset/C.3.1"
+                },
+                {
+                    "@id": "dataset/C.3.2"
+                },
+                {
+                    "@id": "dataset/C.3.3"
+                }
+            ],
+            "resourceUsage": [
+                {
+                    "@id": "#localhost.matmul_tasks.multiply.maxTime"
+                },
+                {
+                    "@id": "#localhost.matmul_tasks.multiply.executions"
+                },
+                {
+                    "@id": "#localhost.matmul_tasks.multiply.avgTime"
+                },
+                {
+                    "@id": "#localhost.matmul_tasks.multiply.minTime"
+                },
+                {
+                    "@id": "#overall.matmul_tasks.multiply.maxTime"
+                },
+                {
+                    "@id": "#overall.matmul_tasks.multiply.executions"
+                },
+                {
+                    "@id": "#overall.matmul_tasks.multiply.avgTime"
+                },
+                {
+                    "@id": "#overall.matmul_tasks.multiply.minTime"
+                },
+                {
+                    "@id": "#overall.matmul_files.py.executionTime"
+                },
+                {
+                    "@id": "#localhost-MASTER.cpuAvg"
+                },
+                {
+                    "@id": "#localhost-MASTER.cpuMax"
+                },
+                {
+                    "@id": "#localhost-MASTER.memAvg"
+                },
+                {
+                    "@id": "#localhost-MASTER.memMin"
+                },
+                {
+                    "@id": "#localhost-MASTER.memMax"
+                },
+                {
+                    "@id": "#localhost-MASTER.byteSent"
+                },
+                {
+                    "@id": "#localhost-MASTER.byteRecv"
+                }
+            ],
+            "result": [
+                {
+                    "@id": "dataset/C.0.0"
+                },
+                {
+                    "@id": "dataset/C.0.1"
+                },
+                {
+                    "@id": "dataset/C.0.2"
+                },
+                {
+                    "@id": "dataset/C.0.3"
+                },
+                {
+                    "@id": "dataset/C.1.0"
+                },
+                {
+                    "@id": "dataset/C.1.1"
+                },
+                {
+                    "@id": "dataset/C.1.2"
+                },
+                {
+                    "@id": "dataset/C.1.3"
+                },
+                {
+                    "@id": "dataset/C.2.0"
+                },
+                {
+                    "@id": "dataset/C.2.1"
+                },
+                {
+                    "@id": "dataset/C.2.2"
+                },
+                {
+                    "@id": "dataset/C.2.3"
+                },
+                {
+                    "@id": "dataset/C.3.0"
+                },
+                {
+                    "@id": "dataset/C.3.1"
+                },
+                {
+                    "@id": "dataset/C.3.2"
+                },
+                {
+                    "@id": "dataset/C.3.3"
+                },
+                {
+                    "@id": "./"
+                }
+            ],
+            "startTime": "2026-08-10T09:25:41+00:00"
+        },
+        {
+            "@id": "https://w3id.org/workflowhub/workflow-ro-crate/1.0",
+            "@type": "CreativeWork",
+            "name": "Workflow RO-Crate",
+            "version": "1.0"
+        },
+        {
+            "@id": "https://w3id.org/ro/wfrun/process/0.5",
+            "@type": "CreativeWork",
+            "name": "Process Run Crate",
+            "version": "0.5"
+        },
+        {
+            "@id": "https://w3id.org/ro/wfrun/workflow/0.5",
+            "@type": "CreativeWork",
+            "name": "Workflow Run Crate",
+            "version": "0.5"
+        }
+    ]
+}

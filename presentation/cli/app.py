@@ -63,7 +63,7 @@ from infrastructure.adapters import (
 )
 
 from application.use_cases.import_crate import (
-    _import_rocrate_simple
+    _import_rocrate_simple,
 )
 from presentation.cli import view
 
@@ -144,7 +144,6 @@ def run_app(argv: list[str] | None = None) -> int:
         # runs_root is the directory where is executed the reproducibility service, and shared_crate_directory 
         # takes the current working where the reproducibility service is launched.
         runs_root = Path.cwd()
-        # .crate_downloaded is a temporary hidden directory, where the RO-Crate will be downloaded and extracted.
         shared_crate_directory = runs_root / ".crate_downloaded"
 
     # if the source is a local path or zip file.

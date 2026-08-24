@@ -23,9 +23,12 @@ from enum import Enum
 from pathlib import Path
 import os
 import shutil
+import re
+from urllib import response
 import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse, unquote
 
 from rocrate.rocrate import ROCrate
 
@@ -45,7 +48,11 @@ from domain.models.crate import (
     CrateSourceKind,
 )
 
-### NEWW
+BROWSER_HEADERS = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        "Accept": "application/octet-stream,application/zip,application/json,text/html,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
 class ImportCrateStatus(str, Enum):
     IMPORTED = "imported"
@@ -109,9 +116,9 @@ def _import_rocrate_simple(raw_source, workspace_directory, crate_directory, fil
         raise FileSystemError("Source validation failed", details=validation.message)
 
     file_system.create_directory(DirectoryCreateRequest(path=workspace_directory, parents=True, exist_ok=True))
-    file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
 
     if source.type == CrateSourceKind.DIRECTORY:
+        file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
         src_path = Path(source.value).expanduser().resolve()
         dst_path = crate_directory.resolve()
     
@@ -140,6 +147,7 @@ def _import_rocrate_simple(raw_source, workspace_directory, crate_directory, fil
             )
 
     elif source.type == CrateSourceKind.ZIP:
+        file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
         with zipfile.ZipFile(Path(source.value)) as archive_file:
             archive_file.extractall(crate_directory)
         acquisition = SourceAcquisitionResult(
@@ -150,25 +158,30 @@ def _import_rocrate_simple(raw_source, workspace_directory, crate_directory, fil
         )
 
     else:
-        request = Request(source.value, method="GET")
+        request = Request(source.value, headers=BROWSER_HEADERS, method="GET")
         try:
             with urlopen(request, timeout=30) as response:
                 download_bytes = response.read()
+                downloaded_filename = _filename_from_http_response(response, source.value)
         except (HTTPError, URLError, OSError) as exc:
             raise FileSystemError("Could not download crate source", details=str(exc)) from exc
 
-        temp_zip = crate_directory.parent / ".downloaded_rocrate.zip"
+        final_dirname = _crate_dirname_from_downloaded_filename(downloaded_filename)
+        final_crate_directory = crate_directory.parent / final_dirname
+        file_system.create_directory(DirectoryCreateRequest(path=final_crate_directory, parents=True, exist_ok=True))
+        
+        temp_zip = final_crate_directory.parent / ".downloaded_rocrate.zip"
         temp_zip.write_bytes(download_bytes)
         try:
             if zipfile.is_zipfile(temp_zip):
                 with zipfile.ZipFile(temp_zip) as archive_file:
-                    archive_file.extractall(crate_directory)
-                prepared_root = crate_directory
+                    archive_file.extractall(final_crate_directory)
+                prepared_root = final_crate_directory
                 extracted = True
             else:
-                target = crate_directory / "downloaded_crate"
+                target = final_crate_directory / "downloaded_crate"
                 target.write_bytes(download_bytes)
-                prepared_root = crate_directory
+                prepared_root = final_crate_directory
                 extracted = False
         finally:
             temp_zip.unlink(missing_ok=True)
@@ -219,3 +232,37 @@ def _import_rocrate_simple(raw_source, workspace_directory, crate_directory, fil
         crate=crate,
         notes=("Crate source prepared successfully",),
     )
+
+
+def _filename_from_http_response(response, source_url: str) -> str | None:
+    content_disposition = response.headers.get("Content-Disposition", "")
+    # RFC 5987: filename*=UTF-8''workflow-635-1.crate.zip
+    match = re.search(r"filename\*\s*=\s*[^']*''([^;]+)", content_disposition, flags=re.IGNORECASE)
+    if match:
+        return Path(unquote(match.group(1).strip().strip('"'))).name
+
+    # Legacy: filename="workflow-635-1.crate.zip" or filename=workflow-635-1.crate.zip
+    match = re.search(r'filename\s*=\s*"([^"]+)"', content_disposition, flags=re.IGNORECASE)
+    if not match:
+        match = re.search(r"filename\s*=\s*([^;]+)", content_disposition, flags=re.IGNORECASE)
+    if match:
+        return Path(unquote(match.group(1).strip().strip('"'))).name
+
+    # Fallback to URL path
+    fallback = Path(unquote(urlparse(source_url).path)).name.strip()
+    return fallback or None
+
+    
+def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
+    if not filename:
+        return ".crate_downloaded"
+
+    name = filename.strip()
+    if name.lower().endswith(".zip"):
+        name = name[:-4].strip()
+
+    if not name:
+        return ".crate_downloaded"
+
+    # Prevent path traversal or slashes in header value
+    return Path(name).name or ".crate_downloaded"
