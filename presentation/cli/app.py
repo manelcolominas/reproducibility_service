@@ -25,7 +25,6 @@ the application use cases, drives them in order, and hands results to
 from __future__ import annotations
 
 import argparse
-import uuid
 import logging
 from pathlib import Path
 
@@ -42,37 +41,29 @@ from application.use_cases.build_execution_plan import (
     SubmissionCommandEdit,
 )
 
-from application.use_cases.import_crate import (
-    DefaultImportCrateService,
-    ImportCrateRequest,
-)
 from application.use_cases.inspect_crate import (
-    DefaultInspectCrateService,
-    InspectCrateRequest,
+    _inspect_rocrate_simple
 )
 from application.use_cases.prepare_provenance import (
     DefaultPrepareProvenanceService,
     PrepareProvenanceRequest,
 )
 from application.use_cases.verify_inputs import (
-    DefaultVerifyInputsService,
-    VerifyInputsRequest,
     VerifyInputsStatus,
+    _verify_rocrate_simple
 )
-from config import settings
+# from config import settings
 from config.settings import AppSettings, build_default_settings
 from domain.errors import ServiceError
 from domain.models.execution import ExecutionBackend
 from infrastructure.adapters import (
-    CrateMetadataNormalizer,
-    CrateMetadataParser,
-    LocalCrateSourceAcquirer,
-    LocalCrateSourceResolver,
-    LocalCrateSourceValidator,
     LocalFileSystem,
-    LocalPyCompssMetadataInspector,
     ShutilExecutionBackendDetector,
     SubprocessExecutionParticipant,
+)
+
+from application.use_cases.import_crate import (
+    _import_rocrate_simple
 )
 from presentation.cli import view
 
@@ -200,7 +191,7 @@ def run_app(argv: list[str] | None = None) -> int:
     # 2026-08-20 16:47:40,808 INFO source=workflow-635-1.crate.zip
     logger.info("source=%s", args.source)
 
-    # print the banner of the reproducibility service, which is the name of the service and a little description of it.
+    #1. print the banner of the reproducibility service, which is the name of the service and a little description of it.
     view.print_banner()
 
     # try to run the pipeline of the reproducibility service,
@@ -259,26 +250,8 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         ServiceError: If an error occurs during the pipeline execution.
     """
 
-    # create a LocalFileSystem instance to handle file system operations.
+    # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
     file_system = LocalFileSystem()
-
-    import_service = DefaultImportCrateService(
-        resolver=LocalCrateSourceResolver(),
-        validator=LocalCrateSourceValidator(),
-        acquirer=LocalCrateSourceAcquirer(),
-        file_system=file_system,
-        original_crate_dir_name=settings.original_crate_dir_name,
-        log_dir_name=settings.log_dir_name,
-        results_dir_name=settings.results_dir_name,
-    )
-
-    inspect_service = DefaultInspectCrateService(
-        parser=CrateMetadataParser(),
-        normalizer=CrateMetadataNormalizer(),
-        inspector=LocalPyCompssMetadataInspector(),
-    )
-
-    verify_service = DefaultVerifyInputsService(file_system=file_system)
 
     plan_service = DefaultBuildExecutionPlanService(
         backend_detector=ShutilExecutionBackendDetector(),
@@ -290,41 +263,30 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
 
     import_result = view.run_with_spinner(
         "Importing crate source...",
-        import_service.execute,
-        ImportCrateRequest(raw_source=args.source, workspace_directory=workspace_directory, crate_directory=shared_crate_directory,reuse_existing_crate=True)
+        _import_rocrate_simple,
+        args.source,
+        workspace_directory,
+        shared_crate_directory,
+        file_system,
     )
-
     view.print_import_result(import_result)
 
     inspect_result = view.run_with_spinner(
         "Inspecting crate metadata...",
-        inspect_service.execute,
-        InspectCrateRequest(crate_root=import_result.location.copied_downloaded_crate_path),
+        _inspect_rocrate_simple,
+        import_result.location.copied_downloaded_crate_path,
     )
-    
+
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")
         view.print_error("Could not build a usable crate summary from the metadata found.")
         return None, None
-    
-    crate = inspect_result.crate
 
+    crate = inspect_result.crate
     original_submission_command = plan_service._discover_command(crate)
+    view.print_inspect_result(inspect_result, crate, original_submission_command)
 
-    view.print_inspect_result(
-        inspect_result,
-        crate,
-        original_submission_command,
-    )
-
-    if inspect_result.crate is None:
-        logger.info("final_status=invalid_crate_metadata")
-        view.print_error("Could not build a usable crate summary from the metadata found.")
-        return None, None
-
-    crate = inspect_result.crate
-
-    verify_result = verify_service.execute(VerifyInputsRequest(crate=crate))
+    verify_result = _verify_rocrate_simple(crate, file_system)
     view.print_verification_table(verify_result)
 
     if verify_result.status == VerifyInputsStatus.FAILED:
@@ -341,7 +303,6 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
             "[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]"
         ).lower().startswith("y")
 
-    # New: ask participant name only when provenance is enabled and interactive mode is active
     if provenance_flag and not args.yes:
         wants_name = view.console.input(
             "[yellow]Do you want to provide your name ? [y/N]: [/yellow]"
@@ -350,7 +311,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
             typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
             if typed_name:
                 args.participant_name = typed_name
-            if not typed_name:
+            else:
                 view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
     plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_flag)
@@ -360,11 +321,22 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         plan_result.plan.backend.value,
         provenance_flag,
     )
+
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
-    if not args.yes and view.console.input( "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]" ).lower().startswith("y"):
-        plan_result = _update_plan_with_selected_flags( args=args, plan_service=plan_service, crate=crate, workspace_directory=workspace_directory, provenance_enabled=provenance_flag, current_plan=plan_result, logger=logger)
+    if not args.yes and view.console.input(
+        "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]"
+    ).lower().startswith("y"):
+        plan_result = _update_plan_with_selected_flags(
+            args=args,
+            plan_service=plan_service,
+            crate=crate,
+            workspace_directory=workspace_directory,
+            provenance_enabled=provenance_flag,
+            current_plan=plan_result,
+            logger=logger,
+        )
 
     view.print_execution_plan(plan_result.plan)
 

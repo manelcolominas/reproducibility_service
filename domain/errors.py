@@ -37,11 +37,6 @@ class ValidationError(ServiceError):
 class FileSystemError(ServiceError):
     pass
 
-
-class MetadataError(ServiceError):
-    pass
-
-
 class ExecutionError(ServiceError):
     pass
 
@@ -49,26 +44,11 @@ class ExecutionError(ServiceError):
 class SourceAcquisitionError(FileSystemError):
     pass
 
-
-class SourceValidationError(ValidationError):
-    pass
-
-
-class UnsupportedSourceError(ValidationError):
-    pass
-
-
-class MetadataParseError(MetadataError):
-    pass
-
-
-class MissingMetadataError(MetadataError):
-    pass
-
-
 class CommandBuildError(ExecutionError):
     pass
 
+class MetadataError(ServiceError):
+    pass
 
-class WorkflowExecutionError(ExecutionError):
+class MetadataParseError(MetadataError):
     pass

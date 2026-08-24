@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
+from rocrate.rocrate import ROCrate
+
 
 class CrateSourceKind(str, Enum):
     DIRECTORY = "directory"
@@ -48,10 +50,14 @@ class ArtifactKind(str, Enum):
 class CrateSource:
     type: CrateSourceKind
     value: str
+    rocrate: ROCrate | None = None
 
     def __post_init__(self) -> None:
         if not self.value.strip():
             raise ValueError("CrateSource.value cannot be empty")
+
+    def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSource":
+        return replace(self, rocrate=rocrate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,8 +82,6 @@ class WorkflowParticipant:
     ror: str | None = None
 
     def __post_init__(self) -> None:
-        # if not self.name.strip():
-        #     raise ValueError("WorkflowParticipant.name cannot be empty")
         if not self.role.strip():
             raise ValueError("WorkflowParticipant.role cannot be empty")
 
@@ -97,13 +101,17 @@ class WorkflowMetadata:
     generated_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     execution_site: str | None = None
+    rocrate: ROCrate | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("WorkflowMetadata.name cannot be empty")
 
-    def with_participant(self, participant: WorkflowParticipant | None) -> WorkflowMetadata:
+    def with_participant(self, participant: WorkflowParticipant | None) -> "WorkflowMetadata":
         return replace(self, participant=participant)
+
+    def with_rocrate(self, rocrate: ROCrate | None) -> "WorkflowMetadata":
+        return replace(self, rocrate=rocrate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,23 +145,6 @@ class CrateIndex:
 
 
 @dataclass(frozen=True, slots=True)
-class WorkflowCommand:
-    executable: str
-    arguments: tuple[str, ...] = ()
-    working_directory: Path | None = None
-
-    def __post_init__(self) -> None:
-        if not self.executable.strip():
-            raise ValueError("WorkflowCommand.executable cannot be empty")
-
-    def as_list(self) -> list[str]:
-        return [self.executable, *self.arguments]
-
-    def as_string(self) -> str:
-        return " ".join(self.as_list())
-
-
-@dataclass(frozen=True, slots=True)
 class CrateSummary:
     source: CrateSource
     location: CrateLocation
@@ -161,6 +152,7 @@ class CrateSummary:
     index: CrateIndex = field(default_factory=CrateIndex)
     crate_format_version: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    rocrate: ROCrate | None = None
 
     @property
     def has_inputs(self) -> bool:
@@ -173,3 +165,6 @@ class CrateSummary:
     @property
     def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
         return self.index.all_artifacts()
+
+    def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
+        return replace(self, rocrate=rocrate)

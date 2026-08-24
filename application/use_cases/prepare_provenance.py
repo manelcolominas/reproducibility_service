@@ -27,9 +27,8 @@ import yaml
 
 from application.ports.file_system import DirectoryCreateRequest
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
-from domain.errors import FileSystemError, MetadataError, ValidationError
-from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, WorkflowArtifact
-from domain.models.crate import CrateSummary, DataPersistenceKind, WorkflowMetadata, WorkflowParticipant
+from domain.errors import FileSystemError, ValidationError
+from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, WorkflowArtifact, DataPersistenceKind
 from infrastructure.adapters import LocalFileSystem
 
 class PrepareProvenanceStatus(str, Enum):
@@ -190,38 +189,7 @@ class PrepareProvenanceResult:
         return len(self.notes) > 0
 
 
-@runtime_checkable
-class PrepareProvenanceUseCase(Protocol):
-    def execute(self, request: PrepareProvenanceRequest) -> PrepareProvenanceResult:
-        """
-        Prepare provenance metadata for a crate run.
-        """
-        ...
-
-
-@runtime_checkable
-class PrepareProvenancePlanner(Protocol):
-    def build_plan(self, request: PrepareProvenanceRequest) -> PrepareProvenancePlan:
-        """
-        Build the provenance preparation plan.
-        """
-        ...
-
-
-@runtime_checkable
-class ProvenanceWriter(Protocol):
-    def write(self, plan: PrepareProvenancePlan, metadata: WorkflowMetadata) -> Path:
-        """
-        Persist provenance metadata and return the output path.
-        """
-        ...
-
-
 class PrepareProvenancePortError(FileSystemError):
-    pass
-
-
-class PrepareProvenanceMetadataError(MetadataError):
     pass
 
 
@@ -230,6 +198,8 @@ class PrepareProvenanceFailure(PrepareProvenancePortError):
         super().__init__(message=message, details=details, recoverable=False)
 
 
+
+### do not delete
 class DefaultPrepareProvenanceService:
     def __init__(self, file_system: LocalFileSystem) -> None:
         self._file_system = file_system
@@ -444,7 +414,6 @@ __all__ = [
     "PrepareProvenanceRequest",
     "PrepareProvenanceResult",
     "PrepareProvenanceStatus",
-    "PrepareProvenanceUseCase",
     "ProvenanceWriter",
     "has_provenance_config_file",
     "has_updated_metadata",

@@ -40,8 +40,8 @@ from pathlib import Path
 
 
 from application.ports.executor import ExecutionOutcome
-from application.use_cases.import_crate import ImportCrateResult
 from application.use_cases.inspect_crate import InspectCrateResult
+from application.use_cases.import_crate import ImportCrateResult
 from application.use_cases.prepare_provenance import PrepareProvenanceResult
 from application.use_cases.verify_inputs import VerifyInputsResult
 from domain.models.crate import CrateSummary

@@ -21,20 +21,22 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import runtime_checkable
 
 from application.ports.metadata_parser import (
     MetadataDocument,
     MetadataFormat,
     MetadataNormalizationResult,
-    MetadataNormalizer,
     MetadataParseRequest,
-    MetadataParser,
-    MetadataInspector,
     MetadataSource,
     MetadataSourceKind,
 )
-from domain.errors import MetadataError, ValidationError
+from infrastructure.adapters import (
+    CrateMetadataParser,
+    CrateMetadataNormalizer,
+    LocalPyCompssMetadataInspector,
+)
+from domain.errors import ValidationError
 from domain.models.crate import CrateSummary
 from domain.models.verification import VerificationSummary
 
@@ -55,14 +57,6 @@ class InspectCrateRequest:
     def __post_init__(self) -> None:
         if not str(self.crate_root).strip():
             raise ValidationError("InspectCrateRequest.crate_root cannot be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class InspectCratePlan:
-    request: InspectCrateRequest
-    metadata_source: MetadataSource
-    parse_request: MetadataParseRequest
-
 
 @dataclass(frozen=True, slots=True)
 class InspectCrateResult:
@@ -86,122 +80,48 @@ class InspectCrateResult:
         return len(self.warnings) > 0
 
 
-    # @runtime_checkable
-    # class InspectCrateUseCase(Protocol):
-    #     def execute(self, request: InspectCrateRequest) -> InspectCrateResult:
-    #         plan = self.build_plan(request)
-    #         document = self._parser.parse(plan.parse_request)
-    #         normalization = self._normalizer.normalize(document)
-        
-    #         crate = normalization.crate
-    #         if crate is None and normalization.metadata is not None:
-    #             crate = normalization.metadata  # type: ignore[assignment]
-        
-    #         inspect_output: str | None = None
-    #         inspector_warnings: tuple[str, ...] = ()
-        
-    #         if self._inspector is not None:
-    #             try:
-    #                 inspection = self._inspector.inspect(document)
-    #                 inspect_output = inspection.stdout
-    #                 if inspection.warning:
-    #                     inspector_warnings = (inspection.warning,)
-    #             except Exception as exc:
-    #                 inspector_warnings = (f"pycompss inspect failed: {exc}",)
-        
-    #         warnings = tuple(normalization.warnings) + inspector_warnings
-    #         notes = tuple(normalization.issues)
-        
-    #         status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
-        
-    #         return InspectCrateResult(
-    #             status=status,
-    #             request=request,
-    #             document=document,
-    #             normalization=normalization,
-    #             crate=crate,
-    #             warnings=warnings,
-    #             notes=notes,
-    #             inspect_output=inspect_output,
-    #         )
+def _inspect_rocrate_simple(crate_root: Path):
+    parser = CrateMetadataParser()
+    normalizer = CrateMetadataNormalizer()
+    inspector = LocalPyCompssMetadataInspector()
 
+    metadata_source = MetadataSource(
+        type=MetadataSourceKind.DIRECTORY,
+        location=str(crate_root),
+        format_hint=MetadataFormat.UNKNOWN,
+    )
+    parse_request = MetadataParseRequest(
+        source=metadata_source,
+        expected_format=MetadataFormat.UNKNOWN,
+        allow_partial_metadata=True,
+        strict=False,
+    )
 
-@runtime_checkable
-class InspectCratePlanner(Protocol):
-    def build_plan(self, request: InspectCrateRequest) -> InspectCratePlan:
-        ...
+    document = parser.parse(parse_request)
+    normalization = normalizer.normalize(document)
 
+    crate = normalization.crate
+    if crate is None and normalization.metadata is not None:
+        crate = normalization.metadata
 
-class InspectCratePortError(MetadataError):
-    pass
+    inspect_output = None
+    warnings = list(normalization.warnings)
+    try:
+        inspection = inspector.inspect(document)
+        inspect_output = inspection.stdout
+        if inspection.warning:
+            warnings.append(inspection.warning)
+    except Exception as exc:
+        warnings.append(f"pycompss inspect failed: {exc}")
 
-
-class InspectCrateFailure(InspectCratePortError):
-    pass
-
-
-class DefaultInspectCrateService:
-    def __init__(
-        self,
-        parser: MetadataParser,
-        normalizer: MetadataNormalizer,
-        inspector: MetadataInspector | None = None,
-    ) -> None:
-        self._parser = parser
-        self._normalizer = normalizer
-        self._inspector = inspector
-
-    def build_plan(self, request: InspectCrateRequest) -> InspectCratePlan:
-        metadata_source = MetadataSource(
-            type=MetadataSourceKind.DIRECTORY,
-            location=str(request.crate_root),
-            format_hint=MetadataFormat.UNKNOWN,
-        )
-        parse_request = MetadataParseRequest(
-            source=metadata_source,
-            expected_format=MetadataFormat.UNKNOWN,
-            allow_partial_metadata=True,
-            strict=False,
-        )
-        return InspectCratePlan(
-            request=request,
-            metadata_source=metadata_source,
-            parse_request=parse_request,
-        )
-
-    def execute(self, request: InspectCrateRequest) -> InspectCrateResult:
-        plan = self.build_plan(request)
-        document = self._parser.parse(plan.parse_request)
-        normalization = self._normalizer.normalize(document)
-
-        crate = normalization.crate
-        if crate is None and normalization.metadata is not None:
-            crate = normalization.metadata  # type: ignore[assignment]
-
-        inspect_output: str | None = None
-        inspector_warnings: tuple[str, ...] = ()
-        
-        if self._inspector is not None:
-            try:
-                inspection = self._inspector.inspect(document)
-                inspect_output = inspection.stdout
-                if inspection.warning:
-                    inspector_warnings = (inspection.warning,)
-            except Exception as exc:
-                inspector_warnings = (f"pycompss inspect failed: {exc}",)
-
-        warnings = tuple(normalization.warnings) + inspector_warnings
-        notes = tuple(normalization.issues)
-
-        status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
-
-        return InspectCrateResult(
-            status=status,
-            request=request,
-            document=document,
-            normalization=normalization,
-            crate=crate,
-            warnings=warnings,
-            notes=notes,
-            inspect_output=inspect_output,
-        )
+    status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
+    return InspectCrateResult(
+        status=status,
+        request=InspectCrateRequest(crate_root=crate_root),
+        document=document,
+        normalization=normalization,
+        crate=crate,
+        warnings=tuple(warnings),
+        notes=tuple(normalization.issues),
+        inspect_output=inspect_output,
+    )

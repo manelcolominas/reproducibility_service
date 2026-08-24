@@ -34,6 +34,7 @@ from domain.models.verification import (
     VerificationState,
     VerificationSummary,
 )
+from domain.models.crate import CrateSummary
 
 
 class VerifyInputsStatus(str, Enum):
@@ -53,12 +54,6 @@ class VerifyInputsRequest:
         if self.crate is None:
             raise ValidationError("VerifyInputsRequest.crate cannot be None")
 
-
-@dataclass(frozen=True, slots=True)
-class VerifyInputsPlan:
-    request: VerifyInputsRequest
-    artifacts: tuple[ArtifactReference, ...]
-    base_path: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,126 +80,90 @@ class VerifyInputsUseCase(Protocol):
         ...
 
 
-@runtime_checkable
-class VerifyInputsPlanner(Protocol):
-    def build_plan(self, request: VerifyInputsRequest) -> VerifyInputsPlan:
-        ...
+def _verify_rocrate_simple(crate: CrateSummary, file_system: LocalFileSystem) -> VerifyInputsResult:
+    request = VerifyInputsRequest(crate=crate)
 
+    base_path = crate.location.copied_downloaded_crate_path
+    results: list[ArtifactVerificationResult] = []
+    warnings: list[str] = []
+    notes: list[str] = []
 
-class VerifyInputsPortError(FileSystemError):
-    pass
-
-
-class VerifyInputsFailure(VerifyInputsPortError):
-    pass
-
-
-class DefaultVerifyInputsService:
-    def __init__(self, file_system: LocalFileSystem) -> None:
-        self._file_system = file_system
-
-    def build_plan(self, request: VerifyInputsRequest) -> VerifyInputsPlan:
-        crate = request.crate
-        base_path = crate.location.copied_downloaded_crate_path
-        artifacts: list[ArtifactReference] = []
-
-        for artifact in crate.all_artifacts:
-            artifacts.append(
-                ArtifactReference(
-                    metadata_name=artifact.name,
-                    metadata_id=artifact.metadata_id or artifact.path,
-                    expected_path=artifact.path,
-                )
-            )
-
-        return VerifyInputsPlan(
-            request=request,
-            artifacts=tuple(artifacts),
-            base_path=base_path,
+    for artifact in crate.all_artifacts:
+        reference = ArtifactReference(
+            metadata_name=artifact.name,
+            metadata_id=artifact.metadata_id or artifact.path,
+            expected_path=artifact.path,
         )
 
-    def execute(self, request: VerifyInputsRequest) -> VerifyInputsResult:
-        plan = self.build_plan(request)
-        results: list[ArtifactVerificationResult] = []
-        warnings: list[str] = []
-        notes: list[str] = []
-
-        for artifact in plan.artifacts:
-            result = self._verify_artifact(artifact, plan.base_path)
-            results.append(result)
-
-            if result.has_issues:
-                notes.extend(issue.message for issue in result.issues)
-            if result.state == VerificationState.SIZE_MISMATCH:
-                warnings.append(f"Size mismatch for {artifact.metadata_name}")
-
-            if request.fail_fast and result.is_error:
-                break
-
-        summary = VerificationSummary(
-            crate_path=plan.base_path,
-            items=tuple(results),
+        resolved_path = (
+            base_path / reference.expected_path
+            if reference.expected_path
+            else base_path / reference.metadata_id
         )
 
-        if summary.has_failures:
-            status = VerifyInputsStatus.FAILED
-        elif summary.warnings > 0:
-            status = VerifyInputsStatus.WARNING
-        else:
-            status = VerifyInputsStatus.VERIFIED
-
-        return VerifyInputsResult(
-            status=status,
-            request=request,
-            summary=summary,
-            warnings=tuple(dict.fromkeys(warnings)),
-            notes=tuple(dict.fromkeys(notes)),
-        )
-
-    def _verify_artifact(
-        self,
-        artifact: ArtifactReference,
-        base_path: Path,
-    ) -> ArtifactVerificationResult:
-        resolved_path = base_path / artifact.expected_path if artifact.expected_path else base_path / artifact.metadata_id
-
-        if not self._file_system.exists(resolved_path):
+        if not file_system.exists(resolved_path):
             issue = VerificationIssue(
                 code="missing",
                 message=f"Artifact not found: {resolved_path}",
                 severity=VerificationSeverity.ERROR,
             )
-            return ArtifactVerificationResult(
-                reference=artifact,
+            result = ArtifactVerificationResult(
+                reference=reference,
                 state=VerificationState.MISSING,
                 resolved_path=resolved_path,
                 exists=False,
                 accessible=False,
                 issues=(issue,),
             )
+        else:
+            metadata = file_system.metadata(resolved_path)
+            if not metadata.readable:
+                issue = VerificationIssue(
+                    code="access-denied",
+                    message=f"Artifact is not readable: {resolved_path}",
+                    severity=VerificationSeverity.ERROR,
+                )
+                result = ArtifactVerificationResult(
+                    reference=reference,
+                    state=VerificationState.ACCESS_DENIED,
+                    resolved_path=resolved_path,
+                    exists=True,
+                    accessible=False,
+                    issues=(issue,),
+                )
+            else:
+                result = ArtifactVerificationResult(
+                    reference=reference,
+                    state=VerificationState.VERIFIED,
+                    resolved_path=resolved_path,
+                    exists=True,
+                    accessible=True,
+                    size_actual=metadata.size_bytes,
+                )
 
-        metadata = self._file_system.metadata(resolved_path)
+        results.append(result)
 
-        if not metadata.readable:
-            issue = VerificationIssue(
-                code="access-denied",
-                message=f"Artifact is not readable: {resolved_path}",
-                severity=VerificationSeverity.ERROR,
-            )
-            return ArtifactVerificationResult(
-                reference=artifact,
-                state=VerificationState.ACCESS_DENIED,
-                resolved_path=resolved_path,
-                exists=True,
-                accessible=False,
-                issues=(issue,),
-            )
+        if result.has_issues:
+            notes.extend(issue.message for issue in result.issues)
+        if result.state == VerificationState.SIZE_MISMATCH:
+            warnings.append(f"Size mismatch for {artifact.name}")
 
-        return ArtifactVerificationResult(
-            reference=artifact,
-            state=VerificationState.VERIFIED,
-            resolved_path=resolved_path,
-            exists=True,
-            accessible=True,
-            size_actual=metadata.size_bytes,
-        )
+    summary = VerificationSummary(
+        crate_path=base_path,
+        items=tuple(results),
+    )
+
+    if summary.has_failures:
+        status = VerifyInputsStatus.FAILED
+    elif summary.warnings > 0:
+        status = VerifyInputsStatus.WARNING
+    else:
+        status = VerifyInputsStatus.VERIFIED
+
+    return VerifyInputsResult(
+        status=status,
+        request=request,
+        summary=summary,
+        warnings=tuple(dict.fromkeys(warnings)),
+        notes=tuple(dict.fromkeys(notes)),
+    )

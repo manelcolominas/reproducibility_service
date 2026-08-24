@@ -20,9 +20,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import Any, Mapping, runtime_checkable
 
-from domain.errors import MetadataError, ValidationError
+from domain.errors import ValidationError
 from domain.models.crate import (
     CrateIndex,
     CrateSummary,
@@ -90,43 +90,12 @@ class MetadataParseRequest:
     allow_partial_metadata: bool = True
     strict: bool = False
 
-
-@runtime_checkable
-class MetadataParser(Protocol):
-    def parse(self, request: MetadataParseRequest) -> MetadataDocument:
-        ...
-
-
-@runtime_checkable
-class MetadataNormalizer(Protocol):
-    def normalize(self, document: MetadataDocument) -> MetadataNormalizationResult:
-        ...
-
-
 @dataclass(frozen=True, slots=True)
 class MetadataInspectionResult:
     ok: bool
     stdout: str | None = None
     stderr: str | None = None
     warning: str | None = None
-
-
-@runtime_checkable
-class MetadataInspector(Protocol):
-    def inspect(self, document: MetadataDocument) -> MetadataInspectionResult:
-        ...
-
-
-class MetadataPortError(MetadataError):
-    pass
-
-
-class MetadataParseError(MetadataPortError):
-    pass
-
-
-class UnsupportedMetadataFormatError(MetadataPortError):
-    pass
 
 
 def build_workflow_metadata(
