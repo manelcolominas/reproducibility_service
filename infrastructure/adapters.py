@@ -85,6 +85,7 @@ class LocalFileSystem:
     def exists(self, path: Path) -> bool:
         return Path(path).exists()
 
+    # 
     def metadata(self, path: Path) -> FileMetadata:
         path = Path(path)
         exists = path.exists()

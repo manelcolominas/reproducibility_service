@@ -144,6 +144,7 @@ def run_app(argv: list[str] | None = None) -> int:
         # runs_root is the directory where is executed the reproducibility service, and shared_crate_directory 
         # takes the current working where the reproducibility service is launched.
         runs_root = Path.cwd()
+        # a hidden directory named ".crate_downloaded" is created temporarily in the runs_root to store the downloaded crate from the URL.
         shared_crate_directory = runs_root / ".crate_downloaded"
 
     # if the source is a local path or zip file.
@@ -191,6 +192,9 @@ def run_app(argv: list[str] | None = None) -> int:
     logger.info("source=%s", args.source)
 
     #1. print the banner of the reproducibility service, which is the name of the service and a little description of it.
+    # ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    # │                                                      COMPSs Reproducibility Service                                                      │
+    # ╰──────────────────────────────────────────── reproduce a COMPSs workflow run from an RO-Crate ────────────────────────────────────────────╯
     view.print_banner()
 
     # try to run the pipeline of the reproducibility service,
@@ -252,22 +256,9 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
     file_system = LocalFileSystem()
 
-    plan_service = DefaultBuildExecutionPlanService(
-        backend_detector=ShutilExecutionBackendDetector(),
-        log_dir_name=settings.log_dir_name,
-        results_dir_name=settings.results_dir_name,
-    )
+    
+    import_result = view.run_with_spinner("Importing crate source...",_import_rocrate_simple,args.source,workspace_directory,shared_crate_directory,file_system)
 
-    provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
-
-    import_result = view.run_with_spinner(
-        "Importing crate source...",
-        _import_rocrate_simple,
-        args.source,
-        workspace_directory,
-        shared_crate_directory,
-        file_system,
-    )
     view.print_import_result(import_result)
 
     inspect_result = view.run_with_spinner(
@@ -280,6 +271,12 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         logger.info("final_status=invalid_crate_metadata")
         view.print_error("Could not build a usable crate summary from the metadata found.")
         return None, None
+
+    plan_service = DefaultBuildExecutionPlanService(
+        backend_detector=ShutilExecutionBackendDetector(),
+        log_dir_name=settings.log_dir_name,
+        results_dir_name=settings.results_dir_name,
+    )
 
     crate = inspect_result.crate
     original_submission_command = plan_service._discover_command(crate)
@@ -340,6 +337,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     view.print_execution_plan(plan_result.plan)
 
     if provenance_flag:
+        provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
         provenance_result = provenance_service.execute(
             PrepareProvenanceRequest(
                 crate=crate,
@@ -509,26 +507,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-# ro_crate_projects_folder = Path("/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/")
-
-
-# # matmul_files_local
-# # ro_crate = ro_crate_projects_folder / "matmul_files_local/COMPSs_RO-Crate_20260810_112548"
-
-# # # matmul_files_mn5
-# # ro_crate = ro_crate_projects_folder / "matmul_files_mn5/COMPSs_RO-Crate_20260804_112127"
-
-# # # matmul_objects_local
-# # ro_crate = ro_crate_projects_folder / "matmul_objects_local/COMPSs_RO-Crate_20260810_113019"
-
-# # # matmul_objects_mn5
-# # ro_crate = ro_crate_projects_folder / "matmul_objects_mn5/COMPSs_RO-Crate_20260804_112730"
-
-# # wordcount
-# ro_crate = ro_crate_projects_folder / "635/workflow-635-1.crate"
-
-# if __name__ == "__main__":
-#     raise SystemExit(run_app([
-#         str(ro_crate)
-#     ]))
