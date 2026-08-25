@@ -141,7 +141,13 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
             # we set file and url to False because it is a directory
             file = False
             url = False
-
+            
+    # if the source is not valid, we create a message indicating that the source is invalid
+    if not (exists and readable and (directory or file or url)):
+        message = f"Invalid source: {raw_value}"
+    else:
+        message = ""
+    # a SourceValidationResult object is created with attributes shown above. 
     validation = SourceValidationResult(
         source=source,
         exists=exists,
@@ -149,7 +155,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         directory=directory,
         file=file,
         url=url,
-        message="" if (exists and readable and (directory or file or url)) else f"Invalid source: {raw_value}",
+        message=message,
     )
 
     if not validation.is_valid:

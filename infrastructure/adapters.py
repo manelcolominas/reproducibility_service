@@ -149,8 +149,12 @@ class LocalPyCompssMetadataInspector:
         self._executable = executable
 
     def inspect(self, document: MetadataDocument) -> MetadataInspectionResult:
-
-        target = document.path if document.path is not None else Path(document.source.location)
+        if document.format == MetadataFormat.RO_CRATE_JSON and document.path is not None:
+            target = document.path.parent
+        elif document.format == MetadataFormat.COMPSS_YAML and document.path is not None:
+            target = document.path
+        else:
+            target = Path(document.source.location)
         # if you want the verbose output
         #command = [self._executable, "inspect", "-v", str(target)]
         command = [self._executable, "inspect", str(target)]

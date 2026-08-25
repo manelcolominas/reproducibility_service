@@ -47,14 +47,6 @@ class SourceValidationResult:
     def is_valid(self) -> bool:
         return self.exists and self.readable and (self.directory or self.file or self.url)
 
-def is_remote_source(source: CrateSource) -> bool:
-    return source.type == CrateSourceKind.URL
-
-
-def is_local_source(source: CrateSource) -> bool:
-    return source.type in {CrateSourceKind.DIRECTORY, CrateSourceKind.ZIP}
-
-
 def _metadata_file_exists(root: Path) -> bool:
     return (root / "ro-crate-metadata.json").is_file() or any(root.rglob("ro-crate-metadata.json"))
 
