@@ -21,15 +21,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 import yaml
 
 from application.ports.file_system import DirectoryCreateRequest
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
-from domain.errors import FileSystemError, MetadataError, ValidationError
-from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, WorkflowArtifact
-from domain.models.crate import CrateSummary, DataPersistenceKind, WorkflowMetadata, WorkflowParticipant
+from domain.errors import FileSystemError, ValidationError
+from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, DataPersistenceKind
 from infrastructure.adapters import LocalFileSystem
 
 class PrepareProvenanceStatus(str, Enum):
@@ -54,8 +53,8 @@ def _is_placeholder_source(value: str) -> bool:
     text = value.strip()
     return (not text) or (text in _PLACEHOLDER_SOURCES) or ("absolute_path_to" in text)
 
-def _existing_path_from_source(raw_source: str, crate_root: Path) -> Path | None:
-    raw = raw_source.strip()
+def _existing_path_from_source(source_name: str, crate_root: Path) -> Path | None:
+    raw = source_name.strip()
     if not raw:
         return None
     path = Path(raw)
@@ -68,7 +67,7 @@ def _existing_path_from_source(raw_source: str, crate_root: Path) -> Path | None
 
 
 def _collect_real_sources(crate: CrateSummary) -> list[str]:
-    crate_root = crate.location.copied_downloaded_crate_path or crate.location.original_path
+    crate_root = crate.location.crate_path or crate.location.original_path
     if crate_root is None:
         return []
 
@@ -190,38 +189,7 @@ class PrepareProvenanceResult:
         return len(self.notes) > 0
 
 
-@runtime_checkable
-class PrepareProvenanceUseCase(Protocol):
-    def execute(self, request: PrepareProvenanceRequest) -> PrepareProvenanceResult:
-        """
-        Prepare provenance metadata for a crate run.
-        """
-        ...
-
-
-@runtime_checkable
-class PrepareProvenancePlanner(Protocol):
-    def build_plan(self, request: PrepareProvenanceRequest) -> PrepareProvenancePlan:
-        """
-        Build the provenance preparation plan.
-        """
-        ...
-
-
-@runtime_checkable
-class ProvenanceWriter(Protocol):
-    def write(self, plan: PrepareProvenancePlan, metadata: WorkflowMetadata) -> Path:
-        """
-        Persist provenance metadata and return the output path.
-        """
-        ...
-
-
 class PrepareProvenancePortError(FileSystemError):
-    pass
-
-
-class PrepareProvenanceMetadataError(MetadataError):
     pass
 
 
@@ -230,13 +198,15 @@ class PrepareProvenanceFailure(PrepareProvenancePortError):
         super().__init__(message=message, details=details, recoverable=False)
 
 
+
+### do not delete
 class DefaultPrepareProvenanceService:
     def __init__(self, file_system: LocalFileSystem) -> None:
         self._file_system = file_system
 
     def build_plan(self, request: PrepareProvenanceRequest) -> PrepareProvenancePlan:
         provenance_root = request.provenance_root
-        metadata_path = request.crate.location.copied_downloaded_crate_path or request.crate.location.original_path
+        metadata_path = request.crate.location.crate_path or request.crate.location.original_path
         if metadata_path is None:
             raise PrepareProvenanceFailure(
                 "Could not determine crate metadata location",
@@ -444,7 +414,6 @@ __all__ = [
     "PrepareProvenanceRequest",
     "PrepareProvenanceResult",
     "PrepareProvenanceStatus",
-    "PrepareProvenanceUseCase",
     "ProvenanceWriter",
     "has_provenance_config_file",
     "has_updated_metadata",

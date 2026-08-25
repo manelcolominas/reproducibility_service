@@ -21,70 +21,47 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+import os
+import shutil
+import re
+from urllib import response
+import zipfile
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse, unquote
+
+from rocrate.rocrate import ROCrate
 
 from application.ports.crate_source import (
-    CrateSourceAcquirer,
-    CrateSourceResolver,
-    CrateSourceValidator,
     SourceAcquisitionResult,
     SourceValidationResult,
+    ensure_rocrate,
+    load_rocrate_if_valid,
 )
-from application.ports.file_system import (
-    DirectoryCreateRequest,
-    #FileSystemManager,
-)
+from application.ports.file_system import DirectoryCreateRequest
 from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import CrateLocation, CrateSource, CrateSummary
-from infrastructure.adapters import LocalFileSystem
+from domain.models.crate import (
+    CrateLocation,
+    CrateSource,
+    CrateSummary,
+    WorkflowMetadata,
+    CrateSourceKind,
+)
 
+BROWSER_HEADERS = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        "Accept": "application/octet-stream,application/zip,application/json,text/html,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
 class ImportCrateStatus(str, Enum):
-    PENDING = "pending"
-    VALIDATED = "validated"
-    PREPARED = "prepared"
     IMPORTED = "imported"
     FAILED = "failed"
 
 
 @dataclass(frozen=True, slots=True)
-class ImportCrateRequest:
-    raw_source: str
-    workspace_directory: Path
-    create_workspace: bool = True
-    crate_directory: Path | None = None
-    reuse_existing_crate: bool = True
-
-
-    def __post_init__(self) -> None:
-        if not self.raw_source.strip():
-            raise ValidationError("ImportCrateRequest.raw_source cannot be empty")
-        if not str(self.workspace_directory).strip():
-            raise ValidationError("ImportCrateRequest.workspace_directory cannot be empty")
-        if self.crate_directory is not None and not str(self.crate_directory).strip():
-            raise ValidationError("ImportCrateRequest.crate_directory cannot be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class ImportCratePlan:
-    request: ImportCrateRequest
-    source: CrateSource
-    validation: SourceValidationResult
-    workspace_root: Path
-    crate_root: Path
-    log_dir: Path
-    results_dir: Path
-
-    def __post_init__(self) -> None:
-        for path_name in ("workspace_root", "crate_root", "log_dir", "results_dir"):
-            if not str(getattr(self, path_name)).strip():
-                raise ValidationError(f"ImportCratePlan.{path_name} cannot be empty")
-
-
-@dataclass(frozen=True, slots=True)
 class ImportCrateResult:
     status: ImportCrateStatus
-    request: ImportCrateRequest
     source: CrateSource
     validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
@@ -94,133 +71,248 @@ class ImportCrateResult:
     notes: tuple[str, ...] = ()
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    @property
-    def imported(self) -> bool:
-        return self.status == ImportCrateStatus.IMPORTED
 
-    @property
-    def has_warnings(self) -> bool:
-        return len(self.warnings) > 0
+def _import_rocrate_simple(source_name, workspace_directory, crate_directory, file_system):
+    # take the source_name and convert it to string and remove whitespace from both ends
+    raw_value = str(source_name).strip()
 
+    # if the raw_value is empty, raise a ValidationError
+    if not raw_value:
+        raise ValidationError("source_name cannot be empty")
 
-@runtime_checkable
-class ImportCrateUseCase(Protocol):
-    def execute(self, request: ImportCrateRequest) -> ImportCrateResult:
-        ...
+    # if the raw_value starts with "http://" or "https://", then it is a URL
+    if raw_value.startswith(("http://", "https://")):
+        # create a CrateSource object with type URL and value raw_value
+        # CrateSourceKind is a class that defines the type of source, in this case URL
+        source = CrateSource(type=CrateSourceKind.URL, value=raw_value)
 
+        # we assume that the URL exists and is readable
+        exists = readable = True
 
-@runtime_checkable
-class ImportCratePlanner(Protocol):
-    def build_plan(self, request: ImportCrateRequest) -> ImportCratePlan:
-        ...
+        # we set directory and file to False because it is a URL
+        directory = file = False
 
+        # we set url to True because it is a URL
+        url = True
+    # if the raw_value is a path to a file or directory
+    else:
+        # converts the raw_value to a Path object
+        source_path = Path(raw_value).expanduser()
 
-class ImportCratePortError(FileSystemError):
-    pass
+        # if the source_path has a suffix of ".zip", then it is a zip file
+        if source_path.suffix.lower() == ".zip":
+            # create a CrateSource object with type ZIP and value the source_path
+            source = CrateSource(type=CrateSourceKind.ZIP, value=str(source_path))
+            # we check if the source_path exists
+            exists = source_path.exists()
+            if exists:
+                # we check if the source_path is readable
+                readable = os.access(source_path, os.R_OK)
+            else:
+                readable = False
+            # we set directory to False because it is a zip file
+            directory = False
+            # we check if the source_path is a zip file
+            if exists and readable and zipfile.is_zipfile(source_path):
+                    file = True
+            else:
+                    file = False
+            url = False
 
+        ###
+        ### we could support more compressed file formats here.
+        ###
 
-class ImportCrateFailure(ImportCratePortError):
-    pass
-
-
-class DefaultImportCrateService:
-    def __init__(
-        self,
-        resolver: CrateSourceResolver,
-        validator: CrateSourceValidator,
-        acquirer: CrateSourceAcquirer,
-        #file_system: FileSystemManager,
-        file_system: LocalFileSystem,
-        original_crate_dir_name: str,
-        log_dir_name: str,
-        results_dir_name: str,
-    ) -> None:
-        self._resolver = resolver
-        self._validator = validator
-        self._acquirer = acquirer
-        self._file_system = file_system
-        self._original_crate_dir_name = original_crate_dir_name
-        self._log_dir_name = log_dir_name
-        self._results_dir_name = results_dir_name
-
-    def build_plan(self, request: ImportCrateRequest) -> ImportCratePlan:
-        source = self._resolver.resolve(request.raw_source)
-        validation = self._validator.validate(source)
-
-        workspace_root = request.workspace_directory
-        crate_name = self._original_crate_dir_name.strip()
-        crate_root = request.crate_directory or (
-            workspace_root if not crate_name else workspace_root / crate_name
-        )
-        log_dir = workspace_root / self._log_dir_name
-        results_dir = workspace_root / self._results_dir_name
-
-        return ImportCratePlan(
-            request=request,
-            source=source,
-            validation=validation,
-            workspace_root=workspace_root,
-            crate_root=crate_root,
-            log_dir=log_dir,
-            results_dir=results_dir,
-        )
-
-    def execute(self, request: ImportCrateRequest) -> ImportCrateResult:
-        plan = self.build_plan(request)
-
-        if not plan.validation.is_valid:
-            raise ImportCrateFailure(
-            "Source validation failed",
-            details=plan.validation.message or "the source is not usable",
-            )
-
-        if request.create_workspace:
-            self._file_system.create_directory(
-            DirectoryCreateRequest(path=plan.workspace_root, parents=True, exist_ok=True)
-            )
-            self._file_system.create_directory(
-            DirectoryCreateRequest(path=plan.crate_root, parents=True, exist_ok=True)
-            )
-            self._file_system.create_directory(
-            DirectoryCreateRequest(path=plan.log_dir, parents=True, exist_ok=True)
-            )
-            self._file_system.create_directory(
-            DirectoryCreateRequest(path=plan.results_dir, parents=True, exist_ok=True)
-            )
-
-        reused = request.reuse_existing_crate and self._looks_like_crate(plan.crate_root)
-
-        if reused:
-            acquisition = SourceAcquisitionResult(
-            source=plan.source,
-            source_root=plan.crate_root,
-            prepared_root=plan.crate_root,
-            )
-            notes = ("Existing crate reused",)
+        # if it is not a zip file, then source_path is assumed to be a directory
         else:
-            acquisition = self._acquirer.acquire(plan.source, plan.crate_root)
-            notes = ("Crate source prepared successfully",)
+            # create a CrateSource object with type DIRECTORY and value the source_path
+            source = CrateSource(type=CrateSourceKind.DIRECTORY, value=str(source_path))
+            # we check if the source_path exists
+            exists = source_path.exists()
+            if exists:
+                # we check if the source_path is readable
+                readable = os.access(source_path, os.R_OK)
+                # we check if the source_path is a directory
+                directory = source_path.is_dir()
+            else:
+                # we set readable and directory to False because the source_path does not exist
+                readable = False
+                directory = False
+            # we set file and url to False because it is a directory
+            file = False
+            url = False
 
-        location = CrateLocation(
-        original_path=acquisition.source_root,
-        copied_downloaded_crate_path=acquisition.prepared_root,
-        )
+    validation = SourceValidationResult(
+        source=source,
+        exists=exists,
+        readable=readable,
+        directory=directory,
+        file=file,
+        url=url,
+        message="" if (exists and readable and (directory or file or url)) else f"Invalid source: {raw_value}",
+    )
 
-        return ImportCrateResult(
-            status=ImportCrateStatus.IMPORTED,
-            request=request,
-            source=plan.source,
-            validation=plan.validation,
-            acquisition=acquisition,
-            location=location,
-            notes=notes,
+    if not validation.is_valid:
+        raise FileSystemError("Source validation failed", details=validation.message)
+
+    file_system.create_directory(DirectoryCreateRequest(path=workspace_directory, parents=True, exist_ok=True))
+
+    if source.type == CrateSourceKind.DIRECTORY:
+        file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
+        src_path = Path(source.value).expanduser().resolve()
+        dst_path = crate_directory.resolve()
+    
+        # If source and destination are the same directory, reuse in place.
+        if src_path == dst_path:
+            acquisition = SourceAcquisitionResult(
+                source=source,
+                source_root=src_path,
+                prepared_root=dst_path,
+            )
+        else:
+            try:
+                shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+            except shutil.Error as exc:
+                raise FileSystemError(
+                    "Could not copy crate directory",
+                    details=str(exc),
+                ) from exc
+    
+            acquisition = SourceAcquisitionResult(
+                source=source,
+                source_root=src_path,
+                prepared_root=dst_path,
             )
 
-    def _looks_like_crate(self, crate_root: Path) -> bool:
-        if not crate_root.exists():
-            return False
-        if (crate_root / "ro-crate-metadata.json").is_file():
-            return True
-        if (crate_root / "ro-crate-info.yaml").is_file():
-            return True
-        return any(crate_root.rglob("ro-crate-metadata.json")) or any(crate_root.rglob("ro-crate-info.yaml"))
+    elif source.type == CrateSourceKind.ZIP:
+        file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
+        with zipfile.ZipFile(Path(source.value)) as archive_file:
+            top_levels = {
+                Path(name).parts[0]
+                for name in archive_file.namelist()
+                if name and not name.startswith("/") and Path(name).parts
+            }
+        
+            if len(top_levels) == 1 and next(iter(top_levels)) == crate_directory.name:
+                archive_file.extractall(crate_directory.parent)
+                prepared_root = crate_directory
+            else:
+                archive_file.extractall(crate_directory)
+                prepared_root = crate_directory
+
+        acquisition = SourceAcquisitionResult(
+            source=source,
+            source_root=Path(source.value),
+            prepared_root=crate_directory,
+            extracted=True,
+        )
+
+    else:
+        request = Request(source.value, headers=BROWSER_HEADERS, method="GET")
+        try:
+            with urlopen(request, timeout=30) as response:
+                download_bytes = response.read()
+                downloaded_filename = _filename_from_http_response(response, source.value)
+        except (HTTPError, URLError, OSError) as exc:
+            raise FileSystemError("Could not download crate source", details=str(exc)) from exc
+
+        final_dirname = _crate_dirname_from_downloaded_filename(downloaded_filename)
+        final_crate_directory = crate_directory.parent / final_dirname
+        file_system.create_directory(DirectoryCreateRequest(path=final_crate_directory, parents=True, exist_ok=True))
+        
+        temp_zip = final_crate_directory.parent / ".downloaded_rocrate.zip"
+        temp_zip.write_bytes(download_bytes)
+        try:
+            if zipfile.is_zipfile(temp_zip):
+                with zipfile.ZipFile(temp_zip) as archive_file:
+                    archive_file.extractall(final_crate_directory)
+                prepared_root = final_crate_directory
+                extracted = True
+            else:
+                target = final_crate_directory / "downloaded_crate"
+                target.write_bytes(download_bytes)
+                prepared_root = final_crate_directory
+                extracted = False
+        finally:
+            temp_zip.unlink(missing_ok=True)
+
+        acquisition = SourceAcquisitionResult(
+            source=source,
+            source_root=Path(source.value),
+            prepared_root=prepared_root,
+            downloaded=True,
+            extracted=extracted,
+        )
+
+    location = CrateLocation(
+        original_path=acquisition.source_root,
+        crate_path=acquisition.prepared_root,
+    )
+
+    rocrate = load_rocrate_if_valid(location.crate_path)
+    if rocrate is None:
+        rocrate = ensure_rocrate(
+            location.crate_path,
+            name=location.crate_path.name,
+            description=f"Imported crate from {source.value}",
+        )
+
+    source_with_rocrate = source.with_rocrate(rocrate)
+
+    metadata = WorkflowMetadata(
+        name=(rocrate.root_dataset.get("name") if rocrate else location.crate_path.name) or "unnamed-workflow",
+        description=str((rocrate.root_dataset.get("description") if rocrate else "") or ""),
+        source_metadata_path=location.crate_path / "ro-crate-metadata.json",
+        rocrate=rocrate,
+    )
+
+    crate = CrateSummary(
+        source=source_with_rocrate,
+        location=location,
+        metadata=metadata,
+        rocrate=rocrate,
+    )
+
+    return ImportCrateResult(
+        status=ImportCrateStatus.IMPORTED,
+        source=source_with_rocrate,
+        validation=validation,
+        acquisition=acquisition,
+        location=location,
+        crate=crate,
+        notes=("Crate source prepared successfully",),
+    )
+
+
+def _filename_from_http_response(response, source_url: str) -> str | None:
+    content_disposition = response.headers.get("Content-Disposition", "")
+    # RFC 5987: filename*=UTF-8''workflow-635-1.crate.zip
+    match = re.search(r"filename\*\s*=\s*[^']*''([^;]+)", content_disposition, flags=re.IGNORECASE)
+    if match:
+        return Path(unquote(match.group(1).strip().strip('"'))).name
+
+    # Legacy: filename="workflow-635-1.crate.zip" or filename=workflow-635-1.crate.zip
+    match = re.search(r'filename\s*=\s*"([^"]+)"', content_disposition, flags=re.IGNORECASE)
+    if not match:
+        match = re.search(r"filename\s*=\s*([^;]+)", content_disposition, flags=re.IGNORECASE)
+    if match:
+        return Path(unquote(match.group(1).strip().strip('"'))).name
+
+    # Fallback to URL path
+    fallback = Path(unquote(urlparse(source_url).path)).name.strip()
+    return fallback or None
+
+    
+def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
+    if not filename:
+        return ".crate_downloaded"
+
+    name = filename.strip()
+    if name.lower().endswith(".zip"):
+        name = name[:-4].strip()
+
+    if not name:
+        return ".crate_downloaded"
+
+    # Prevent path traversal or slashes in header value
+    return Path(name).name or ".crate_downloaded"

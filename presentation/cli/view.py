@@ -27,21 +27,15 @@ from __future__ import annotations
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
-from InquirerPy import inquirer
 import questionary
-import logging
-from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
-
 
 from application.ports.executor import ExecutionOutcome
-from application.use_cases.import_crate import ImportCrateResult
 from application.use_cases.inspect_crate import InspectCrateResult
+from application.use_cases.import_crate import ImportCrateResult
 from application.use_cases.prepare_provenance import PrepareProvenanceResult
 from application.use_cases.verify_inputs import VerifyInputsResult
 from domain.models.crate import CrateSummary
@@ -246,15 +240,12 @@ def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Source type", result.source.type.value)
     table.add_row("Source name", result.source.value)
-    table.add_row("Ro-Crate path", str(result.location.copied_downloaded_crate_path))
+    table.add_row("Ro-Crate path", str(result.location.crate_path))
     if result.acquisition is not None:
-        acquisition_type = _first_true(
-            copied=result.acquisition.copied,
-            extracted=result.acquisition.extracted,
-            downloaded=result.acquisition.downloaded,
-        )
-        #table.add_row("Acquisition", acquisition_type)
-    console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
+        table.add_row("Acquisition", result.acquisition.kind)
+    console.print(
+        Panel(table, title="1. Crate source imported", border_style="green", title_align="left")
+    )
 
 def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None, submission_command: str | None = None) -> None:
     if crate is None:
@@ -264,16 +255,11 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None,
     table = Table.grid(padding=(0, 1))
     table.add_column(style="bold cyan", no_wrap=True)
     table.add_column(style="white")
-    #table.add_row("COMPSs version",f"[green]{crate.metadata.compss_version or '[dim]-[/dim]'}[/green]")
-    #table.add_row("Executed at",f"[magenta]{crate.metadata.execution_site or '[dim]-[/dim]'}[/magenta]")
-    #table.add_row("License",f"[yellow]{crate.metadata.license or '[dim]-[/dim]'}[/yellow]")
     table.add_row(
         "Submission command",
         submission_command or "[dim]not resolved yet[/dim]",
     )
     table.add_row("Data persistence","[green]true[/green]" if crate.metadata.data_persistence.value == "true" else f"[red]{crate.metadata.data_persistence.value}[/red]")
-    #table.add_row("Authors", f"[blue]{len(crate.metadata.authors)}[/blue]")
-    #table.add_row("Sources", f"[blue]{len(crate.index.sources)}[/blue]")
 
     body = table
     if result.inspect_output:
@@ -340,9 +326,9 @@ def print_provenance_result(result: PrepareProvenanceResult) -> None:
             console.print(f"  [yellow]![/yellow] {warning}")
 
 def run_with_spinner(description: str, fn, *args, **kwargs):
-    with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True,
-    ) as progress:
+    """
+    """
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
         progress.add_task(description, total=None)
         return fn(*args, **kwargs)
 

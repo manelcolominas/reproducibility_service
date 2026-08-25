@@ -21,19 +21,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-import token
-from typing import Protocol, runtime_checkable
+from typing import runtime_checkable
 import os
 from rocrate.rocrate import ROCrate
 
 from application.ports.executor import (
     ExecutionBackendDetector,
-    ExecutionPlanner as ExecutorPlanner,
-    ExecutionRequest,
     ExecutionSubmission,
 )
 from domain.errors import CommandBuildError, ValidationError
-from domain.models.crate import CrateSummary, WorkflowCommand
+from domain.models.crate import CrateSummary
 from domain.models.execution import (
     ExecutionBackend,
     ExecutionContext,
@@ -266,11 +263,6 @@ class BuildExecutionPlanResult:
     def ready(self) -> bool:
         return self.status == BuildExecutionPlanStatus.READY
 
-@runtime_checkable
-class BuildExecutionPlanUseCase(Protocol):
-    def execute(self, request: BuildExecutionPlanRequest) -> BuildExecutionPlanResult:
-        ...
-
 
 class BuildExecutionPlanPortError(CommandBuildError):
     pass
@@ -280,6 +272,8 @@ class BuildExecutionPlanFailure(BuildExecutionPlanPortError):
     pass
 
 
+
+#### DO NOT DELETE
 class DefaultBuildExecutionPlanService:
     def __init__(
         self,
@@ -356,7 +350,7 @@ class DefaultBuildExecutionPlanService:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
 
         schema = {flag.name: flag for flag in FLAG_DEFINITIONS}
-        crate_root = request.crate.location.copied_downloaded_crate_path
+        crate_root = request.crate.location.crate_path
 
         parsed = self.parse_submission_command(raw_command, schema)
         parsed = self.normalize_executable(parsed, backend, request.runtime_executable)
@@ -481,11 +475,7 @@ class DefaultBuildExecutionPlanService:
             )
             index += 1
         
-        return ParsedSubmissionCommand(
-            executable=executable,
-            flags=tuple(flags),
-            positionals=tuple(positionals),
-        )
+        return ParsedSubmissionCommand(executable=executable, flags=tuple(flags),positionals=tuple(positionals))
 
     def canonical_name(self, token: str | None) -> str | None:
         if token is None:
@@ -504,11 +494,7 @@ class DefaultBuildExecutionPlanService:
         base = raw.split("=", 1)[0]
         return base
 
-    def apply_edits(
-        self,
-        parsed: ParsedSubmissionCommand,
-        edits: tuple[SubmissionCommandEdit, ...],
-    ) -> ParsedSubmissionCommand:
+    def apply_edits(self, parsed: ParsedSubmissionCommand, edits: tuple[SubmissionCommandEdit, ...]) -> ParsedSubmissionCommand:
         flags = list(parsed.flags)
 
         for edit in edits:
@@ -712,7 +698,7 @@ class DefaultBuildExecutionPlanService:
         return text
 
     def _discover_command(self, crate: CrateSummary) -> str | None:
-        crate_root = crate.location.copied_downloaded_crate_path
+        crate_root = crate.location.crate_path
     
         for path in [crate_root / "compss_submission_command_line.txt", *sorted(crate_root.rglob("compss_submission_command_line.txt"))]:
             if path.is_file():

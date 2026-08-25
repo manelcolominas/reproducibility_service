@@ -21,25 +21,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from domain.errors import ExecutionError, ValidationError
 from domain.models.execution import (
     ExecutionBackend,
-    ExecutionContext,
-    ExecutionPlan,
     ExecutionResult,
     RuntimeCommand,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class ExecutionRequest:
-    plan: ExecutionPlan
-    context: ExecutionContext
-
-    def __post_init__(self) -> None:
-        if self.plan.backend != self.context.backend:
-            raise ValidationError("ExecutionRequest.plan.backend does not match context.backend")
-
 
 @dataclass(frozen=True, slots=True)
 class ExecutionSubmission:
@@ -71,27 +57,6 @@ class ExecutionOutcome:
 class ExecutionBackendDetector(Protocol):
     def detect(self) -> ExecutionBackend:
         ...
-
-
-@runtime_checkable
-class ExecutionPlanner(Protocol):
-    def build_plan(self, request: ExecutionRequest) -> ExecutionPlan:
-        ...
-
-
-@runtime_checkable
-class ExecutionParticipant(Protocol):
-    def submit(self, submission: ExecutionSubmission) -> ExecutionOutcome:
-        ...
-
-
-class ExecutionPortError(ExecutionError):
-    pass
-
-
-class UnsupportedExecutionBackendError(ExecutionPortError):
-    pass
-
 
 def is_slurm_backend(backend: ExecutionBackend) -> bool:
     return backend == ExecutionBackend.SLURM

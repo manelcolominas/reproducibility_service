@@ -19,49 +19,29 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
-from sys import executable
-import zipfile
+import pty
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import Request, urlopen, urlretrieve
-from urllib.error import HTTPError
-from tempfile import NamedTemporaryFile
 
 import yaml
 
-from email.message import Message
-from pathlib import PurePosixPath
-from urllib.parse import urlparse, unquote
-
-from application.ports.crate_source import (
-    SourceAcquisitionResult,
-    SourceValidationResult,
-)
 from application.ports.executor import ExecutionOutcome
 from application.ports.file_system import (
-    CopyRequest,
-    DeleteRequest,
     DirectoryCreateRequest,
-    DirectoryEntry,
     FileMetadata,
     FileSystemOperationResult,
-    MoveRequest,
 )
 from application.ports.metadata_parser import (
     MetadataDocument,
     MetadataFormat,
     MetadataInspectionResult,
-    MetadataInspector,
     MetadataNormalizationResult,
     MetadataParseRequest,
 )
 from domain.errors import (
     MetadataParseError,
     SourceAcquisitionError,
-    UnsupportedSourceError,
 )
 from domain.models.crate import (
     ArtifactKind,
@@ -84,12 +64,6 @@ from domain.models.execution import (
     ExecutionStatus,
 )
 
-BROWSER_HEADERS = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-        "Accept": "application/octet-stream,application/zip,application/json,text/html,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-
 # --------------------------------------------------------------------------- #
 # File system adapter
 # --------------------------------------------------------------------------- #
@@ -100,7 +74,7 @@ class LocalFileSystem:
         The LocalFileSystem class provides an interface for managing files and directories
         on the local filesystem. It uses Python's pathlib, shutil, and os modules to perform
         common filesystem operations, such as checking whether a file or directory exists,
-        reading and writing files, creating directories, copying, moving, and deleting files
+        writing files, creating directories, files
         and directories. It also provides methods for retrieving file metadata and manipulating
         paths. The class acts as an abstraction layer, allowing the rest of the application to
         interact with the local filesystem without directly depending on the underlying filesystem
@@ -111,6 +85,7 @@ class LocalFileSystem:
     def exists(self, path: Path) -> bool:
         return Path(path).exists()
 
+    # 
     def metadata(self, path: Path) -> FileMetadata:
         path = Path(path)
         exists = path.exists()
@@ -123,95 +98,13 @@ class LocalFileSystem:
             writable=os.access(path, os.W_OK) if exists else False,
             size_bytes=path.stat().st_size if exists and path.is_file() else None,
         )
-
-    # check if a path is a file
-    # def is_file(self, path: Path) -> bool:
-    #     return Path(path).is_file()
-
-    # check if a path is a directory
-    # def is_directory(self, path: Path) -> bool:
-    #     return Path(path).is_dir()
-
-    # read the contents of a text file
-    # def read_text(self, path: Path, encoding: str = "utf-8") -> str:
-    #     return Path(path).read_text(encoding=encoding)
-
-    # list the contents of a directory
-    # def list_directory(self, path: Path) -> tuple[DirectoryEntry, ...]:
-    #     entries = []
-    #     for child in sorted(Path(path).iterdir()):
-    #         entries.append(
-    #             DirectoryEntry(
-    #                 path=child,
-    #                 name=child.name,
-    #                 is_file=child.is_file(),
-    #                 is_directory=child.is_dir(),
-    #                 size_bytes=child.stat().st_size if child.is_file() else None,
-    #             )
-    #         )
-    #     return tuple(entries)
-
+    
     def create_directory(self, request: DirectoryCreateRequest) -> FileSystemOperationResult:
         try:
             Path(request.path).mkdir(parents=request.parents, exist_ok=request.exist_ok)
             return FileSystemOperationResult(path=request.path, succeeded=True)
         except OSError as exc:
             return FileSystemOperationResult(path=request.path, succeeded=False, message=str(exc))
-
-    # def copy(self, request: CopyRequest) -> FileSystemOperationResult:
-    #     source, destination = Path(request.source), Path(request.destination)
-    #     try:
-    #         if destination.exists() and not request.overwrite:
-    #             return FileSystemOperationResult(
-    #                 path=destination, succeeded=False, message="Destination already exists"
-    #             )
-    #         destination.parent.mkdir(parents=True, exist_ok=True)
-    #         if source.is_dir():
-    #             if not request.recursive:
-    #                 return FileSystemOperationResult(
-    #                     path=destination, succeeded=False, message="Cannot copy a directory non-recursively"
-    #                 )
-    #             if destination.exists():
-    #                 shutil.rmtree(destination)
-    #             shutil.copytree(source, destination)
-    #             size = None
-    #         else:
-    #             shutil.copy2(source, destination)
-    #             size = destination.stat().st_size
-    #         return FileSystemOperationResult(path=destination, succeeded=True, bytes_transferred=size)
-    #     except OSError as exc:
-    #         return FileSystemOperationResult(path=destination, succeeded=False, message=str(exc))
-
-    # def move(self, request: MoveRequest) -> FileSystemOperationResult:
-    #     source, destination = Path(request.source), Path(request.destination)
-    #     try:
-    #         if destination.exists() and not request.overwrite:
-    #             return FileSystemOperationResult(
-    #                 path=destination, succeeded=False, message="Destination already exists"
-    #             )
-    #         destination.parent.mkdir(parents=True, exist_ok=True)
-    #         shutil.move(str(source), str(destination))
-    #         return FileSystemOperationResult(path=destination, succeeded=True)
-    #     except OSError as exc:
-    #         return FileSystemOperationResult(path=destination, succeeded=False, message=str(exc))
-
-    # def delete(self, request: DeleteRequest) -> FileSystemOperationResult:
-    #     path = Path(request.path)
-    #     try:
-    #         if not path.exists():
-    #             if request.missing_ok:
-    #                 return FileSystemOperationResult(path=path, succeeded=True, message="Already absent")
-    #             return FileSystemOperationResult(path=path, succeeded=False, message="Path does not exist")
-    #         if path.is_dir():
-    #             if request.recursive:
-    #                 shutil.rmtree(path)
-    #             else:
-    #                 path.rmdir()
-    #         else:
-    #             path.unlink()
-    #         return FileSystemOperationResult(path=path, succeeded=True)
-    #     except OSError as exc:
-    #         return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
 
     def write_text(self, path: Path, content: str, encoding: str = "utf-8") -> FileSystemOperationResult:
         path = Path(path)
@@ -222,198 +115,7 @@ class LocalFileSystem:
         except OSError as exc:
             return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
 
-    # def join(self, *parts: Path | str) -> Path:
-    #     return Path(*[str(part) for part in parts])
-
-    # def resolve(self, path: Path, strict: bool = False) -> Path:
-    #     return Path(path).resolve(strict=strict)
-
-    # def relative_to(self, path: Path, base: Path) -> Path:
-    #     return Path(path).relative_to(base)
-
-
-# --------------------------------------------------------------------------- #
-# Crate source adapters (resolve / validate / acquire)
-# --------------------------------------------------------------------------- #
-
-
-class LocalCrateSourceResolver:
-    """Turns a raw CLI argument into a typed CrateSource."""
-
-    def resolve(self, raw_source: str) -> CrateSource:
-        value = raw_source.strip()
-        if value.startswith(("http://", "https://")):
-            return CrateSource(type=CrateSourceKind.URL, value=value)
-        if value.lower().endswith(".zip"):
-            return CrateSource(type=CrateSourceKind.ZIP, value=str(Path(value).expanduser()))
-        return CrateSource(type=CrateSourceKind.DIRECTORY, value=str(Path(value).expanduser()))
-
-
-class LocalCrateSourceValidator:
-    """Checks that a resolved CrateSource is actually usable."""
-
-    def validate(self, source: CrateSource) -> SourceValidationResult:
-        if source.type == CrateSourceKind.DIRECTORY:
-            return self._validate_directory(source)
-        if source.type == CrateSourceKind.ZIP:
-            return self._validate_zip(source)
-        if source.type == CrateSourceKind.URL:
-            return self._validate_url(source)
-        raise UnsupportedSourceError(f"Unsupported crate source type: {source.type}")
-
-    def _validate_directory(self, source: CrateSource) -> SourceValidationResult:
-        path = Path(source.value)
-        exists = path.exists()
-        directory = path.is_dir() if exists else False
-        readable = os.access(path, os.R_OK) if exists else False
-        message = "" if exists and directory else f"Directory not found: {path}"
-        return SourceValidationResult(
-            source=source, exists=exists, readable=readable, directory=directory,
-            archive=False, url=False, message=message,
-        )
-
-    def _validate_zip(self, source: CrateSource) -> SourceValidationResult:
-        path = Path(source.value)
-        exists = path.exists()
-        readable = os.access(path, os.R_OK) if exists else False
-        archive = exists and readable and zipfile.is_zipfile(path)
-        message = "" if archive else f"Not a valid zip archive: {path}"
-        return SourceValidationResult(
-            source=source, exists=exists, readable=readable, directory=False,
-            archive=archive, url=False, message=message,
-        )
-    
-    def _validate_url(self, source: CrateSource) -> SourceValidationResult:
-        reachable = False
-        for method in ("HEAD", "GET"):
-            try:
-                request = Request(source.value, method=method, headers=BROWSER_HEADERS)
-                with urlopen(request, timeout=15) as response:
-                    status = getattr(response, "status", None) or response.getcode()
-                    if 200 <= status < 400:
-                        reachable = True
-                        break
-            except HTTPError as exc:
-                if method == "HEAD":
-                    continue
-                reachable = False
-                break
-            except (URLError, ValueError, OSError):
-                reachable = False
-                break
-    
-        message = "" if reachable else f"Could not reach URL: {source.value}"
-        return SourceValidationResult(
-            source=source,
-            exists=reachable,
-            readable=reachable,
-            directory=False,
-            archive=False,
-            url=True,
-            message=message,
-        )
-
-
-class LocalCrateSourceAcquirer:
-    """Materializes a CrateSource into the crate working directory."""
-
-    def acquire(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
-        destination_root = Path(destination_root)
-        destination_root.mkdir(parents=True, exist_ok=True)
-
-        if source.type == CrateSourceKind.DIRECTORY:
-            return self._acquire_directory(source, destination_root)
-        if source.type == CrateSourceKind.ZIP:
-            return self._acquire_zip(source, destination_root)
-        if source.type == CrateSourceKind.URL:
-            return self._acquire_url(source, destination_root)
-        raise UnsupportedSourceError(f"Unsupported crate source type: {source.type}")
-
-    def _acquire_directory(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
-        source_root = Path(source.value)
-        try:
-            shutil.copytree(source_root, destination_root, dirs_exist_ok=True)
-        except OSError as exc:
-            raise SourceAcquisitionError(f"Could not copy crate directory: {exc}") from exc
-        return SourceAcquisitionResult(
-            source=source, source_root=source_root, prepared_root=destination_root, copied=True,
-        )
-
-    def _acquire_zip(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
-        source_root = Path(source.value)
-        try:
-            with zipfile.ZipFile(source_root) as archive:
-                archive.extractall(destination_root)
-        except (OSError, zipfile.BadZipFile) as exc:
-            raise SourceAcquisitionError(f"Could not extract crate archive: {exc}") from exc
-        return SourceAcquisitionResult(
-            source=source, source_root=source_root, prepared_root=destination_root, extracted=True,
-        )
-
-    def _acquire_url(self, source: CrateSource, destination_root: Path) -> SourceAcquisitionResult:
-        try:
-            request = Request(source.value, headers=BROWSER_HEADERS, method="GET")
-            with urlopen(request, timeout=30) as response:
-                download_name = self._download_name_from_response(response, source.value)
-    
-                with NamedTemporaryFile(delete=False, suffix=".zip") as temp_file:
-                    shutil.copyfileobj(response, temp_file)
-                    download_path = Path(temp_file.name)
-        except (URLError, OSError, HTTPError) as exc:
-            raise SourceAcquisitionError(f"Could not download crate source: {exc}") from exc
-    
-        prepared_root = destination_root
-        try:
-            if zipfile.is_zipfile(download_path):
-                folder_name = self._folder_name_from_download_name(download_name)
-                prepared_root = destination_root.parent / folder_name
-                prepared_root.mkdir(parents=True, exist_ok=True)
-    
-                with zipfile.ZipFile(download_path) as archive:
-                    archive.extractall(prepared_root)
-                extracted = True
-            else:
-                target_name = Path(download_name).name or "downloaded_crate"
-                shutil.copy2(download_path, destination_root / target_name)
-                extracted = False
-        finally:
-            if download_path.exists():
-                download_path.unlink(missing_ok=True)
-    
-        return SourceAcquisitionResult(
-            source=source,
-            source_root=Path(source.value),
-            prepared_root=prepared_root,
-            downloaded=True,
-            extracted=extracted,
-        )
-    
-    def _download_name_from_response(self, response, source_url: str) -> str:
-        content_disposition = response.headers.get("Content-Disposition")
-        if content_disposition:
-            message = Message()
-            message["Content-Disposition"] = content_disposition
-            filename = message.get_param("filename", header="Content-Disposition")
-            if filename:
-                return Path(filename).name
-    
-        final_url = response.geturl() or source_url
-        parsed = urlparse(final_url)
-        candidate = PurePosixPath(unquote(parsed.path)).name
-        return candidate or "downloaded_crate.zip"
-    
-    def _folder_name_from_download_name(self, download_name: str) -> str:
-        path = Path(download_name)
-        if path.suffix.lower() == ".zip":
-            return path.with_suffix("").name
-        return path.name
-
-
-# --------------------------------------------------------------------------- #
-# Metadata parser / normalizer adapters
-# --------------------------------------------------------------------------- #
-
-
+###   do not delete
 class CrateMetadataParser:
     """Locates and loads either ro-crate-metadata.json or ro-crate-info.yaml."""
 
@@ -439,7 +141,7 @@ class CrateMetadataParser:
             f"No ro-crate-metadata.json or ro-crate-info.yaml found under {root}"
         )
 
-
+## ## DO NOT DELETE
 class LocalPyCompssMetadataInspector:
     """Runs pycompss inspect on the crate metadata source using a PTY so Rich keeps colors."""
 
@@ -447,9 +149,6 @@ class LocalPyCompssMetadataInspector:
         self._executable = executable
 
     def inspect(self, document: MetadataDocument) -> MetadataInspectionResult:
-        import os
-        import pty
-        import subprocess
 
         target = document.path if document.path is not None else Path(document.source.location)
         # if you want the verbose output
@@ -521,7 +220,7 @@ class LocalPyCompssMetadataInspector:
             warning=f"pycompss inspect failed (exit code {return_code}): {details}",
         )
     
-
+### DO NOT DELETE
 class CrateMetadataNormalizer:
     """Turns a parsed MetadataDocument into domain models."""
 
@@ -558,7 +257,7 @@ class CrateMetadataNormalizer:
             authors=authors,
             participant=participant,
             license=workflow_info.get("license"),
-            data_persistence=self._infer_data_persistence(crate_root),
+            data_persistence=self._infer_data_persistence(root_entity=document.raw, entities_by_id={}),  # Placeholder for data persistence inference
             source_metadata_path=document.path,
         )
     
@@ -577,7 +276,7 @@ class CrateMetadataNormalizer:
         crate_root = document.path.parent if document.path else Path(document.source.location)
         crate = CrateSummary(
             source=CrateSource(type=CrateSourceKind.DIRECTORY, value=str(crate_root)),
-            location=CrateLocation(original_path=crate_root, copied_downloaded_crate_path=crate_root),
+            location=CrateLocation(original_path=crate_root, crate_path=crate_root),
             metadata=metadata,
             index=index,
         )
@@ -617,14 +316,14 @@ class CrateMetadataNormalizer:
             authors=authors,
             compss_version=compss_version,
             execution_site=execution_site,
-            data_persistence=self._infer_data_persistence(crate_root),
+            data_persistence=self._infer_data_persistence(root_entity=root_entity, entities_by_id=entities_by_id),
             source_metadata_path=document.path,
         )
 
         index = CrateIndex(sources=sources)
         crate = CrateSummary(
             source=CrateSource(type=CrateSourceKind.DIRECTORY, value=str(crate_root)),
-            location=CrateLocation(original_path=crate_root, copied_downloaded_crate_path=crate_root),
+            location=CrateLocation(original_path=crate_root, crate_path=crate_root),
             metadata=metadata,
             index=index,
         )
@@ -718,9 +417,35 @@ class CrateMetadataNormalizer:
 
         return tuple(sources)
 
-    def _infer_data_persistence(self, crate_root: Path) -> DataPersistenceKind:
-        dataset_dir = crate_root / "dataset"
-        return DataPersistenceKind.TRUE if dataset_dir.is_dir() else DataPersistenceKind.FALSE
+    #  # searching for the data persistence information in the crate root directory by checking if a "dataset" directory exists. If it does, it returns DataPersistenceKind.TRUE, otherwise DataPersistenceKind.FALSE.
+    # def _infer_data_persistence(self, crate_root: Path) -> DataPersistenceKind:
+    #     dataset_dir = crate_root / "dataset"
+    #     return DataPersistenceKind.TRUE if dataset_dir.is_dir() else DataPersistenceKind.FALSE
+
+    def extract_ids(self,value: object) -> list[str]:
+        ids: list[str] = []
+        if isinstance(value, dict):
+            id_value = value.get("@id")
+            if isinstance(id_value, str):
+                ids.append(id_value)
+        elif isinstance(value, list):
+            for item in value:
+                ids.extend(self.extract_ids(item)) 
+        return ids
+
+    def _infer_data_persistence(self, root_entity: dict, entities_by_id: dict[str, dict]) -> DataPersistenceKind:    
+        candidate_ids: list[str] = []
+    
+        candidate_ids.extend(self.extract_ids(root_entity.get("hasPart")))
+    
+        for entity in entities_by_id.values():
+            if isinstance(entity, dict):
+                entity_id = entity.get("@id")
+                if isinstance(entity_id, str):
+                    candidate_ids.append(entity_id)
+    
+        has_dataset_refs = any(item.startswith("dataset/") for item in candidate_ids)
+        return DataPersistenceKind.TRUE if has_dataset_refs else DataPersistenceKind.FALSE
 
     def _extract_email(self, person: dict) -> str | None:
         contact = person.get("contactPoint")
@@ -730,9 +455,7 @@ class CrateMetadataNormalizer:
                 return str(email)
         return None
 
-    def _extract_organization_name(
-        self,
-        person: dict,
+    def _extract_organization_name(self, person: dict,
         entities_by_id: dict[str, dict],
     ) -> str | None:
         affiliation = person.get("affiliation")
@@ -780,7 +503,6 @@ class CrateMetadataNormalizer:
 # Execution adapters
 # --------------------------------------------------------------------------- #
 
-
 class ShutilExecutionBackendDetector:
     """Detects SLURM vs local execution."""
 
@@ -798,7 +520,7 @@ class ShutilExecutionBackendDetector:
             return ExecutionBackend.SLURM
         return ExecutionBackend.LOCAL
 
-
+### DO NOT DELETE
 class SubprocessExecutionParticipant:
     """Runs the built COMPSs command as a local subprocess."""
 

@@ -25,7 +25,6 @@ the application use cases, drives them in order, and hands results to
 from __future__ import annotations
 
 import argparse
-import uuid
 import logging
 from pathlib import Path
 
@@ -42,37 +41,29 @@ from application.use_cases.build_execution_plan import (
     SubmissionCommandEdit,
 )
 
-from application.use_cases.import_crate import (
-    DefaultImportCrateService,
-    ImportCrateRequest,
-)
 from application.use_cases.inspect_crate import (
-    DefaultInspectCrateService,
-    InspectCrateRequest,
+    _inspect_rocrate_simple
 )
 from application.use_cases.prepare_provenance import (
     DefaultPrepareProvenanceService,
     PrepareProvenanceRequest,
 )
 from application.use_cases.verify_inputs import (
-    DefaultVerifyInputsService,
-    VerifyInputsRequest,
     VerifyInputsStatus,
+    _verify_rocrate_simple
 )
-from config import settings
+# from config import settings
 from config.settings import AppSettings, build_default_settings
 from domain.errors import ServiceError
 from domain.models.execution import ExecutionBackend
 from infrastructure.adapters import (
-    CrateMetadataNormalizer,
-    CrateMetadataParser,
-    LocalCrateSourceAcquirer,
-    LocalCrateSourceResolver,
-    LocalCrateSourceValidator,
     LocalFileSystem,
-    LocalPyCompssMetadataInspector,
     ShutilExecutionBackendDetector,
     SubprocessExecutionParticipant,
+)
+
+from application.use_cases.import_crate import (
+    _import_rocrate_simple,
 )
 from presentation.cli import view
 
@@ -153,7 +144,7 @@ def run_app(argv: list[str] | None = None) -> int:
         # runs_root is the directory where is executed the reproducibility service, and shared_crate_directory 
         # takes the current working where the reproducibility service is launched.
         runs_root = Path.cwd()
-        # .crate_downloaded is a temporary hidden directory, where the RO-Crate will be downloaded and extracted.
+        # a hidden directory named ".crate_downloaded" is created temporarily in the runs_root to store the downloaded crate from the URL.
         shared_crate_directory = runs_root / ".crate_downloaded"
 
     # if the source is a local path or zip file.
@@ -200,7 +191,10 @@ def run_app(argv: list[str] | None = None) -> int:
     # 2026-08-20 16:47:40,808 INFO source=workflow-635-1.crate.zip
     logger.info("source=%s", args.source)
 
-    # print the banner of the reproducibility service, which is the name of the service and a little description of it.
+    #1. print the banner of the reproducibility service, which is the name of the service and a little description of it.
+    # ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    # │                                                      COMPSs Reproducibility Service                                                      │
+    # ╰──────────────────────────────────────────── reproduce a COMPSs workflow run from an RO-Crate ────────────────────────────────────────────╯
     view.print_banner()
 
     # try to run the pipeline of the reproducibility service,
@@ -259,26 +253,35 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         ServiceError: If an error occurs during the pipeline execution.
     """
 
-    # create a LocalFileSystem instance to handle file system operations.
+    # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
     file_system = LocalFileSystem()
 
-    import_service = DefaultImportCrateService(
-        resolver=LocalCrateSourceResolver(),
-        validator=LocalCrateSourceValidator(),
-        acquirer=LocalCrateSourceAcquirer(),
-        file_system=file_system,
-        original_crate_dir_name=settings.original_crate_dir_name,
-        log_dir_name=settings.log_dir_name,
-        results_dir_name=settings.results_dir_name,
-    )
+    # calls the _import_rocrate_simple function to import the RO-Crate from the source provided by the user
+    # the function will return an ImportCrateResult object containing the imported crate and its location
+    # import_result = ImportCrateResult(
+    #     status=ImportCrateStatus.IMPORTED,
+    #     source=source_with_rocrate,
+    #     validation=validation,
+    #     acquisition=acquisition,
+    #     location=location,
+    #     crate=crate,
+    #     notes=("Crate source prepared successfully",),
+    # )
+    import_result = _import_rocrate_simple(args.source, workspace_directory, shared_crate_directory, file_system)
 
-    inspect_service = DefaultInspectCrateService(
-        parser=CrateMetadataParser(),
-        normalizer=CrateMetadataNormalizer(),
-        inspector=LocalPyCompssMetadataInspector(),
-    )
+    # ╭─ 1. Crate source imported ──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    # │ Source type   zip                                                                                                                   │
+    # │ Source name   workflow-635-1.crate.zip                                                                                              │
+    # │ Ro-Crate path /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate                                            │
+    # ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+    
+    view.print_import_result(import_result)
+    inspect_result = _inspect_rocrate_simple(import_result.location.crate_path)
 
-    verify_service = DefaultVerifyInputsService(file_system=file_system)
+    if inspect_result.crate is None:
+        logger.info("final_status=invalid_crate_metadata")
+        view.print_error("Could not build a usable crate summary from the metadata found.")
+        return None, None
 
     plan_service = DefaultBuildExecutionPlanService(
         backend_detector=ShutilExecutionBackendDetector(),
@@ -286,45 +289,44 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         results_dir_name=settings.results_dir_name,
     )
 
-    provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
-
-    import_result = view.run_with_spinner(
-        "Importing crate source...",
-        import_service.execute,
-        ImportCrateRequest(raw_source=args.source, workspace_directory=workspace_directory, crate_directory=shared_crate_directory,reuse_existing_crate=True)
-    )
-
-    view.print_import_result(import_result)
-
-    inspect_result = view.run_with_spinner(
-        "Inspecting crate metadata...",
-        inspect_service.execute,
-        InspectCrateRequest(crate_root=import_result.location.copied_downloaded_crate_path),
-    )
-    
-    if inspect_result.crate is None:
-        logger.info("final_status=invalid_crate_metadata")
-        view.print_error("Could not build a usable crate summary from the metadata found.")
-        return None, None
-    
     crate = inspect_result.crate
-
     original_submission_command = plan_service._discover_command(crate)
 
-    view.print_inspect_result(
-        inspect_result,
-        crate,
-        original_submission_command,
-    )
+    # ╭─ 2. Metadata inspected ───────────────────────────────────────────────────────────────────╮
+    # │ ───────────────────────────── RO-Crate Inspection ──────────────────────────────          │
+    # │ CRATE                                                                                     │
+    # │ /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate/ro-cr          │
+    # │ ate-metadata.json                                                                         │
+    # │ ├── Name —— PyCOMPSs Wordcount test, using files                                          │
+    # │ ├── Description —— **Name:** Word Count                                                   │
+    #       ·                                      ·                                        ·
+    #       ·                                      ·                                        ·       
+    #       ·                                      ·                                        ·                       
+    # │ ├── Authors                                                                               │
+    # │ │   └── Javier Conejero (Barcelona Supercomputing Center)                                 │
+    # │ │       (francisco.conejero@bsc.es)                                                       │
+    # │ ├── License —— Apache-2.0                                                                 │
+    # │ ├── Date Published —— Thursday, 02 of November of 2023 - 10:55 UTC                        │
+    # │ ├── Main entity —— application_sources/src/wordcount.py                                   │
+    # │ │   └── Programming language —— COMPSs Programming Model (3.2.rc2310)                     │
+    # │ └── Execution details                                                                     │
+    # │     ├── Status —— COMPLETED                                                               │
+    # │     ├── Host —— marenostrum4 —— Job ID —— 30498188                                        │
+    # │     ├── Agent —— Raül Sirvent (Barcelona Supercomputing Center)                           │
+    # │     │   (Raul.Sirvent@bsc.es)                                                             │
+    # │     └── Data assets —— 4 Inputs —— 1 Outputs                                              │
+    # │ ────────────────────────────────────────────────────────────────────────────────          │
+    # │ Submission command enqueue_compss --provenance --num_nodes=1 --qos=debug                  │
+    # │                    --job_name=wordcount_files --lang=python --log_level=debug --summary   │
+    # │                    --exec_time=5                                                          │
+    # │                    /home/bsc19/bsc19057/COMPSs-DP/tutorial_apps/python/wordcount/src/wor… │
+    # │                    /home/bsc19/bsc19057/COMPSs-DP/tutorial_apps/python/wordcount/data/    │
+    # │ Data persistence   true                                                                   │
+    # ╰───────────────────────────────────────────────────────────────────────────────────────────╯
 
-    if inspect_result.crate is None:
-        logger.info("final_status=invalid_crate_metadata")
-        view.print_error("Could not build a usable crate summary from the metadata found.")
-        return None, None
+    view.print_inspect_result(inspect_result, crate, original_submission_command)
 
-    crate = inspect_result.crate
-
-    verify_result = verify_service.execute(VerifyInputsRequest(crate=crate))
+    verify_result = _verify_rocrate_simple(crate, file_system)
     view.print_verification_table(verify_result)
 
     if verify_result.status == VerifyInputsStatus.FAILED:
@@ -341,7 +343,6 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
             "[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]"
         ).lower().startswith("y")
 
-    # New: ask participant name only when provenance is enabled and interactive mode is active
     if provenance_flag and not args.yes:
         wants_name = view.console.input(
             "[yellow]Do you want to provide your name ? [y/N]: [/yellow]"
@@ -350,7 +351,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
             typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
             if typed_name:
                 args.participant_name = typed_name
-            if not typed_name:
+            else:
                 view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
     plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_flag)
@@ -360,15 +361,27 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         plan_result.plan.backend.value,
         provenance_flag,
     )
+
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
-    if not args.yes and view.console.input( "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]" ).lower().startswith("y"):
-        plan_result = _update_plan_with_selected_flags( args=args, plan_service=plan_service, crate=crate, workspace_directory=workspace_directory, provenance_enabled=provenance_flag, current_plan=plan_result, logger=logger)
+    if not args.yes and view.console.input(
+        "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]"
+    ).lower().startswith("y"):
+        plan_result = _update_plan_with_selected_flags(
+            args=args,
+            plan_service=plan_service,
+            crate=crate,
+            workspace_directory=workspace_directory,
+            provenance_enabled=provenance_flag,
+            current_plan=plan_result,
+            logger=logger,
+        )
 
     view.print_execution_plan(plan_result.plan)
 
     if provenance_flag:
+        provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
         provenance_result = provenance_service.execute(
             PrepareProvenanceRequest(
                 crate=crate,
@@ -538,26 +551,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-# ro_crate_projects_folder = Path("/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/")
-
-
-# # matmul_files_local
-# # ro_crate = ro_crate_projects_folder / "matmul_files_local/COMPSs_RO-Crate_20260810_112548"
-
-# # # matmul_files_mn5
-# # ro_crate = ro_crate_projects_folder / "matmul_files_mn5/COMPSs_RO-Crate_20260804_112127"
-
-# # # matmul_objects_local
-# # ro_crate = ro_crate_projects_folder / "matmul_objects_local/COMPSs_RO-Crate_20260810_113019"
-
-# # # matmul_objects_mn5
-# # ro_crate = ro_crate_projects_folder / "matmul_objects_mn5/COMPSs_RO-Crate_20260804_112730"
-
-# # wordcount
-# ro_crate = ro_crate_projects_folder / "635/workflow-635-1.crate"
-
-# if __name__ == "__main__":
-#     raise SystemExit(run_app([
-#         str(ro_crate)
-#     ]))
