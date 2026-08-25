@@ -129,7 +129,6 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
                 source=source,
                 source_root=src_path,
                 prepared_root=dst_path,
-                copied=False,
             )
         else:
             try:
@@ -144,7 +143,6 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
                 source=source,
                 source_root=src_path,
                 prepared_root=dst_path,
-                copied=True,
             )
 
     elif source.type == CrateSourceKind.ZIP:
@@ -162,7 +160,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
             else:
                 archive_file.extractall(crate_directory)
                 prepared_root = crate_directory
-                
+
         acquisition = SourceAcquisitionResult(
             source=source,
             source_root=Path(source.value),

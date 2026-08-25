@@ -242,13 +242,10 @@ def print_import_result(result: ImportCrateResult) -> None:
     table.add_row("Source name", result.source.value)
     table.add_row("Ro-Crate path", str(result.location.copied_downloaded_crate_path))
     if result.acquisition is not None:
-        acquisition_type = _first_true(
-            copied=result.acquisition.copied,
-            extracted=result.acquisition.extracted,
-            downloaded=result.acquisition.downloaded,
-        )
-        #table.add_row("Acquisition", acquisition_type)
-    console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
+        table.add_row("Acquisition", result.acquisition.kind)
+    console.print(
+        Panel(table, title="1. Crate source imported", border_style="green", title_align="left")
+    )
 
 def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None, submission_command: str | None = None) -> None:
     if crate is None:

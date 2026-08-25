@@ -15,9 +15,16 @@ class SourceAcquisitionResult:
     source: CrateSource
     source_root: Path
     prepared_root: Path
-    copied: bool = False
     extracted: bool = False
     downloaded: bool = False
+
+    @property
+    def kind(self) -> str:
+        if self.downloaded:
+            return "downloaded"
+        if self.extracted:
+            return "extracted"
+        return "already in disk"
 
     def __post_init__(self) -> None:
         if not str(self.source_root).strip():
