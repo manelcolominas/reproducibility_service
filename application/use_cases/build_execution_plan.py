@@ -329,9 +329,36 @@ class DefaultBuildExecutionPlanService:
     def _select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
         if request.backend != ExecutionBackend.AUTO:
             return request.backend
-        if self._backend_detector is None:
+    
+        raw_command = request.submission_command or self._discover_command(request.crate)
+        inferred = self._infer_backend_from_command(raw_command)
+        if inferred == ExecutionBackend.SLURM:
+            return ExecutionBackend.SLURM
+    
+        if self._backend_detector is not None:
+            detected = self._backend_detector.detect()
+            if detected == ExecutionBackend.SLURM:
+                return ExecutionBackend.SLURM
+    
+        if inferred is not None:
+            return inferred
+    
+        return ExecutionBackend.LOCAL
+
+    def _infer_backend_from_command(self, raw_command: str | None) -> ExecutionBackend | None:
+        if not raw_command:
+            return None
+    
+        parts = raw_command.strip().split()
+        if not parts:
+            return None
+    
+        executable = Path(parts[0]).name
+        if executable == "enqueue_compss":
+            return ExecutionBackend.SLURM
+        if executable == "runcompss":
             return ExecutionBackend.LOCAL
-        return self._backend_detector.detect()
+        return None
 
     def _build_context(
         self,
