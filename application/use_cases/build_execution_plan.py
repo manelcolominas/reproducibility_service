@@ -73,6 +73,7 @@ def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
 FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     # LOCAL and SLURM shared flags
     FlagDefinition("--debug", "Enable debug mode for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d",)),
+    FlagDefinition("--pythonpath", "Path to Python modules for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--log_level", "Set the log level for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--lang", "Language for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--graph", "Enable graph generation shortcut.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
@@ -390,7 +391,7 @@ class DefaultBuildExecutionPlanService:
 
             if definition is not None and definition.prefer_equals:
                 arguments.append(f"{flag.token}={flag.value}")
-            elif "=" in flag.token:
+            elif "=" in flag.token or (flag.raw_tokens and "=" in flag.raw_tokens[0]):
                 arguments.append(f"{flag.token}={flag.value}")
             else:
                 arguments.extend([flag.token, flag.value])
