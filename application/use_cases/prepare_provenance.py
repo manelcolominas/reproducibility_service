@@ -53,8 +53,8 @@ def _is_placeholder_source(value: str) -> bool:
     text = value.strip()
     return (not text) or (text in _PLACEHOLDER_SOURCES) or ("absolute_path_to" in text)
 
-def _existing_path_from_source(raw_source: str, crate_root: Path) -> Path | None:
-    raw = raw_source.strip()
+def _existing_path_from_source(source_name: str, crate_root: Path) -> Path | None:
+    raw = source_name.strip()
     if not raw:
         return None
     path = Path(raw)

@@ -72,10 +72,11 @@ class ImportCrateResult:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-def _import_rocrate_simple(raw_source, workspace_directory, crate_directory, file_system):
-    raw_value = str(raw_source).strip()
+def _import_rocrate_simple(source_name, workspace_directory, crate_directory, file_system):
+    # take the source_name and convert
+    raw_value = str(source_name).strip()
     if not raw_value:
-        raise ValidationError("raw_source cannot be empty")
+        raise ValidationError("source_name cannot be empty")
 
     workspace_directory = Path(workspace_directory)
     crate_directory = Path(crate_directory)
@@ -149,7 +150,19 @@ def _import_rocrate_simple(raw_source, workspace_directory, crate_directory, fil
     elif source.type == CrateSourceKind.ZIP:
         file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
         with zipfile.ZipFile(Path(source.value)) as archive_file:
-            archive_file.extractall(crate_directory)
+            top_levels = {
+                Path(name).parts[0]
+                for name in archive_file.namelist()
+                if name and not name.startswith("/") and Path(name).parts
+            }
+        
+            if len(top_levels) == 1 and next(iter(top_levels)) == crate_directory.name:
+                archive_file.extractall(crate_directory.parent)
+                prepared_root = crate_directory
+            else:
+                archive_file.extractall(crate_directory)
+                prepared_root = crate_directory
+                
         acquisition = SourceAcquisitionResult(
             source=source,
             source_root=Path(source.value),

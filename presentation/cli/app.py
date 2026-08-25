@@ -256,16 +256,27 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
     file_system = LocalFileSystem()
 
+    # calls the _import_rocrate_simple function to import the RO-Crate from the source provided by the user, which can be a local directory, a .zip file, or a URL.
+    # the function will return an ImportCrateResult object containing the imported crate and its location
+    # import_result = ImportCrateResult(
+    #     source=source_with_rocrate,
+    #     location=location,
+    #     metadata=metadata,
+    #     rocrate=rocrate,
+    #     downloaded=True,
+    #     extracted=extracted,
+    #     status=ImportCrateStatus.IMPORTED,
+    # )
+    import_result = _import_rocrate_simple(args.source, workspace_directory, shared_crate_directory, file_system)
+
+    # ╭─ 1. Crate source imported ──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    # │ Source type   zip                                                                                                                   │
+    # │ Source name   workflow-635-1.crate.zip                                                                                              │
+    # │ Ro-Crate path /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate                                            │
+    # ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
     
-    import_result = view.run_with_spinner("Importing crate source...",_import_rocrate_simple,args.source,workspace_directory,shared_crate_directory,file_system)
-
     view.print_import_result(import_result)
-
-    inspect_result = view.run_with_spinner(
-        "Inspecting crate metadata...",
-        _inspect_rocrate_simple,
-        import_result.location.copied_downloaded_crate_path,
-    )
+    inspect_result = _inspect_rocrate_simple(import_result.location.copied_downloaded_crate_path)
 
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")
@@ -280,6 +291,39 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
 
     crate = inspect_result.crate
     original_submission_command = plan_service._discover_command(crate)
+
+    # ╭─ 2. Metadata inspected ───────────────────────────────────────────────────────────────────╮
+    # │ ───────────────────────────── RO-Crate Inspection ──────────────────────────────          │
+    # │ CRATE                                                                                     │
+    # │ /home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate/ro-cr          │
+    # │ ate-metadata.json                                                                         │
+    # │ ├── Name —— PyCOMPSs Wordcount test, using files                                          │
+    # │ ├── Description —— **Name:** Word Count                                                   │
+    #       ·                                      ·                                        ·
+    #       ·                                      ·                                        ·       
+    #       ·                                      ·                                        ·                       
+    # │ ├── Authors                                                                               │
+    # │ │   └── Javier Conejero (Barcelona Supercomputing Center)                                 │
+    # │ │       (francisco.conejero@bsc.es)                                                       │
+    # │ ├── License —— Apache-2.0                                                                 │
+    # │ ├── Date Published —— Thursday, 02 of November of 2023 - 10:55 UTC                        │
+    # │ ├── Main entity —— application_sources/src/wordcount.py                                   │
+    # │ │   └── Programming language —— COMPSs Programming Model (3.2.rc2310)                     │
+    # │ └── Execution details                                                                     │
+    # │     ├── Status —— COMPLETED                                                               │
+    # │     ├── Host —— marenostrum4 —— Job ID —— 30498188                                        │
+    # │     ├── Agent —— Raül Sirvent (Barcelona Supercomputing Center)                           │
+    # │     │   (Raul.Sirvent@bsc.es)                                                             │
+    # │     └── Data assets —— 4 Inputs —— 1 Outputs                                              │
+    # │ ────────────────────────────────────────────────────────────────────────────────          │
+    # │ Submission command enqueue_compss --provenance --num_nodes=1 --qos=debug                  │
+    # │                    --job_name=wordcount_files --lang=python --log_level=debug --summary   │
+    # │                    --exec_time=5                                                          │
+    # │                    /home/bsc19/bsc19057/COMPSs-DP/tutorial_apps/python/wordcount/src/wor… │
+    # │                    /home/bsc19/bsc19057/COMPSs-DP/tutorial_apps/python/wordcount/data/    │
+    # │ Data persistence   true                                                                   │
+    # ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
     view.print_inspect_result(inspect_result, crate, original_submission_command)
 
     verify_result = _verify_rocrate_simple(crate, file_system)

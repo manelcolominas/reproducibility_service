@@ -258,16 +258,11 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None,
     table = Table.grid(padding=(0, 1))
     table.add_column(style="bold cyan", no_wrap=True)
     table.add_column(style="white")
-    #table.add_row("COMPSs version",f"[green]{crate.metadata.compss_version or '[dim]-[/dim]'}[/green]")
-    #table.add_row("Executed at",f"[magenta]{crate.metadata.execution_site or '[dim]-[/dim]'}[/magenta]")
-    #table.add_row("License",f"[yellow]{crate.metadata.license or '[dim]-[/dim]'}[/yellow]")
     table.add_row(
         "Submission command",
         submission_command or "[dim]not resolved yet[/dim]",
     )
     table.add_row("Data persistence","[green]true[/green]" if crate.metadata.data_persistence.value == "true" else f"[red]{crate.metadata.data_persistence.value}[/red]")
-    #table.add_row("Authors", f"[blue]{len(crate.metadata.authors)}[/blue]")
-    #table.add_row("Sources", f"[blue]{len(crate.index.sources)}[/blue]")
 
     body = table
     if result.inspect_output:
@@ -334,9 +329,9 @@ def print_provenance_result(result: PrepareProvenanceResult) -> None:
             console.print(f"  [yellow]![/yellow] {warning}")
 
 def run_with_spinner(description: str, fn, *args, **kwargs):
-    with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True,
-    ) as progress:
+    """
+    """
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
         progress.add_task(description, total=None)
         return fn(*args, **kwargs)
 
