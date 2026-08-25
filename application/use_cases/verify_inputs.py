@@ -83,7 +83,7 @@ class VerifyInputsUseCase(Protocol):
 def _verify_rocrate_simple(crate: CrateSummary, file_system: LocalFileSystem) -> VerifyInputsResult:
     request = VerifyInputsRequest(crate=crate)
 
-    base_path = crate.location.copied_downloaded_crate_path
+    base_path = crate.location.crate_path
     results: list[ArtifactVerificationResult] = []
     warnings: list[str] = []
     notes: list[str] = []

@@ -256,16 +256,16 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
     file_system = LocalFileSystem()
 
-    # calls the _import_rocrate_simple function to import the RO-Crate from the source provided by the user, which can be a local directory, a .zip file, or a URL.
+    # calls the _import_rocrate_simple function to import the RO-Crate from the source provided by the user
     # the function will return an ImportCrateResult object containing the imported crate and its location
     # import_result = ImportCrateResult(
-    #     source=source_with_rocrate,
-    #     location=location,
-    #     metadata=metadata,
-    #     rocrate=rocrate,
-    #     downloaded=True,
-    #     extracted=extracted,
     #     status=ImportCrateStatus.IMPORTED,
+    #     source=source_with_rocrate,
+    #     validation=validation,
+    #     acquisition=acquisition,
+    #     location=location,
+    #     crate=crate,
+    #     notes=("Crate source prepared successfully",),
     # )
     import_result = _import_rocrate_simple(args.source, workspace_directory, shared_crate_directory, file_system)
 
@@ -276,7 +276,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
     
     view.print_import_result(import_result)
-    inspect_result = _inspect_rocrate_simple(import_result.location.copied_downloaded_crate_path)
+    inspect_result = _inspect_rocrate_simple(import_result.location.crate_path)
 
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")

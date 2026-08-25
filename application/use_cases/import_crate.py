@@ -73,34 +73,73 @@ class ImportCrateResult:
 
 
 def _import_rocrate_simple(source_name, workspace_directory, crate_directory, file_system):
-    # take the source_name and convert
+    # take the source_name and convert it to string and remove whitespace from both ends
     raw_value = str(source_name).strip()
+
+    # if the raw_value is empty, raise a ValidationError
     if not raw_value:
         raise ValidationError("source_name cannot be empty")
 
-    workspace_directory = Path(workspace_directory)
-    crate_directory = Path(crate_directory)
-
+    # if the raw_value starts with "http://" or "https://", then it is a URL
     if raw_value.startswith(("http://", "https://")):
+        # create a CrateSource object with type URL and value raw_value
+        # CrateSourceKind is a class that defines the type of source, in this case URL
         source = CrateSource(type=CrateSourceKind.URL, value=raw_value)
+
+        # we assume that the URL exists and is readable
         exists = readable = True
-        directory = archive = False
+
+        # we set directory and file to False because it is a URL
+        directory = file = False
+
+        # we set url to True because it is a URL
         url = True
+    # if the raw_value is a path to a file or directory
     else:
+        # converts the raw_value to a Path object
         source_path = Path(raw_value).expanduser()
+
+        # if the source_path has a suffix of ".zip", then it is a zip file
         if source_path.suffix.lower() == ".zip":
+            # create a CrateSource object with type ZIP and value the source_path
             source = CrateSource(type=CrateSourceKind.ZIP, value=str(source_path))
+            # we check if the source_path exists
             exists = source_path.exists()
-            readable = os.access(source_path, os.R_OK) if exists else False
+            if exists:
+                # we check if the source_path is readable
+                readable = os.access(source_path, os.R_OK)
+            else:
+                readable = False
+            # we set directory to False because it is a zip file
             directory = False
-            archive = exists and readable and zipfile.is_zipfile(source_path)
+            # we check if the source_path is a zip file
+            if exists and readable and zipfile.is_zipfile(source_path):
+                    file = True
+            else:
+                    file = False
             url = False
+
+        ###
+        ### we could support more compressed file formats here.
+        ###
+
+        # if it is not a zip file, then source_path is assumed to be a directory
         else:
+            # create a CrateSource object with type DIRECTORY and value the source_path
             source = CrateSource(type=CrateSourceKind.DIRECTORY, value=str(source_path))
+            # we check if the source_path exists
             exists = source_path.exists()
-            readable = os.access(source_path, os.R_OK) if exists else False
-            directory = source_path.is_dir() if exists else False
-            archive = False
+            if exists:
+                # we check if the source_path is readable
+                readable = os.access(source_path, os.R_OK)
+                # we check if the source_path is a directory
+                directory = source_path.is_dir()
+            else:
+                # we set readable and directory to False because the source_path does not exist
+                readable = False
+                directory = False
+            # we set file and url to False because it is a directory
+            file = False
             url = False
 
     validation = SourceValidationResult(
@@ -108,9 +147,9 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         exists=exists,
         readable=readable,
         directory=directory,
-        archive=archive,
+        file=file,
         url=url,
-        message="" if (exists and readable and (directory or archive or url)) else f"Invalid source: {raw_value}",
+        message="" if (exists and readable and (directory or file or url)) else f"Invalid source: {raw_value}",
     )
 
     if not validation.is_valid:
@@ -207,23 +246,23 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
 
     location = CrateLocation(
         original_path=acquisition.source_root,
-        copied_downloaded_crate_path=acquisition.prepared_root,
+        crate_path=acquisition.prepared_root,
     )
 
-    rocrate = load_rocrate_if_valid(location.copied_downloaded_crate_path)
+    rocrate = load_rocrate_if_valid(location.crate_path)
     if rocrate is None:
         rocrate = ensure_rocrate(
-            location.copied_downloaded_crate_path,
-            name=location.copied_downloaded_crate_path.name,
+            location.crate_path,
+            name=location.crate_path.name,
             description=f"Imported crate from {source.value}",
         )
 
     source_with_rocrate = source.with_rocrate(rocrate)
 
     metadata = WorkflowMetadata(
-        name=(rocrate.root_dataset.get("name") if rocrate else location.copied_downloaded_crate_path.name) or "unnamed-workflow",
+        name=(rocrate.root_dataset.get("name") if rocrate else location.crate_path.name) or "unnamed-workflow",
         description=str((rocrate.root_dataset.get("description") if rocrate else "") or ""),
-        source_metadata_path=location.copied_downloaded_crate_path / "ro-crate-metadata.json",
+        source_metadata_path=location.crate_path / "ro-crate-metadata.json",
         rocrate=rocrate,
     )
 

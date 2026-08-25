@@ -350,7 +350,7 @@ class DefaultBuildExecutionPlanService:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
 
         schema = {flag.name: flag for flag in FLAG_DEFINITIONS}
-        crate_root = request.crate.location.copied_downloaded_crate_path
+        crate_root = request.crate.location.crate_path
 
         parsed = self.parse_submission_command(raw_command, schema)
         parsed = self.normalize_executable(parsed, backend, request.runtime_executable)
@@ -698,7 +698,7 @@ class DefaultBuildExecutionPlanService:
         return text
 
     def _discover_command(self, crate: CrateSummary) -> str | None:
-        crate_root = crate.location.copied_downloaded_crate_path
+        crate_root = crate.location.crate_path
     
         for path in [crate_root / "compss_submission_command_line.txt", *sorted(crate_root.rglob("compss_submission_command_line.txt"))]:
             if path.is_file():

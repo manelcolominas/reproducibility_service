@@ -26,6 +26,10 @@ from rocrate.rocrate import ROCrate
 
 
 class CrateSourceKind(str, Enum):
+    """
+        Represents the kind of source from which a crate 
+        can be imported. It can be a directory, a zip file, or a URL.
+    """
     DIRECTORY = "directory"
     ZIP = "zip"
     URL = "url"
@@ -63,13 +67,13 @@ class CrateSource:
 @dataclass(frozen=True, slots=True)
 class CrateLocation:
     original_path: Path
-    copied_downloaded_crate_path: Path
+    crate_path: Path
 
     def __post_init__(self) -> None:
         if not str(self.original_path).strip():
             raise ValueError("CrateLocation.original_path cannot be empty")
-        if not str(self.copied_downloaded_crate_path).strip():
-            raise ValueError("CrateLocation.copied_downloaded_crate_path cannot be empty")
+        if not str(self.crate_path).strip():
+            raise ValueError("CrateLocation.crate_path cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)

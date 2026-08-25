@@ -67,7 +67,7 @@ def _existing_path_from_source(source_name: str, crate_root: Path) -> Path | Non
 
 
 def _collect_real_sources(crate: CrateSummary) -> list[str]:
-    crate_root = crate.location.copied_downloaded_crate_path or crate.location.original_path
+    crate_root = crate.location.crate_path or crate.location.original_path
     if crate_root is None:
         return []
 
@@ -206,7 +206,7 @@ class DefaultPrepareProvenanceService:
 
     def build_plan(self, request: PrepareProvenanceRequest) -> PrepareProvenancePlan:
         provenance_root = request.provenance_root
-        metadata_path = request.crate.location.copied_downloaded_crate_path or request.crate.location.original_path
+        metadata_path = request.crate.location.crate_path or request.crate.location.original_path
         if metadata_path is None:
             raise PrepareProvenanceFailure(
                 "Could not determine crate metadata location",

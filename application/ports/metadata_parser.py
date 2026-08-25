@@ -42,7 +42,6 @@ class MetadataFormat(str, Enum):
 class MetadataSourceKind(str, Enum):
     FILE = "file"
     DIRECTORY = "directory"
-    ARCHIVE = "archive"
     URL = "url"
 
 

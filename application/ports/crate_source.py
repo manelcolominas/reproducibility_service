@@ -39,13 +39,13 @@ class SourceValidationResult:
     exists: bool
     readable: bool
     directory: bool
-    archive: bool
+    file: bool
     url: bool
     message: str = ""
 
     @property
     def is_valid(self) -> bool:
-        return self.exists and self.readable and (self.directory or self.archive or self.url)
+        return self.exists and self.readable and (self.directory or self.file or self.url)
 
 def is_remote_source(source: CrateSource) -> bool:
     return source.type == CrateSourceKind.URL
