@@ -327,22 +327,23 @@ class DefaultBuildExecutionPlanService:
         )
 
     def _select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
+        # Respect explicit user choice first
         if request.backend != ExecutionBackend.AUTO:
             return request.backend
     
-        raw_command = request.submission_command or self._discover_command(request.crate)
-        inferred = self._infer_backend_from_command(raw_command)
-        if inferred == ExecutionBackend.SLURM:
-            return ExecutionBackend.SLURM
-    
+        # In auto mode, prioritize the runtime environment detection
         if self._backend_detector is not None:
             detected = self._backend_detector.detect()
-            if detected == ExecutionBackend.SLURM:
-                return ExecutionBackend.SLURM
+            if detected in (ExecutionBackend.LOCAL, ExecutionBackend.SLURM):
+                return detected
     
+        # Fallback to crate command inference only if detection is unavailable
+        raw_command = request.submission_command or self._discover_command(request.crate)
+        inferred = self._infer_backend_from_command(raw_command)
         if inferred is not None:
             return inferred
     
+        # Safe default
         return ExecutionBackend.LOCAL
 
     def _infer_backend_from_command(self, raw_command: str | None) -> ExecutionBackend | None:
