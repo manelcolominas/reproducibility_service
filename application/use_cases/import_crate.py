@@ -30,7 +30,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, unquote
 
-from rocrate.rocrate import ROCrate
+#from rocrate.rocrate import ROCrate
 
 from application.ports.crate_source import (
     SourceAcquisitionResult,
@@ -38,7 +38,6 @@ from application.ports.crate_source import (
     ensure_rocrate,
     load_rocrate_if_valid,
 )
-from application.ports.file_system import DirectoryCreateRequest
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import (
     CrateLocation,
@@ -97,23 +96,23 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     # if the raw_value is a path to a file or directory
     else:
         # converts the raw_value to a Path object
-        source_path = Path(raw_value).expanduser()
+        source_relative_path = Path(raw_value).expanduser()
 
-        # if the source_path has a suffix of ".zip", then it is a zip file
-        if source_path.suffix.lower() == ".zip":
-            # create a CrateSource object with type ZIP and value the source_path
-            source = CrateSource(type=CrateSourceKind.ZIP, value=str(source_path))
-            # we check if the source_path exists
-            exists = source_path.exists()
+        # if the source_relative_path has a suffix of ".zip", then it is a zip file
+        if source_relative_path.suffix.lower() == ".zip":
+            # create a CrateSource object with type ZIP and value the source_relative_path
+            source = CrateSource(type=CrateSourceKind.ZIP, value=str(source_relative_path))
+            # we check if the source_relative_path exists
+            exists = source_relative_path.exists()
             if exists:
-                # we check if the source_path is readable
-                readable = os.access(source_path, os.R_OK)
+                # we check if the source_relative_path is readable
+                readable = os.access(source_relative_path, os.R_OK)
             else:
                 readable = False
             # we set directory to False because it is a zip file
             directory = False
-            # we check if the source_path is a zip file
-            if exists and readable and zipfile.is_zipfile(source_path):
+            # we check if the source_relative_path is a zip file
+            if exists and readable and zipfile.is_zipfile(source_relative_path):
                     file = True
             else:
                     file = False
@@ -123,19 +122,19 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         ### we could support more compressed file formats here.
         ###
 
-        # if it is not a zip file, then source_path is assumed to be a directory
+        # if it is not a zip file, then source_relative_path is assumed to be a directory
         else:
-            # create a CrateSource object with type DIRECTORY and value the source_path
-            source = CrateSource(type=CrateSourceKind.DIRECTORY, value=str(source_path))
-            # we check if the source_path exists
-            exists = source_path.exists()
+            # create a CrateSource object with type DIRECTORY and value the source_relative_path
+            source = CrateSource(type=CrateSourceKind.DIRECTORY, value=str(source_relative_path))
+            # we check if the source_relative_path exists
+            exists = source_relative_path.exists()
             if exists:
-                # we check if the source_path is readable
-                readable = os.access(source_path, os.R_OK)
-                # we check if the source_path is a directory
-                directory = source_path.is_dir()
+                # we check if the source_relative_path is readable
+                readable = os.access(source_relative_path, os.R_OK)
+                # we check if the source_relative_path is a directory
+                directory = source_relative_path.is_dir()
             else:
-                # we set readable and directory to False because the source_path does not exist
+                # we set readable and directory to False because the source_relative_path does not exist
                 readable = False
                 directory = False
             # we set file and url to False because it is a directory
@@ -147,51 +146,60 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         message = f"Invalid source: {raw_value}"
     else:
         message = ""
-    # a SourceValidationResult object is created with attributes shown above. 
-    validation = SourceValidationResult(
-        source=source,
-        exists=exists,
-        readable=readable,
-        directory=directory,
-        file=file,
-        url=url,
-        message=message,
-    )
+    # a SourceValidationResult object is created with attributes shown above.
+    # that basically stores the bool values of the source validation checks, if it exists, 
+    # if it is readable, if it is a directory, if it is a file, if it is a url and a message.
+    validation = SourceValidationResult(source=source, exists=exists,readable=readable,directory=directory,file=file,url=url,message=message)
 
+    # we call the function is_valid from the SourceValidationResult class to check if the source
+    # is valid, if not we raise a FileSystemError with the message from the validation object.
     if not validation.is_valid:
         raise FileSystemError("Source validation failed", details=validation.message)
 
-    file_system.create_directory(DirectoryCreateRequest(path=workspace_directory, parents=True, exist_ok=True))
+    # we create the workspace directory (reproducibility_service_{run_id}) if it does not exist,
+    #  using the create_directory function from the file_system object
+    file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
 
+    # if the source is a directory we enter into this block
     if source.type == CrateSourceKind.DIRECTORY:
-        file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
-        src_path = Path(source.value).expanduser().resolve()
-        dst_path = crate_directory.resolve()
+        # we create the crate directory if it does not exist, using the create_directory function from
+        # the file_system object
+        file_system.create_directory(path=crate_directory, parents=True, exist_ok=True)
+
+        # we get the absolute path of the source
+        source_absolute_path = Path(source.value).expanduser().resolve()
+
+        # we get the absolute path of the crate directory
+        destination_absolute_path = crate_directory.resolve()
     
         # If source and destination are the same directory, reuse in place.
-        if src_path == dst_path:
+        # it will enter this block if the execution of the reproducibility service is in the same directory as the crate source
+        if source_absolute_path == destination_absolute_path:
+            # the SourceAcquisitionResult is an object that his main objective is to store how
+            # was obtained the crate source, if it was downloaded, extracted or was already in
+            # the disk.
+
+            # here we are creating a initial SourceAcquisitionResult object with the source, 
+            # source_root and prepared_root attributes. after we will set the important attributes 
             acquisition = SourceAcquisitionResult(
                 source=source,
-                source_root=src_path,
-                prepared_root=dst_path,
+                source_root=source_absolute_path,
+                prepared_root=destination_absolute_path,
             )
         else:
             try:
-                shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+                shutil.copytree(source_absolute_path, destination_absolute_path, dirs_exist_ok=True)
             except shutil.Error as exc:
-                raise FileSystemError(
-                    "Could not copy crate directory",
-                    details=str(exc),
-                ) from exc
+                raise FileSystemError("Could not copy crate directory",details=str(exc)) from exc
     
             acquisition = SourceAcquisitionResult(
                 source=source,
-                source_root=src_path,
-                prepared_root=dst_path,
+                source_root=source_absolute_path,
+                prepared_root=destination_absolute_path,
             )
 
     elif source.type == CrateSourceKind.ZIP:
-        file_system.create_directory(DirectoryCreateRequest(path=crate_directory, parents=True, exist_ok=True))
+        file_system.create_directory(path=crate_directory, parents=True, exist_ok=True)
         with zipfile.ZipFile(Path(source.value)) as archive_file:
             top_levels = {
                 Path(name).parts[0]
@@ -224,7 +232,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
 
         final_dirname = _crate_dirname_from_downloaded_filename(downloaded_filename)
         final_crate_directory = crate_directory.parent / final_dirname
-        file_system.create_directory(DirectoryCreateRequest(path=final_crate_directory, parents=True, exist_ok=True))
+        file_system.create_directory(path=final_crate_directory, parents=True, exist_ok=True)
         
         temp_zip = final_crate_directory.parent / ".downloaded_rocrate.zip"
         temp_zip.write_bytes(download_bytes)

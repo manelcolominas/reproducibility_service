@@ -36,15 +36,24 @@ class FileMetadata:
             raise ValueError("FileMetadata.path cannot be empty")
 
 
-@dataclass(frozen=True, slots=True)
-class DirectoryCreateRequest:
-    path: Path
-    parents: bool = True
-    exist_ok: bool = True
+# @dataclass(frozen=True, slots=True)
+# class DirectoryCreateRequest:
+#     path: Path
+#     parents: bool = True
+#     exist_ok: bool = True
 
 
 @dataclass(frozen=True, slots=True)
 class FileSystemOperationResult:
+    """
+    Represents the result of a file system operation.
+
+    Attributes:
+        path (Path): The path on which the operation was performed.
+        succeeded (bool): Whether the operation succeeded.
+        message (str): An optional message providing additional information.
+        bytes_transferred (int | None): The number of bytes transferred, if applicable.
+    """
     path: Path
     succeeded: bool
     message: str = ""

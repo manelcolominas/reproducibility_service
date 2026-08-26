@@ -10,8 +10,8 @@
       "cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635",
       "console": "integratedTerminal",
       "args": [
-        "https://workflowhub.org/workflows/635/ro_crate?version=1"
-        //"workflow-635-1.crate"
+        //"https://workflowhub.org/workflows/635/ro_crate?version=1"
+        "workflow-635-1.crate"
         //"workflow-635-1.crate.zip"
       ]
     }

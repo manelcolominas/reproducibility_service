@@ -28,7 +28,6 @@ import yaml
 
 from application.ports.executor import ExecutionOutcome
 from application.ports.file_system import (
-    DirectoryCreateRequest,
     FileMetadata,
     FileSystemOperationResult,
 )
@@ -99,12 +98,23 @@ class LocalFileSystem:
             size_bytes=path.stat().st_size if exists and path.is_file() else None,
         )
     
-    def create_directory(self, request: DirectoryCreateRequest) -> FileSystemOperationResult:
+    def create_directory(self, path: Path, parents: bool, exist_ok: bool) -> FileSystemOperationResult:
+        """
+        Creates a directory at the specified path.
+
+        Parameters:
+            path (Path): The path of the directory to create.
+            parents (bool): Whether to create parent directories if they do not exist.
+            exist_ok (bool): Whether to ignore the error if the directory already exists.
+
+        Returns:
+            FileSystemOperationResult: The status of the directory creation operation.
+        """
         try:
-            Path(request.path).mkdir(parents=request.parents, exist_ok=request.exist_ok)
-            return FileSystemOperationResult(path=request.path, succeeded=True)
+            Path(path).mkdir(parents=parents, exist_ok=exist_ok)
+            return FileSystemOperationResult(path=path, succeeded=True)
         except OSError as exc:
-            return FileSystemOperationResult(path=request.path, succeeded=False, message=str(exc))
+            return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
 
     def write_text(self, path: Path, content: str, encoding: str = "utf-8") -> FileSystemOperationResult:
         path = Path(path)

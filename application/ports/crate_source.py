@@ -12,6 +12,12 @@ from domain.models.crate import CrateSource, CrateSourceKind
 
 @dataclass(frozen=True, slots=True)
 class SourceAcquisitionResult:
+    """
+    The SourceAcquisitionResult is an object whose main objective is to store how
+    the crate source was obtained, whether it was downloaded, extracted, or was already on
+    the disk.
+    """
+
     source: CrateSource
     source_root: Path
     prepared_root: Path
@@ -35,6 +41,12 @@ class SourceAcquisitionResult:
 
 @dataclass(frozen=True, slots=True)
 class SourceValidationResult:
+    """
+    A class made to store the result of validating a CrateSource. 
+    It saves the attributes that indicate if the source exists, if
+    it is readable, if it is a directory, if it is a file, if it is
+    a URL, and a message describing the validation result.
+    """
     source: CrateSource
     exists: bool
     readable: bool

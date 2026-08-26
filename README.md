@@ -18,8 +18,10 @@ A CLI tool that reproduces a [COMPSs](https://compss-doc.readthedocs.io/) workfl
 Run the service with the path or URL to the RO-Crate as the first argument:
 
 ```bash
-compss_reproducibility_service <link_or_path_to_crate> [options]
+compss_reproducibility_service <url_or_path_to_crate> [options]
 ```
+
+`The path to the RO-Crate can be an absolute or a relative path`
 
 For example:
 

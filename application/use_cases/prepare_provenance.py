@@ -25,7 +25,6 @@ from typing import Any
 
 import yaml
 
-from application.ports.file_system import DirectoryCreateRequest
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, DataPersistenceKind
@@ -310,9 +309,7 @@ class DefaultPrepareProvenanceService:
         request: PrepareProvenanceRequest,
     ) -> Path:
         if not self._file_system.exists(target_path.parent):
-            self._file_system.create_directory(
-                DirectoryCreateRequest(path=target_path.parent, parents=True, exist_ok=True)
-            )
+            self._file_system.create_directory(path=target_path.parent, parents=True, exist_ok=True)
 
         content = render_ro_crate_info_yaml(metadata, request.crate)
         write_result = self._file_system.write_text(target_path, content)
