@@ -183,8 +183,31 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         # we extract all the contents of the zip file into the parent directory of the crate directory
         # is very important to extract them in the parent directory of the crate directory
         # not in the crate directory itself
+        # if we do it in the crate directory itself, it will get a double nested structure like this :
+        # RO-Crate 
+        #   └── RO-Crate
+        #       │   ├── application_sources
+        #       │   ├── pom.xml
+        #       │   ├── README
+        #       │   └── src
+        #       │       └── wordcount.py
+        #       ├── App_Profile.json
+        #       ├── complete_graph.svg
+        #       ├── compss_submission_command_line.txt
+        #       ├── dataset
+        #       │   └── data
+        #       │       ├── file0.txt
+        #       │       ├── file1.txt
+        #       │       ├── file2.txt
+        #       │       └── file3.txt
+        #       ├── ro-crate-info.yaml
+        #       ├── ro-crate-metadata.json
+        #       └── ro-crate-preview.html
+
+        # therefore, we extract it in the parent directory of the crate directory
         archive_file.extractall(crate_directory.parent)
 
+        # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
         acquisition = SourceAcquisitionResult(
             source=source,
             source_root=Path(source.name),
