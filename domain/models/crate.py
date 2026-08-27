@@ -53,12 +53,12 @@ class ArtifactKind(str, Enum):
 @dataclass(frozen=True, slots=True)
 class CrateSource:
     type: CrateSourceKind
-    value: str
+    name: str
     rocrate: ROCrate | None = None
 
     def __post_init__(self) -> None:
-        if not self.value.strip():
-            raise ValueError("CrateSource.value cannot be empty")
+        if not self.name.strip():
+            raise ValueError("CrateSource.name cannot be empty")
 
     def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSource":
         return replace(self, rocrate=rocrate)

@@ -239,7 +239,7 @@ def print_error(message: str, details: str | None = None) -> None:
 def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Source type", result.source.type.value)
-    table.add_row("Source name", result.source.value)
+    table.add_row("Source name", result.source.name)
     table.add_row("Ro-Crate path", str(result.location.crate_path))
     if result.acquisition is not None:
         table.add_row("Acquisition", result.acquisition.kind)

@@ -7,7 +7,7 @@ from typing import runtime_checkable
 
 from rocrate.rocrate import ROCrate
 
-from domain.models.crate import CrateSource, CrateSourceKind
+from domain.models.crate import CrateSource
 
 
 @dataclass(frozen=True, slots=True)

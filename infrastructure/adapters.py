@@ -109,6 +109,12 @@ class LocalFileSystem:
 
         Returns:
             FileSystemOperationResult: The status of the directory creation operation.
+            
+            class FileSystemOperationResult:
+                path: Path The path on which the operation was performed.
+                succeeded: bool Whether the operation succeeded.
+                message: str = "" An optional message providing additional information about the operation.
+                bytes_transferred: int | None = None The number of bytes transferred during the operation, if applicable.
         """
         try:
             Path(path).mkdir(parents=parents, exist_ok=exist_ok)
@@ -289,7 +295,7 @@ class CrateMetadataNormalizer:
     
         crate_root = document.path.parent if document.path else Path(document.source.location)
         crate = CrateSummary(
-            source=CrateSource(type=CrateSourceKind.DIRECTORY, value=str(crate_root)),
+            source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
             location=CrateLocation(original_path=crate_root, crate_path=crate_root),
             metadata=metadata,
             index=index,
@@ -336,7 +342,7 @@ class CrateMetadataNormalizer:
 
         index = CrateIndex(sources=sources)
         crate = CrateSummary(
-            source=CrateSource(type=CrateSourceKind.DIRECTORY, value=str(crate_root)),
+            source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
             location=CrateLocation(original_path=crate_root, crate_path=crate_root),
             metadata=metadata,
             index=index,

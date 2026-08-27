@@ -83,7 +83,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     if raw_value.startswith(("http://", "https://")):
         # create a CrateSource object with type URL and value raw_value
         # CrateSourceKind is a class that defines the type of source, in this case URL
-        source = CrateSource(type=CrateSourceKind.URL, value=raw_value)
+        source = CrateSource(type=CrateSourceKind.URL, name=raw_value)
 
         # we assume that the URL exists and is readable
         exists = readable = True
@@ -101,7 +101,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         # if the source_relative_path has a suffix of ".zip", then it is a zip file
         if source_relative_path.suffix.lower() == ".zip":
             # create a CrateSource object with type ZIP and value the source_relative_path
-            source = CrateSource(type=CrateSourceKind.ZIP, value=str(source_relative_path))
+            source = CrateSource(type=CrateSourceKind.ZIP, name=str(source_relative_path))
             # we check if the source_relative_path exists
             exists = source_relative_path.exists()
             if exists:
@@ -125,7 +125,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         # if it is not a zip file, then source_relative_path is assumed to be a directory
         else:
             # create a CrateSource object with type DIRECTORY and value the source_relative_path
-            source = CrateSource(type=CrateSourceKind.DIRECTORY, value=str(source_relative_path))
+            source = CrateSource(type=CrateSourceKind.DIRECTORY, name=str(source_relative_path))
             # we check if the source_relative_path exists
             exists = source_relative_path.exists()
             if exists:
@@ -167,66 +167,37 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         file_system.create_directory(path=crate_directory, parents=True, exist_ok=True)
 
         # we get the absolute path of the source
-        source_absolute_path = Path(source.value).expanduser().resolve()
+        source_absolute_path = Path(source.name).expanduser().resolve()
 
         # we get the absolute path of the crate directory
         destination_absolute_path = crate_directory.resolve()
-    
-        # If source and destination are the same directory, reuse in place.
-        # it will enter this block if the execution of the reproducibility service is in the same directory as the crate source
-        if source_absolute_path == destination_absolute_path:
-            # the SourceAcquisitionResult is an object that his main objective is to store how
-            # was obtained the crate source, if it was downloaded, extracted or was already in
-            # the disk.
 
-            # here we are creating a initial SourceAcquisitionResult object with the source, 
-            # source_root and prepared_root attributes. after we will set the important attributes 
-            acquisition = SourceAcquisitionResult(
-                source=source,
-                source_root=source_absolute_path,
-                prepared_root=destination_absolute_path,
-            )
-        else:
-            try:
-                shutil.copytree(source_absolute_path, destination_absolute_path, dirs_exist_ok=True)
-            except shutil.Error as exc:
-                raise FileSystemError("Could not copy crate directory",details=str(exc)) from exc
-    
-            acquisition = SourceAcquisitionResult(
-                source=source,
-                source_root=source_absolute_path,
-                prepared_root=destination_absolute_path,
-            )
+        # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
+        # and the absolute path of the prepared crate directory
+        acquisition = SourceAcquisitionResult(source=source, source_root=source_absolute_path,prepared_root=destination_absolute_path)
 
+    # if the source is a zip file we enter into this block
     elif source.type == CrateSourceKind.ZIP:
-        file_system.create_directory(path=crate_directory, parents=True, exist_ok=True)
-        with zipfile.ZipFile(Path(source.value)) as archive_file:
-            top_levels = {
-                Path(name).parts[0]
-                for name in archive_file.namelist()
-                if name and not name.startswith("/") and Path(name).parts
-            }
-        
-            if len(top_levels) == 1 and next(iter(top_levels)) == crate_directory.name:
-                archive_file.extractall(crate_directory.parent)
-                prepared_root = crate_directory
-            else:
-                archive_file.extractall(crate_directory)
-                prepared_root = crate_directory
+        # we create a ZipFile object from the source name
+        archive_file = zipfile.ZipFile(Path(source.name))
+        # we extract all the contents of the zip file into the parent directory of the crate directory
+        # is very important to extract them in the parent directory of the crate directory
+        # not in the crate directory itself
+        archive_file.extractall(crate_directory.parent)
 
         acquisition = SourceAcquisitionResult(
             source=source,
-            source_root=Path(source.value),
+            source_root=Path(source.name),
             prepared_root=crate_directory,
             extracted=True,
         )
 
     else:
-        request = Request(source.value, headers=BROWSER_HEADERS, method="GET")
+        request = Request(source.name, headers=BROWSER_HEADERS, method="GET")
         try:
             with urlopen(request, timeout=30) as response:
                 download_bytes = response.read()
-                downloaded_filename = _filename_from_http_response(response, source.value)
+                downloaded_filename = _filename_from_http_response(response, source.name)
         except (HTTPError, URLError, OSError) as exc:
             raise FileSystemError("Could not download crate source", details=str(exc)) from exc
 
@@ -252,7 +223,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
 
         acquisition = SourceAcquisitionResult(
             source=source,
-            source_root=Path(source.value),
+            source_root=Path(source.name),
             prepared_root=prepared_root,
             downloaded=True,
             extracted=extracted,
@@ -268,7 +239,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         rocrate = ensure_rocrate(
             location.crate_path,
             name=location.crate_path.name,
-            description=f"Imported crate from {source.value}",
+            description=f"Imported crate from {source.name}",
         )
 
     source_with_rocrate = source.with_rocrate(rocrate)

@@ -6,13 +6,14 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/reproducibility_service.py",
-      //"cwd": "${workspaceFolder}",
       "cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635",
+      //"cwd": "/home/mcolomin/Desktop",
       "console": "integratedTerminal",
       "args": [
         //"https://workflowhub.org/workflows/635/ro_crate?version=1"
-        "workflow-635-1.crate"
-        //"workflow-635-1.crate.zip"
+        //"workflow-635-1.crate"
+        "workflow-635-1.crate.zip"
+        //"/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate"
       ]
     }
   ]
