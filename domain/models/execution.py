@@ -64,8 +64,6 @@ class ExecutionContext:
     workspace_directory: Path
     log_directory: Path
     results_directory: Path
-    preserve_logs: bool = True
-    cleanup_on_failure: bool = False
 
     @property
     def execution_directory(self) -> Path:

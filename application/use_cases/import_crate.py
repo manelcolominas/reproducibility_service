@@ -20,11 +20,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+import json
 from pathlib import Path
 import os
 import shutil
 import re
-from urllib import response
+import requests
 import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -159,6 +160,10 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     # we create the workspace directory (reproducibility_service_{run_id}) if it does not exist,
     #  using the create_directory function from the file_system object
     file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
+    # we get the absolute path of the source
+    source_absolute_path = Path(source.name).expanduser().resolve()
+    # we get the absolute path of the crate directory
+    destination_absolute_path = crate_directory.resolve()
 
     # if the source is a directory we enter into this block
     if source.type == CrateSourceKind.DIRECTORY:
@@ -166,15 +171,11 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         # the file_system object
         file_system.create_directory(path=crate_directory, parents=True, exist_ok=True)
 
-        # we get the absolute path of the source
-        source_absolute_path = Path(source.name).expanduser().resolve()
-
-        # we get the absolute path of the crate directory
-        destination_absolute_path = crate_directory.resolve()
-
         # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
-        # and the absolute path of the prepared crate directory
-        acquisition = SourceAcquisitionResult(source=source, source_root=source_absolute_path,prepared_root=destination_absolute_path)
+        #############################################################
+        #  and the absolute path of the prepared root directory. ????????
+        #################################################################
+        acquisition = SourceAcquisitionResult(source=source, source_root=source_absolute_path, prepared_root=destination_absolute_path)
 
     # if the source is a zip file we enter into this block
     elif source.type == CrateSourceKind.ZIP:
@@ -206,34 +207,80 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
 
         # therefore, we extract it in the parent directory of the crate directory
         archive_file.extractall(crate_directory.parent)
+        # we get a structure like this :
+        # parent_directory
+        #       └── RO-Crate
+        #           │   ├── application_sources
+        #           │   ├── pom.xml
+        #           │   ├── README
+        #           │   └── src
+        #           │       └── wordcount.py
+        #           ├── App_Profile.json
+        #           ├── complete_graph.svg
+        #           ├── compss_submission_command_line.txt
+        #           ├── dataset
+        #           │   └── data
+        #           │       ├── file0.txt
+        #           │       ├── file1.txt
+        #           │       ├── file2.txt
+        #           │       └── file3.txt
+        #           ├── ro-crate-info.yaml
+        #           ├── ro-crate-metadata.json
+        #           └── ro-crate-preview.html
 
-        # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
-        acquisition = SourceAcquisitionResult(
-            source=source,
-            source_root=Path(source.name),
-            prepared_root=crate_directory,
-            extracted=True,
-        )
+        # we create a SourceAcquisitionResult object where we store the source that it is a CrateSource Object, wich it is : 
+        #  CrateSource(type=CrateSourceKind.ZIP, name=str(source_relative_path))
+        #  the absolute path of the source,
+        #  whether the source was extracted or not.
+        #######################################################
+        #  and the absolute path of the prepared root directory. ???????????????
+        #########################################################
+        acquisition = SourceAcquisitionResult(source=source,source_root=source_absolute_path,prepared_root=destination_absolute_path,extracted=True)
 
     else:
+        # we create a Request object to download the crate source from the given URL
+        # this creates an HTTP GET request.
+        # HTTP Packet:
+        # GET /workflows/635/ro_crate?version=1 HTTP/1.1
+        #     Request Method: GET
+        #     Request URI: /workflows/635/ro_crate?version=1
+        # User-Agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        # Accept: "application/octet-stream,application/zip,application/json,text/html,*/*;q=0.8",
+        # Accept-Language: en-US,en;q=0.9
+
+        # which is the :
+        # REQUEST METHOD + REQUEST URI
+        #        Request Method: METHOD
+        #        Request URI: URI
+        # BROWSER HEADERS
+
         request = Request(source.name, headers=BROWSER_HEADERS, method="GET")
+        # try to download the crate source from the given URL
         try:
-            with urlopen(request, timeout=30) as response:
-                download_bytes = response.read()
-                downloaded_filename = _filename_from_http_response(response, source.name)
+            # send the HTTP GET request and wait for the response from the server maximum 30 seconds
+            response = urlopen(request, timeout=30)
+            # read the response content
+            download_bytes = response.read()
+            # we call _filename_from_http_response to determine the filename for the downloaded 
+            # content based on the server's response and the source name (https://workflows/635/ro_crate?version=1)
+            downloaded_filename = _filename_from_http_response(response)
+
+        # if an exception occurs during the download, it will be caught here
         except (HTTPError, URLError, OSError) as exc:
             raise FileSystemError("Could not download crate source", details=str(exc)) from exc
-
-        final_dirname = _crate_dirname_from_downloaded_filename(downloaded_filename)
+        
+        final_dirname = _crate_dirname_from_downloaded_filename(filename=downloaded_filename)
         final_crate_directory = crate_directory.parent / final_dirname
+
         file_system.create_directory(path=final_crate_directory, parents=True, exist_ok=True)
         
         temp_zip = final_crate_directory.parent / ".downloaded_rocrate.zip"
         temp_zip.write_bytes(download_bytes)
+
         try:
             if zipfile.is_zipfile(temp_zip):
-                with zipfile.ZipFile(temp_zip) as archive_file:
-                    archive_file.extractall(final_crate_directory)
+                archive_file = zipfile.ZipFile(temp_zip)
+                archive_file.extractall(final_crate_directory)
                 prepared_root = final_crate_directory
                 extracted = True
             else:
@@ -244,18 +291,9 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         finally:
             temp_zip.unlink(missing_ok=True)
 
-        acquisition = SourceAcquisitionResult(
-            source=source,
-            source_root=Path(source.name),
-            prepared_root=prepared_root,
-            downloaded=True,
-            extracted=extracted,
-        )
-
-    location = CrateLocation(
-        original_path=acquisition.source_root,
-        crate_path=acquisition.prepared_root,
-    )
+        acquisition = SourceAcquisitionResult(source=source,source_root=Path(source.name),prepared_root=prepared_root,downloaded=True,extracted=extracted)
+    
+    location = CrateLocation(original_path=acquisition.source_root,crate_path=acquisition.prepared_root)
 
     rocrate = load_rocrate_if_valid(location.crate_path)
     if rocrate is None:
@@ -292,35 +330,68 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     )
 
 
-def _filename_from_http_response(response, source_url: str) -> str | None:
+def _filename_from_http_response(response: requests.Response) -> str | None:
+    # response.headers example:
+    # "headers": {
+    #     "Date": "Fri, 28 Aug 2026 14:06:01 GMT",
+    #     "Content-Type": "application/zip",
+    #     "Content-Length": "19366",
+    #     "Connection": "close",
+    #     "Server": "cloudflare",
+    #     "Cache-Control": "no-cache",
+    #     "Referrer-Policy": "strict-origin-when-cross-origin",
+    #     "X-Permitted-Cross-Domain-Policies": "none",
+    #     "X-XSS-Protection": "0",
+    #     "X-Request-Id": "2b3673ce-44ed-4e5a-9fb1-c0f7582240f8",
+    #     "Content-Disposition": "inline; filename=\"workflow-635-1.crate.zip\"; filename*=UTF-8''workflow-635-1.crate.zip",
+    #     "Content-Transfer-Encoding": "binary",
+    #     "X-Runtime": "0.605155",
+    #     "X-Frame-Options": "SAMEORIGIN",
+    #     "X-Content-Type-Options": "nosniff",
+    #     "X-Powered-By": "Phusion Passenger(R) 6.0.24",
+    #     "Set-Cookie": "_seek_session=e73a1e03ec251c26423998237c9976e8; path=/; expires=Fri, 28 Aug 2026 14:36:01 GMT; HttpOnly; SameSite=Lax",
+    #     "Nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+    #     "Status": "200 OK",
+    #     "Report-To": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=VVXEl3IJoDucnt1vQDavjPOkN4mrVc5vsZwugVruJUvgz4OoLdc7%2B1ebknywvKgxO6a8Kdi1KwGw8LLU8Q%2FFbmP5QDyONRxlk35qMvFcnEbRYGm27WpyD3Zk9eOPqLEX8g%3D%3D\"}]}",
+    #     "cf-cache-status": "DYNAMIC",
+    #     "CF-RAY": "a323dfc518da3ed1-MAD",
+    #     "alt-svc": "h3=\":443\"; ma=86400"
+    # }
+
+    # from the response.headers, we get the field "Content-Disposition" which may contain the filename
     content_disposition = response.headers.get("Content-Disposition", "")
-    # RFC 5987: filename*=UTF-8''workflow-635-1.crate.zip
+
+    # initialize the filename variable to None
+    filename = None
+    # tries to extract the filename from the Content-Disposition header using RFC 5987 format
+    # filename*=UTF-8\'\'workflow-635-1.crate.zip'
     match = re.search(r"filename\*\s*=\s*[^']*''([^;]+)", content_disposition, flags=re.IGNORECASE)
     if match:
-        return Path(unquote(match.group(1).strip().strip('"'))).name
+         filename = Path(unquote(match.group(1).strip().strip('"'))).name
 
-    # Legacy: filename="workflow-635-1.crate.zip" or filename=workflow-635-1.crate.zip
+    # filename="workflow-635-1.crate.zip" (with quotes)
     match = re.search(r'filename\s*=\s*"([^"]+)"', content_disposition, flags=re.IGNORECASE)
     if not match:
+        # Legacy: filename=workflow-635-1.crate.zip (without quotes)
         match = re.search(r"filename\s*=\s*([^;]+)", content_disposition, flags=re.IGNORECASE)
-    if match:
-        return Path(unquote(match.group(1).strip().strip('"'))).name
 
-    # Fallback to URL path
-    fallback = Path(unquote(urlparse(source_url).path)).name.strip()
-    return fallback or None
+    if match:
+        filename = Path(unquote(match.group(1).strip().strip('"'))).name
+
+    # Fallback to URL path if no filename could be determined from the headers
+    # https://workflowhub.org/workflows/635/ro_crate?version=1 --> fallback = ro_crate
+    # fallback = Path(unquote(urlparse(source_url).path)).name.strip()
+    # return fallback or None
+    return filename
 
     
 def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
-    if not filename:
-        return ".crate_downloaded"
-
-    name = filename.strip()
-    if name.lower().endswith(".zip"):
-        name = name[:-4].strip()
-
-    if not name:
-        return ".crate_downloaded"
-
-    # Prevent path traversal or slashes in header value
-    return Path(name).name or ".crate_downloaded"
+    if filename is None:
+        name = "Ro-Crate"
+    else:
+        name = filename.strip()
+        if name.lower().endswith(".zip"):
+            name = name[:-4].strip()
+        if not name:
+            name  = "Ro-Crate"
+    return name
