@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from io import BytesIO
 import json
 from pathlib import Path
 import os
@@ -30,8 +31,6 @@ import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, unquote
-
-#from rocrate.rocrate import ROCrate
 
 from application.ports.crate_source import (
     SourceAcquisitionResult,
@@ -268,40 +267,45 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         # if an exception occurs during the download, it will be caught here
         except (HTTPError, URLError, OSError) as exc:
             raise FileSystemError("Could not download crate source", details=str(exc)) from exc
-        
+
+        # determine the final directory name for the crate based on the downloaded filename
         final_dirname = _crate_dirname_from_downloaded_filename(filename=downloaded_filename)
+        # build the final crate directory path based on the parent directory and the final directory name
         final_crate_directory = crate_directory.parent / final_dirname
 
+        # create the final crate directory if it doesn't exist using the function create_directory from the file system object
         file_system.create_directory(path=final_crate_directory, parents=True, exist_ok=True)
-        
-        temp_zip = final_crate_directory.parent / ".downloaded_rocrate.zip"
-        temp_zip.write_bytes(download_bytes)
 
+        # attempt to extract the downloaded archive into the final crate directory
         try:
-            if zipfile.is_zipfile(temp_zip):
-                archive_file = zipfile.ZipFile(temp_zip)
-                archive_file.extractall(final_crate_directory)
-                prepared_root = final_crate_directory
-                extracted = True
-            else:
-                target = final_crate_directory / "downloaded_crate"
-                target.write_bytes(download_bytes)
-                prepared_root = final_crate_directory
-                extracted = False
-        finally:
-            temp_zip.unlink(missing_ok=True)
+            # open the downloaded bytes as a zip archive
+            archive_file = zipfile.ZipFile(BytesIO(download_bytes))
+            # extract all contents of the zip archive into the final crate directory
+            archive_file.extractall(final_crate_directory)
+            # set the prepared root to the final crate directory
+            prepared_root = final_crate_directory
+            # mark the extraction as successful
+            extracted = True
+        # if a BadZipFile exception occurs, it will be caught here and a FileSystemError will be raised
+        except zipfile.BadZipFile as exc:
+            raise FileSystemError("Failed to extract crate.", details=str(exc)) from exc
 
-        acquisition = SourceAcquisitionResult(source=source,source_root=Path(source.name),prepared_root=prepared_root,downloaded=True,extracted=extracted)
+        # create the SourceAcquisitionResult object
+        acquisition = SourceAcquisitionResult(source=source,source_root=source_absolute_path,prepared_root=prepared_root,downloaded=True,extracted=extracted)
+
+    ###################################
+    ######################################
+    ########################################
     
+    #create a CrateLocation object based on the acquisition result
     location = CrateLocation(original_path=acquisition.source_root,crate_path=acquisition.prepared_root)
 
+    # load the RO-Crate
+    # will return RO-Crate object if valid, otherwise None
     rocrate = load_rocrate_if_valid(location.crate_path)
     if rocrate is None:
-        rocrate = ensure_rocrate(
-            location.crate_path,
-            name=location.crate_path.name,
-            description=f"Imported crate from {source.name}",
-        )
+        # if the RO-Crate is not valid, ensure a new RO-Crate is created
+        rocrate = ensure_rocrate(location.crate_path,name=location.crate_path.name,description=f"Imported crate from {source.name}")
 
     source_with_rocrate = source.with_rocrate(rocrate)
 
@@ -386,12 +390,19 @@ def _filename_from_http_response(response: requests.Response) -> str | None:
 
     
 def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
+
+    # if the filename is None, we use a default name "Ro-Crate"
     if filename is None:
         name = "Ro-Crate"
     else:
+        # strip any leading and trailing whitespace from the filename
         name = filename.strip()
+        # check ".zip" extension
         if name.lower().endswith(".zip"):
+            # remove the ".zip" extension
             name = name[:-4].strip()
+        # if the resulting name is empty, fallback to the default name "Ro-Crate"
         if not name:
             name  = "Ro-Crate"
+    # return the final crate directory name
     return name
