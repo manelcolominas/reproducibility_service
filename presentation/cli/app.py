@@ -234,7 +234,6 @@ def run_app(argv: list[str] | None = None) -> int:
     )
     return 0 if outcome.succeeded else 1
 
-
 def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_directory: Path, shared_crate_directory: Path, logger: logging.Logger ):
     """
     Runs the pipeline of the reproducibility service.
