@@ -276,7 +276,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
     
     view.print_import_result(import_result)
-    inspect_result = _inspect_rocrate_simple(import_result.location.crate_path)
+    inspect_result = _inspect_rocrate_simple(import_result.location)
 
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")

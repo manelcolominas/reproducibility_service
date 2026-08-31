@@ -65,18 +65,6 @@ class CrateSource:
 
 
 @dataclass(frozen=True, slots=True)
-class CrateLocation:
-    original_path: Path
-    crate_path: Path
-
-    def __post_init__(self) -> None:
-        if not str(self.original_path).strip():
-            raise ValueError("CrateLocation.original_path cannot be empty")
-        if not str(self.crate_path).strip():
-            raise ValueError("CrateLocation.crate_path cannot be empty")
-
-
-@dataclass(frozen=True, slots=True)
 class WorkflowParticipant:
     name: str
     role: str = "participant"
@@ -151,7 +139,7 @@ class CrateIndex:
 @dataclass(frozen=True, slots=True)
 class CrateSummary:
     source: CrateSource
-    location: CrateLocation
+    location: Path
     metadata: WorkflowMetadata
     index: CrateIndex = field(default_factory=CrateIndex)
     crate_format_version: str | None = None

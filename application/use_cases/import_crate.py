@@ -40,7 +40,6 @@ from application.ports.crate_source import (
 )
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import (
-    CrateLocation,
     CrateSource,
     CrateSummary,
     WorkflowMetadata,
@@ -64,7 +63,7 @@ class ImportCrateResult:
     source: CrateSource
     validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
-    location: CrateLocation
+    location: Path
     crate: CrateSummary | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
@@ -151,7 +150,6 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     # if it is readable, if it is a directory, if it is a file, if it is a url and a message.
     validation = SourceValidationResult(source=source, exists=exists,readable=readable,directory=directory,file=file,url=url,message=message)
 
-    # we call the function is_valid from the SourceValidationResult class to check if the source
     # is valid, if not we raise a FileSystemError with the message from the validation object.
     if not validation.is_valid:
         raise FileSystemError("Source validation failed", details=validation.message)
@@ -171,8 +169,8 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         file_system.create_directory(path=crate_directory, parents=True, exist_ok=True)
 
         # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
-        #############################################################
-        #  and the absolute path of the prepared root directory. ????????
+        #################################################################
+        # and the absolute path of the prepared root directory. ????????
         #################################################################
         acquisition = SourceAcquisitionResult(source=source, source_root=source_absolute_path, prepared_root=destination_absolute_path)
 
@@ -293,32 +291,31 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         # create the SourceAcquisitionResult object
         acquisition = SourceAcquisitionResult(source=source,source_root=source_absolute_path,prepared_root=prepared_root,downloaded=True,extracted=extracted)
 
-    ###################################
-    ######################################
+    ########################################
+    ########################################
     ########################################
     
-    #create a CrateLocation object based on the acquisition result
-    location = CrateLocation(original_path=acquisition.source_root,crate_path=acquisition.prepared_root)
+    crate_location = acquisition.prepared_root
 
     # load the RO-Crate
     # will return RO-Crate object if valid, otherwise None
-    rocrate = load_rocrate_if_valid(location.crate_path)
+    rocrate = load_rocrate_if_valid(crate_location)
     if rocrate is None:
         # if the RO-Crate is not valid, ensure a new RO-Crate is created
-        rocrate = ensure_rocrate(location.crate_path,name=location.crate_path.name,description=f"Imported crate from {source.name}")
+        rocrate = ensure_rocrate(crate_location,name=crate_location.name,description=f"Imported crate from {source.name}")
 
     source_with_rocrate = source.with_rocrate(rocrate)
 
     metadata = WorkflowMetadata(
-        name=(rocrate.root_dataset.get("name") if rocrate else location.crate_path.name) or "unnamed-workflow",
+        name=(rocrate.root_dataset.get("name") if rocrate else crate_location.name) or "unnamed-workflow",
         description=str((rocrate.root_dataset.get("description") if rocrate else "") or ""),
-        source_metadata_path=location.crate_path / "ro-crate-metadata.json",
+        source_metadata_path=crate_location / "ro-crate-metadata.json",
         rocrate=rocrate,
     )
 
     crate = CrateSummary(
         source=source_with_rocrate,
-        location=location,
+        location=crate_location,
         metadata=metadata,
         rocrate=rocrate,
     )
@@ -328,7 +325,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         source=source_with_rocrate,
         validation=validation,
         acquisition=acquisition,
-        location=location,
+        location=crate_location,
         crate=crate,
         notes=("Crate source prepared successfully",),
     )

@@ -45,7 +45,6 @@ from domain.errors import (
 from domain.models.crate import (
     ArtifactKind,
     CrateIndex,
-    CrateLocation,
     CrateSource,
     CrateSourceKind,
     CrateSummary,
@@ -296,7 +295,7 @@ class CrateMetadataNormalizer:
         crate_root = document.path.parent if document.path else Path(document.source.location)
         crate = CrateSummary(
             source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
-            location=CrateLocation(original_path=crate_root, crate_path=crate_root),
+            location=crate_root,
             metadata=metadata,
             index=index,
         )
@@ -343,7 +342,7 @@ class CrateMetadataNormalizer:
         index = CrateIndex(sources=sources)
         crate = CrateSummary(
             source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
-            location=CrateLocation(original_path=crate_root, crate_path=crate_root),
+            location=crate_root,
             metadata=metadata,
             index=index,
         )
