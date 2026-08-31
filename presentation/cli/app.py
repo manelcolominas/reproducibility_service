@@ -258,7 +258,6 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # calls the _import_rocrate_simple function to import the RO-Crate from the source provided by the user
     # the function will return an ImportCrateResult object containing the imported crate and its location
     # import_result = ImportCrateResult(
-    #     status=ImportCrateStatus.IMPORTED,
     #     source=source_with_rocrate,
     #     validation=validation,
     #     acquisition=acquisition,

@@ -33,13 +33,12 @@ class SourceAcquisitionResult:
         return "already in disk"
 
     def __post_init__(self) -> None:
-        # Validate that the source_root and prepared_root are not empty and exists on the filesystem.
+        # Validate that the source_root and prepared_root are not empty.
         if not str(self.source_root).strip():
             raise ValueError("SourceAcquisitionResult.source_root cannot be empty")
-        if not self.source_root.exists():
-            raise ValueError("SourceAcquisitionResult.source_root does not exist")
         if not str(self.prepared_root).strip():
             raise ValueError("SourceAcquisitionResult.prepared_root cannot be empty")
+        # Validate that the prepared_root exists on the filesystem.
         if not self.prepared_root.exists():
             raise ValueError("SourceAcquisitionResult.prepared_root does not exist")
 
@@ -73,42 +72,11 @@ def _metadata_yaml_file_exists(root: Path) -> bool:
 
 
 def load_rocrate_if_valid(root: Path) -> ROCrate | None:
-    #root = Path(root).expanduser()
-    if not root.exists():
-        return None
-    if not root.is_dir():
-        return None
-    if not _metadata_json_file_exists(root) and not _metadata_yaml_file_exists(root):
-        return None
+    if not _metadata_json_file_exists(root):
+        raise FileNotFoundError("ro-crate-metadata.json file does not exist")
 
     try:
         crate = ROCrate(root)
         return crate
     except Exception:
-        return None
-
-
-def ensure_rocrate(root: Path, *, name: str | None = None, description: str = "") -> ROCrate | None:
-    root = Path(root).expanduser()
-    root.mkdir(parents=True, exist_ok=True)
-
-    existing = load_rocrate_if_valid(root)
-    if existing is not None:
-        return existing
-
-    try:
-        crate = ROCrate(root)
-        dataset = crate.root_dataset
-
-        if name:
-            dataset["name"] = name
-        elif not dataset.get("name"):
-            dataset["name"] = root.name
-
-        if description:
-            dataset["description"] = description
-
-        crate.write()
-        return crate
-    except Exception:
-        return None
+        raise ValueError("Failed to load RO-Crate from the specified root")

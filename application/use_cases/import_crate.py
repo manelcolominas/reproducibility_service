@@ -35,7 +35,7 @@ from urllib.parse import urlparse, unquote
 from application.ports.crate_source import (
     SourceAcquisitionResult,
     SourceValidationResult,
-    ensure_rocrate,
+    #ensure_rocrate,
     load_rocrate_if_valid,
 )
 from domain.errors import FileSystemError, ValidationError
@@ -52,14 +52,9 @@ BROWSER_HEADERS = {
         "Accept-Language": "en-US,en;q=0.9",
     }
 
-class ImportCrateStatus(str, Enum):
-    IMPORTED = "imported"
-    FAILED = "failed"
-
 
 @dataclass(frozen=True, slots=True)
 class ImportCrateResult:
-    status: ImportCrateStatus
     source: CrateSource
     validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
@@ -297,10 +292,12 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     # load the RO-Crate
     # will return RO-Crate object if valid, otherwise None
     rocrate = load_rocrate_if_valid(crate_location)
-    if rocrate is None:
-        # if the RO-Crate is not valid, ensure a new RO-Crate is created
-        rocrate = ensure_rocrate(crate_location,name=crate_location.name,description=f"Imported crate from {source.name}")
 
+    # source is a CrateSource object something like this:
+    # source = CrateSource(type=CrateSourceKind.DIRECTORY, name=str(source_relative_path))
+
+    # we set the attribute 'rocrate' of the source variable with the loaded RO-Crate from
+    # the call rocrate = load_rocrate_if_valid(crate_location)
     source_with_rocrate = source.with_rocrate(rocrate)
 
     metadata = WorkflowMetadata(
@@ -318,7 +315,6 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     )
 
     return ImportCrateResult(
-        status=ImportCrateStatus.IMPORTED,
         source=source_with_rocrate,
         validation=validation,
         acquisition=acquisition,
@@ -384,7 +380,6 @@ def _filename_from_http_response(response: requests.Response) -> str | None:
 
     
 def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
-
     # if the filename is None, we use a default name "Ro-Crate"
     if filename is None:
         name = "Ro-Crate"

@@ -60,6 +60,7 @@ class CrateSource:
         if not self.name.strip():
             raise ValueError("CrateSource.name cannot be empty")
 
+    # set the RO-Crate for this source and return a new CrateSource object with the updated RO-Crate
     def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSource":
         return replace(self, rocrate=rocrate)
 
