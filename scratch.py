@@ -7,7 +7,6 @@ from rocrate.rocrate import ROCrate
 from domain.models.crate import WorkflowParticipant, DataPersistenceKind
 from datetime import datetime, timezone
 from domain.models.crate import CrateIndex, WorkflowArtifact
-from enum import Enum
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +108,6 @@ class CrateSummary:
 
     def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
         return replace(self, rocrate=rocrate)
-
 
 @dataclass(frozen=True, slots=True)
 class SourceValidationResult:
