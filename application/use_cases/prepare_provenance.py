@@ -150,7 +150,7 @@ class PrepareProvenancePlan:
     metadata_path: Path | None = None
     output_path: Path | None = None
     existing_metadata: WorkflowMetadata | None = None
-    participant: WorkflowParticipant | None = None
+    agent: WorkflowParticipant | None = None
     target_metadata_path: Path | None = None
 
     def __post_init__(self) -> None:
@@ -212,8 +212,8 @@ class DefaultPrepareProvenanceService:
                 details="crate location does not provide a usable path",
             )
 
-        participant = WorkflowParticipant(
-            role="participant",
+        agent = WorkflowParticipant(
+            role="Agent",
             name=request.participant_name,
             email=request.participant_email,
             organization_name=request.participant_organization,
@@ -226,7 +226,7 @@ class DefaultPrepareProvenanceService:
             request=request,
             provenance_root=provenance_root,
             metadata_path=metadata_path,
-            participant=participant,
+            agent=agent,
             target_metadata_path=target_metadata_path,
         )
 
@@ -282,9 +282,9 @@ class DefaultPrepareProvenanceService:
         )
 
         authors = existing.authors
-        if request.preserve_existing_metadata and existing.participant is not None:
+        if request.preserve_existing_metadata and existing.agent is not None:
             notes = list()
-            notes.append("Existing participant metadata was preserved in the domain model")
+            notes.append("Existing agent metadata was preserved in the domain model")
             _ = notes
 
         return WorkflowMetadata(
@@ -292,7 +292,7 @@ class DefaultPrepareProvenanceService:
             description=existing.description,
             version=existing.version,
             authors=authors,
-            participant=participant,
+            agent=participant,
             license=existing.license,
             created_at=existing.created_at,
             generated_at=datetime.now(timezone.utc),
@@ -346,7 +346,7 @@ def _render_fallback_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: Crate
             "data_persistence": metadata.data_persistence == DataPersistenceKind.TRUE,
         },
         "Authors": [_participant_to_dict(author) for author in metadata.authors],
-        "Agent": _participant_to_dict(metadata.participant) if metadata.participant else {},
+        "Agent": _participant_to_dict(metadata.agent) if metadata.agent else {},
     }
     return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
@@ -383,7 +383,7 @@ def render_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -
     if "Authors" not in base_document or not isinstance(base_document.get("Authors"), list):
         base_document["Authors"] = [_participant_to_dict(author) for author in metadata.authors]
 
-    base_document["Agent"] = _participant_to_dict(metadata.participant) if metadata.participant else {}
+    base_document["Agent"] = _participant_to_dict(metadata.agent) if metadata.agent else {}
     base_document.pop("Participant", None)
     
     _sanitize_sources_main_file(workflow_info, workflow_info.get("sources") or [])
@@ -406,7 +406,6 @@ __all__ = [
     "PrepareProvenanceRequest",
     "PrepareProvenanceResult",
     "PrepareProvenanceStatus",
-    "ProvenanceWriter",
     "has_provenance_config_file",
     "has_updated_metadata",
     "render_ro_crate_info_yaml",

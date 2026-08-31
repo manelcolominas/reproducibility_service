@@ -54,21 +54,21 @@ class ArtifactKind(str, Enum):
 class CrateSource:
     type: CrateSourceKind
     name: str
-    rocrate: ROCrate | None = None
+    # rocrate: ROCrate | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("CrateSource.name cannot be empty")
 
     # set the RO-Crate for this source and return a new CrateSource object with the updated RO-Crate
-    def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSource":
-        return replace(self, rocrate=rocrate)
+    # def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSource":
+    #     return replace(self, rocrate=rocrate)
 
 
 @dataclass(frozen=True, slots=True)
 class WorkflowParticipant:
     name: str
-    role: str = "participant"
+    role: str
     email: str | None = None
     organization_name: str | None = None
     orcid: str | None = None
@@ -85,7 +85,7 @@ class WorkflowMetadata:
     description: str = ""
     version: str | None = None
     authors: tuple[WorkflowParticipant, ...] = ()
-    participant: WorkflowParticipant | None = None
+    agent: WorkflowParticipant | None = None
     license: str | None = None
     crate_version: str | None = None
     compss_version: str | None = None
@@ -94,17 +94,17 @@ class WorkflowMetadata:
     generated_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     execution_site: str | None = None
-    rocrate: ROCrate | None = None
+    # rocrate: ROCrate | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("WorkflowMetadata.name cannot be empty")
 
-    def with_participant(self, participant: WorkflowParticipant | None) -> "WorkflowMetadata":
-        return replace(self, participant=participant)
+    def with_agent(self, agent: WorkflowParticipant | None) -> "WorkflowMetadata":
+        return replace(self, agent=agent)
 
-    def with_rocrate(self, rocrate: ROCrate | None) -> "WorkflowMetadata":
-        return replace(self, rocrate=rocrate)
+    # def with_rocrate(self, rocrate: ROCrate | None) -> "WorkflowMetadata":
+    #     return replace(self, rocrate=rocrate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,13 +139,13 @@ class CrateIndex:
 
 @dataclass(frozen=True, slots=True)
 class CrateSummary:
-    source: CrateSource
+    # source: CrateSource
     location: Path
     metadata: WorkflowMetadata
     index: CrateIndex = field(default_factory=CrateIndex)
     crate_format_version: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    rocrate: ROCrate | None = None
+    # rocrate: ROCrate | None = None
 
     @property
     def has_inputs(self) -> bool:
@@ -159,5 +159,5 @@ class CrateSummary:
     def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
         return self.index.all_artifacts()
 
-    def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
-        return replace(self, rocrate=rocrate)
+    # def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
+    #     return replace(self, rocrate=rocrate)

@@ -294,7 +294,7 @@ class CrateMetadataNormalizer:
     
         crate_root = document.path.parent if document.path else Path(document.source.location)
         crate = CrateSummary(
-            source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
+            #source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
             location=crate_root,
             metadata=metadata,
             index=index,
@@ -341,7 +341,7 @@ class CrateMetadataNormalizer:
 
         index = CrateIndex(sources=sources)
         crate = CrateSummary(
-            source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
+            #source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
             location=crate_root,
             metadata=metadata,
             index=index,

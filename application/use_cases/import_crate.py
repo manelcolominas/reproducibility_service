@@ -16,6 +16,7 @@
 #
 
 from __future__ import annotations
+from rocrate.rocrate import ROCrate
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -63,6 +64,7 @@ class ImportCrateResult:
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    rocrate: ROCrate | None = None
 
 
 def _import_rocrate_simple(source_name, workspace_directory, crate_directory, file_system):
@@ -298,29 +300,33 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
 
     # we set the attribute 'rocrate' of the source variable with the loaded RO-Crate from
     # the call rocrate = load_rocrate_if_valid(crate_location)
-    source_with_rocrate = source.with_rocrate(rocrate)
+
+
+    #source_with_rocrate = source.with_rocrate(rocrate)
 
     metadata = WorkflowMetadata(
         name=(rocrate.root_dataset.get("name") if rocrate else crate_location.name) or "unnamed-workflow",
         description=str((rocrate.root_dataset.get("description") if rocrate else "") or ""),
         source_metadata_path=crate_location / "ro-crate-metadata.json",
-        rocrate=rocrate,
+        #rocrate=rocrate,
     )
 
     crate = CrateSummary(
-        source=source_with_rocrate,
+        #source=source_with_rocrate,º
         location=crate_location,
         metadata=metadata,
-        rocrate=rocrate,
+        #rocrate=rocrate,
     )
 
     return ImportCrateResult(
-        source=source_with_rocrate,
+        source=source,
+        #source=source_with_rocrate,
         validation=validation,
         acquisition=acquisition,
         location=crate_location,
         crate=crate,
         notes=("Crate source prepared successfully",),
+        rocrate=rocrate,
     )
 
 
