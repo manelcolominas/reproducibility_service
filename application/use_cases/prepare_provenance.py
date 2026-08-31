@@ -302,14 +302,9 @@ class DefaultPrepareProvenanceService:
             source_metadata_path=existing.source_metadata_path,
         )
 
-    def _write_metadata_file(
-        self,
-        target_path: Path,
-        metadata: WorkflowMetadata,
-        request: PrepareProvenanceRequest,
-    ) -> Path:
-        if not self._file_system.exists(target_path.parent):
-            self._file_system.create_directory(path=target_path.parent, parents=True, exist_ok=True)
+    def _write_metadata_file(self, target_path: Path, metadata: WorkflowMetadata,request: PrepareProvenanceRequest) -> Path:
+        # if not self._file_system.exists(target_path.parent):
+        #     self._file_system.create_directory(path=target_path.parent, parents=True, exist_ok=True)
 
         content = render_ro_crate_info_yaml(metadata, request.crate)
         write_result = self._file_system.write_text(target_path, content)

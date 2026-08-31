@@ -59,22 +59,21 @@ class SourceValidationResult:
     def is_valid(self) -> bool:
         return self.exists and self.readable and (self.directory or self.file or self.url)
 
-def _metadata_file_exists(root: Path) -> bool:
-    return (root / "ro-crate-metadata.json").is_file() or any(root.rglob("ro-crate-metadata.json"))
+def _metadata_json_file_exists(root: Path) -> bool:
+    return (root / "ro-crate-metadata.json").is_file()
 
 
-def _metadata_yaml_exists(root: Path) -> bool:
-    return (root / "ro-crate-metadata.json").is_file() or any(root.rglob("ro-crate-metadata.json")) or \
-           (root / "ro-crate-info.yaml").is_file() or any(root.rglob("ro-crate-info.yaml"))
+def _metadata_yaml_file_exists(root: Path) -> bool:
+    return (root / "ro-crate-info.yaml").is_file()
 
 
 def load_rocrate_if_valid(root: Path) -> ROCrate | None:
-    root = Path(root).expanduser()
+    #root = Path(root).expanduser()
     if not root.exists():
         return None
     if not root.is_dir():
         return None
-    if not _metadata_file_exists(root) and not _metadata_yaml_exists(root):
+    if not _metadata_json_file_exists(root) and not _metadata_yaml_file_exists(root):
         return None
 
     try:

@@ -289,11 +289,8 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
             raise FileSystemError("Failed to extract crate.", details=str(exc)) from exc
 
         # create the SourceAcquisitionResult object
+        # prepared_root ??????
         acquisition = SourceAcquisitionResult(source=source,source_root=source_absolute_path,prepared_root=prepared_root,downloaded=True,extracted=extracted)
-
-    ########################################
-    ########################################
-    ########################################
     
     crate_location = acquisition.prepared_root
 

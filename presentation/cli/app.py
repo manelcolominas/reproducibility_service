@@ -546,7 +546,7 @@ def _update_plan_with_selected_flags(
     return plan_result
 
 def main() -> None:
-    raise SystemExit(run_app())
+    raise SystemExit(run_app(None))
 
 
 if __name__ == "__main__":
