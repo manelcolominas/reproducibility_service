@@ -27,7 +27,7 @@ import yaml
 
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import CrateSummary, WorkflowMetadata, WorkflowParticipant, DataPersistenceKind
+from domain.models.crate import WorkflowMetadata, WorkflowParticipant, DataPersistenceKind #, CrateSummary
 from infrastructure.adapters import LocalFileSystem
 
 class PrepareProvenanceStatus(str, Enum):
@@ -123,7 +123,7 @@ def _sanitize_sources_main_file(workflow_info: dict[str, Any], sources: list[str
 
 @dataclass(frozen=True, slots=True)
 class PrepareProvenanceRequest:
-    crate: CrateSummary
+    # crate: CrateSummary
     provenance_root: Path
     participant_name: str | None = None
     participant_email: str | None = None
@@ -135,8 +135,8 @@ class PrepareProvenanceRequest:
     overwrite_existing: bool = False
 
     def __post_init__(self) -> None:
-        if self.crate is None:
-            raise ValidationError("PrepareProvenanceRequest.crate cannot be None")
+        # if self.crate is None:
+        #     raise ValidationError("PrepareProvenanceRequest.crate cannot be None")
         if not str(self.provenance_root).strip():
             raise ValidationError("PrepareProvenanceRequest.provenance_root cannot be empty")
         # if not self.participant_name.strip():

@@ -17,7 +17,7 @@
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="RUN_TOOL" value="" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/reproducibility_service.py" />
-    <!-- <option name="PARAMETERS" value="http://workflowhub.org/workflows/635/ro_crate?version=1" /> -->
+    <!-- <option name="PARAMETERS" value="https://workflowhub.org/workflows/635/ro_crate?version=1" /> -->
     <!-- <option name="PARAMETERS" value="workflow-635-1.crate" /> -->
     <option name="PARAMETERS" value="workflow-635-1.crate.zip" />
     <!-- <option name="PARAMETERS" value="COMPSs_RO-Crate_20260810_112548" /> -->

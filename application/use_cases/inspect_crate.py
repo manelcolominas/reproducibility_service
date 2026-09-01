@@ -36,7 +36,7 @@ from infrastructure.adapters import (
     LocalPyCompssMetadataInspector,
 )
 from domain.errors import ValidationError
-from domain.models.crate import CrateSummary
+# from domain.models.crate import CrateSummary
 from domain.models.verification import VerificationSummary
 
 
@@ -63,7 +63,7 @@ class InspectCrateResult:
     request: InspectCrateRequest
     document: MetadataDocument
     normalization: MetadataNormalizationResult
-    crate: CrateSummary | None = None
+    #crate: CrateSummary | None = None
     verification: VerificationSummary | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
@@ -114,6 +114,7 @@ def _inspect_rocrate_simple(crate_root: Path):
         warnings.append(f"pycompss inspect failed: {exc}")
 
     status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
+
     return InspectCrateResult(
         status=status,
         request=InspectCrateRequest(crate_root=crate_root),

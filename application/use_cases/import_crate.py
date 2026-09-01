@@ -56,7 +56,8 @@ class ImportCrateResult:
     validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
     location: Path
-    crate: CrateSummary | None = None
+    #crate: CrateSummary | None = None
+    metadata: WorkflowMetadata | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -289,7 +290,6 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
 
     # we set the attribute 'rocrate' of the source variable with the loaded RO-Crate from
     # the call rocrate = load_rocrate_if_valid(crate_location)
-    
 
     metadata = WorkflowMetadata(
         name=(rocrate.root_dataset.get("name") if rocrate else crate_location.name) or "unnamed-workflow",
@@ -297,20 +297,23 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
         source_metadata_path=crate_location / "ro-crate-metadata.json",
     )
 
-    crate = CrateSummary(
-        location=crate_location,
-        metadata=metadata
-    )
+    # crate = CrateSummary(
+    #     location=crate_location,
+    #     metadata=metadata
+    # )
 
-    return ImportCrateResult(
+    import_crate_result = ImportCrateResult(
         source=source,
         validation=validation,
         acquisition=acquisition,
         location=crate_location,
-        crate=crate,
+        metadata=metadata,
+        # crate=crate,
         notes=("Crate source prepared successfully",),
         rocrate=rocrate,
     )
+
+    return import_crate_result
 
 
 def _filename_from_http_response(response: requests.Response) -> str | None:

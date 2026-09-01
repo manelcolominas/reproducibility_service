@@ -25,7 +25,7 @@ from typing import Protocol, runtime_checkable
 
 from infrastructure.adapters import LocalFileSystem
 from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import CrateSummary, WorkflowArtifact
+from domain.models.crate import WorkflowArtifact #, CrateSummary
 from domain.models.verification import (
     ArtifactReference,
     ArtifactVerificationResult,
@@ -34,7 +34,6 @@ from domain.models.verification import (
     VerificationState,
     VerificationSummary,
 )
-from domain.models.crate import CrateSummary
 
 
 class VerifyInputsStatus(str, Enum):
@@ -47,12 +46,12 @@ class VerifyInputsStatus(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class VerifyInputsRequest:
-    crate: CrateSummary
+    # crate: CrateSummary
     fail_fast: bool = False
 
     def __post_init__(self) -> None:
-        if self.crate is None:
-            raise ValidationError("VerifyInputsRequest.crate cannot be None")
+        # if self.crate is None:
+        #     raise ValidationError("VerifyInputsRequest.crate cannot be None")
 
 
 

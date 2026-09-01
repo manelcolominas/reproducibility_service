@@ -47,7 +47,7 @@ from domain.models.crate import (
     CrateIndex,
     CrateSource,
     CrateSourceKind,
-    CrateSummary,
+    #CrateSummary,
     DataPersistenceKind,
     WorkflowArtifact,
     WorkflowMetadata,
@@ -293,18 +293,18 @@ class CrateMetadataNormalizer:
         index = CrateIndex(sources=sources)
     
         crate_root = document.path.parent if document.path else Path(document.source.location)
-        crate = CrateSummary(
-            #source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
-            location=crate_root,
-            metadata=metadata,
-            index=index,
-        )
+        #crate = CrateSummary(
+        #    #source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
+        #    location=crate_root,
+        #    metadata=metadata,
+        #    index=index,
+        #)
     
         return MetadataNormalizationResult(
             document=document,
             metadata=metadata,
             index=index,
-            crate=crate,
+            #crate=crate,
             warnings=tuple(warnings),
         )
 
@@ -331,7 +331,7 @@ class CrateMetadataNormalizer:
         metadata = WorkflowMetadata(
             name=str(root_entity.get("name") or "unnamed-workflow"),
             description=str(root_entity.get("description") or ""),
-            license=root_entity.get("license"),
+            license=root_entity.get("license") or "",
             authors=authors,
             compss_version=compss_version,
             execution_site=execution_site,
@@ -340,18 +340,19 @@ class CrateMetadataNormalizer:
         )
 
         index = CrateIndex(sources=sources)
-        crate = CrateSummary(
-            #source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
-            location=crate_root,
-            metadata=metadata,
-            index=index,
-        )
+
+        #crate = CrateSummary(
+        #    #source=CrateSource(type=CrateSourceKind.DIRECTORY, name=str(crate_root)),
+        #    location=crate_root,
+        #    metadata=metadata,
+        #    index=index,
+        #)
 
         return MetadataNormalizationResult(
             document=document,
             metadata=metadata,
             index=index,
-            crate=crate,
+            #crate=crate,
         )
 
     def _find_root_entity(self, graph: list[dict]) -> dict:

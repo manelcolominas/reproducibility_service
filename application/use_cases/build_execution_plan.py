@@ -30,7 +30,7 @@ from application.ports.executor import (
     ExecutionSubmission,
 )
 from domain.errors import CommandBuildError, ValidationError
-from domain.models.crate import CrateSummary
+# from domain.models.crate import CrateSummary
 from domain.models.execution import (
     ExecutionBackend,
     ExecutionContext,
@@ -232,7 +232,8 @@ class ParsedSubmissionCommand:
 
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanRequest:
-    crate: CrateSummary
+    #crate: CrateSummary
+    crate_root: Path
     workspace_directory: Path
     backend: ExecutionBackend = ExecutionBackend.AUTO
     provenance_enabled: bool = False
@@ -242,10 +243,18 @@ class BuildExecutionPlanRequest:
 
 
     def __post_init__(self) -> None:
-        if self.crate is None:
-            raise ValidationError("BuildExecutionPlanRequest.crate cannot be None")
+        if self.crate_root is None:
+            raise ValidationError("BuildExecutionPlanRequest.crate_root cannot be None")
+        if not str(self.crate_root).strip():
+            raise ValidationError("BuildExecutionPlanRequest.crate_root cannot be empty")
+        if not self.crate_root.exists():
+            raise ValidationError("BuildExecutionPlanRequest.crate_root does not exist")
+        if self.workspace_directory is None:
+            raise ValidationError("BuildExecutionPlanRequest.workspace_directory cannot be None")
         if not str(self.workspace_directory).strip():
             raise ValidationError("BuildExecutionPlanRequest.workspace_directory cannot be empty")
+        if not self.workspace_directory.exists():
+            raise ValidationError("BuildExecutionPlanRequest.workspace_directory does not exist")
 
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanResult:
@@ -336,7 +345,7 @@ class DefaultBuildExecutionPlanService:
                 return detected
     
         # Fallback to crate command inference only if detection is unavailable
-        raw_command = request.submission_command or self._discover_command(request.crate)
+        raw_command = request.submission_command or self._discover_command(request.crate_root)
         inferred = self._infer_backend_from_command(raw_command)
         if inferred is not None:
             return inferred
@@ -372,12 +381,12 @@ class DefaultBuildExecutionPlanService:
         )
 
     def build_command( self, request: BuildExecutionPlanRequest, backend: ExecutionBackend, execution_directory: Path | None = None ) -> RuntimeCommand:
-        raw_command = request.submission_command or self._discover_command(request.crate)
+        raw_command = request.submission_command or self._discover_command(request.crate_root)
         if not raw_command:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
 
         schema = {flag.name: flag for flag in FLAG_DEFINITIONS}
-        crate_root = request.crate.location
+        crate_root = request.crate_root
 
         parsed = self.parse_submission_command(raw_command, schema)
         parsed = self.normalize_executable(parsed, backend, request.runtime_executable)
@@ -724,8 +733,8 @@ class DefaultBuildExecutionPlanService:
             return text + "/"
         return text
 
-    def _discover_command(self, crate: CrateSummary) -> str | None:
-        crate_root = crate.location
+    def _discover_command(self, crate_root: Path) -> str | None:
+        # crate_root is now passed directly as an argument, no need to extract from crate
     
         for path in [crate_root / "compss_submission_command_line.txt", *sorted(crate_root.rglob("compss_submission_command_line.txt"))]:
             if path.is_file():

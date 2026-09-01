@@ -25,7 +25,7 @@ from typing import Any, Mapping, runtime_checkable
 from domain.errors import ValidationError
 from domain.models.crate import (
     CrateIndex,
-    CrateSummary,
+    #CrateSummary,
     DataPersistenceKind,
     WorkflowArtifact,
     WorkflowMetadata,
@@ -73,13 +73,13 @@ class MetadataNormalizationResult:
     document: MetadataDocument
     metadata: WorkflowMetadata | None = None
     index: CrateIndex | None = None
-    crate: CrateSummary | None = None
+    #crate: CrateSummary | None = None
     warnings: tuple[str, ...] = ()
     issues: tuple[str, ...] = ()
 
     @property
     def is_usable(self) -> bool:
-        return self.metadata is not None or self.crate is not None
+        return self.metadata is not None
 
 
 @dataclass(frozen=True, slots=True)

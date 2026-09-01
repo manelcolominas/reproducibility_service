@@ -129,26 +129,22 @@ class CrateIndex:
         return (*self.inputs, *self.outputs, *self.sources, *self.resources)
 
 
-@dataclass(frozen=True, slots=True)
-class CrateSummary:
-    location: Path
-    metadata: WorkflowMetadata
-    index: CrateIndex = field(default_factory=CrateIndex)
-    crate_format_version: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    rocrate: ROCrate | None = None
+# @dataclass(frozen=True, slots=True)
+# class CrateSummary:
+#     location: Path
+#     metadata: WorkflowMetadata
+#     index: CrateIndex = field(default_factory=CrateIndex)
+#     crate_format_version: str | None = None
+#     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    @property
-    def has_inputs(self) -> bool:
-        return len(self.index.inputs) > 0
+#     @property
+#     def has_inputs(self) -> bool:
+#         return len(self.index.inputs) > 0
 
-    @property
-    def has_outputs(self) -> bool:
-        return len(self.index.outputs) > 0
+#     @property
+#     def has_outputs(self) -> bool:
+#         return len(self.index.outputs) > 0
 
-    @property
-    def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
-        return self.index.all_artifacts()
-
-    def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
-        return replace(self, rocrate=rocrate)
+#     @property
+#     def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
+#         return self.index.all_artifacts()
