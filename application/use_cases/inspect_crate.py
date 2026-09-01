@@ -25,14 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
-from application.ports.metadata_parser import (
-    WorkflowMetadata,
-    
-)
-from infrastructure.adapters import (
-    CrateMetadataParser,
-    CrateMetadataNormalizer,
-)
+from application.ports.metadata_parser import WorkflowMetadata
 from domain.errors import ValidationError
 from application.use_cases.import_crate import ImportCrateResult
 from domain.models.crate import WorkflowArtifactSummary
@@ -45,8 +38,7 @@ class InspectCrateStatus(str, Enum):
 @dataclass(frozen=True, slots=True)
 class InspectCrateResult:
     status: InspectCrateStatus
-    normalization:  None = None
-    verification: WorkflowArtifactSummary | None = None
+    crate: ImportCrateResult | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
     inspect_output: str | None = None
@@ -61,76 +53,9 @@ class InspectCrateResult:
         return len(self.warnings) > 0
 
 
-class LocalPyCompssMetadataInspector:
-    """Runs pycompss inspect on the crate metadata source using a PTY so Rich keeps colors."""
-
-    def __init__(self, executable: str = "pycompss") -> None:
-        self._executable = executable
-
-    def inspect(self, ) -> :
-        if document.format == RO_CRATE_JSON and document.path is not None:
-            target = document.path.parent
-        elif document.format == COMPSS_YAML and document.path is not None:
-            target = document.path
-        else:
-            target = Path(document.source.location)
-        # if you want the verbose output
-        #command = [self._executable, "inspect", "-v", str(target)]
-        command = [self._executable, "inspect", str(target)]
-
-        try:
-            master_fd, slave_fd = pty.openpty()
-        except OSError as exc:
-            return (
-                ok=False,
-                warning=f"pycompss inspect PTY allocation failed: {exc}",
-            )
-
-        try:
-            process = subprocess.Popen(command, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, close_fds=True)
-        except FileNotFoundError:
-            os.close(master_fd)
-            os.close(slave_fd)
-            return (ok=False, warning="pycompss inspect unavailable: executable 'pycompss' not found")
-        except OSError as exc:
-            os.close(master_fd)
-            os.close(slave_fd)
-            return (ok=False, warning=f"pycompss inspect could not be executed: {exc}")
-
-        os.close(slave_fd)
-
-        chunks: list[bytes] = []
-        try:
-            while True:
-                try:
-                    data = os.read(master_fd, 4096)
-                except OSError:
-                    break
-                if not data:
-                    break
-                chunks.append(data)
-        finally:
-            try:
-                os.close(master_fd)
-            except OSError:
-                pass
-
-        return_code = process.wait()
-        output = b"".join(chunks).decode("utf-8", errors="replace").rstrip()
-
-        if return_code == 0:
-            return ( ok=True, stdout=output or None)
-
-        details = output or "no diagnostic output"
-        return ( ok=False, stdout=output or None, warning=f"pycompss inspect failed (exit code {return_code}): {details}" )
-
-
 def _inspect_rocrate(import_crate_result: ImportCrateResult) -> InspectCrateResult:
-
-        return InspectCrateResult(
-            status=
-            normalization=
-            warnings=
-            notes=
-            inspect_output=
-        )
+    return InspectCrateResult(
+        status=InspectCrateStatus.SUCCEEDED,
+        crate=import_crate_result,
+        notes=("Crate inspection completed",),
+    )

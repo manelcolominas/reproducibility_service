@@ -244,7 +244,7 @@ def print_import_result(result: ImportCrateResult) -> None:
         Panel(table, title="1. Crate source imported", border_style="green", title_align="left")
     )
 
-def print_inspect_result(result: InspectCrateResult,  | None, submission_command: str | None = None) -> None:
+def print_inspect_result(result, crate, submission_command: str | None = None) -> None:
     if crate is None:
         print_error("Could not extract usable metadata from the crate")
         return

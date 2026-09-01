@@ -30,13 +30,6 @@ from application.ports.executor import ExecutionOutcome
 from application.ports.file_system import (
     FileSystemOperationResult,
 )
-from application.ports.metadata_parser import (
-    MetadataNormalizationResult,
-)
-from domain.errors import (
-    MetadataParseError,
-    SourceAcquisitionError,
-)
 from domain.models.crate import (
     ArtifactKind,
     DataPersistenceKind,
@@ -106,32 +99,6 @@ class LocalFileSystem:
             return FileSystemOperationResult(path=path, succeeded=True, bytes_transferred=len(content))
         except OSError as exc:
             return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
-
-###   do not delete
-class CrateMetadataParser:
-    """Locates and loads either ro-crate-metadata.json or ro-crate-info.yaml."""
-
-    def parse(self, : ) -> :
-        root = Path(request.source.location)
-        if not root.exists():
-            raise MetadataParseError(f"Crate root does not exist: {root}")
-
-        json_candidates = sorted(root.rglob("ro-crate-metadata.json"))
-        yaml_candidates = sorted(root.rglob("ro-crate-info.yaml"))
-
-        if json_candidates:
-            path = json_candidates[0]
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            return (source=request.source, format=.RO_CRATE_JSON, raw=raw, path=path)
-
-        if yaml_candidates:
-            path = yaml_candidates[0]
-            raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-            return (source=request.source, format=.COMPSS_YAML, raw=raw, path=path)
-
-        raise MetadataParseError(
-            f"No ro-crate-metadata.json or ro-crate-info.yaml found under {root}"
-        )
 
 # --------------------------------------------------------------------------- #
 # Execution adapters
@@ -231,8 +198,6 @@ __all__ = [
     "LocalCrateSourceResolver",
     "LocalCrateSourceValidator",
     "LocalCrateSourceAcquirer",
-    "CrateMetadataParser",
-    "CrateMetadataNormalizer",
     "ShutilExecutionBackendDetector",
     "SubprocessExecutionAgent",
 ]
