@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import runtime_checkable
 import os
 from rocrate.rocrate import ROCrate
 
@@ -30,7 +29,6 @@ from application.ports.executor import (
     ExecutionSubmission,
 )
 from domain.errors import CommandBuildError, ValidationError
-# from domain.models.crate import CrateSummary
 from domain.models.execution import (
     ExecutionBackend,
     ExecutionContext,
@@ -232,7 +230,6 @@ class ParsedSubmissionCommand:
 
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanRequest:
-    #crate: CrateSummary
     crate_root: Path
     workspace_directory: Path
     backend: ExecutionBackend = ExecutionBackend.AUTO

@@ -38,7 +38,6 @@ from application.ports.crate_source import (
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import (
     CrateSource,
-    CrateSummary,
     WorkflowMetadata,
     CrateSourceKind,
 )
@@ -55,8 +54,7 @@ class ImportCrateResult:
     source: CrateSource
     validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
-    location: Path
-    #crate: CrateSummary | None = None
+    crate_location: Path
     metadata: WorkflowMetadata | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
@@ -64,7 +62,7 @@ class ImportCrateResult:
     rocrate: ROCrate | None = None
 
 
-def _import_rocrate_simple(source_name, workspace_directory, shared_crate_directory, file_system):
+def _import_rocrate(source_name, workspace_directory, shared_crate_directory, file_system):
     # take the source_name and convert it to string and remove whitespace from both ends
     raw_value = str(source_name).strip()
 
@@ -297,18 +295,12 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
         source_metadata_path=crate_location / "ro-crate-metadata.json",
     )
 
-    # crate = CrateSummary(
-    #     location=crate_location,
-    #     metadata=metadata
-    # )
-
     import_crate_result = ImportCrateResult(
         source=source,
         validation=validation,
         acquisition=acquisition,
-        location=crate_location,
+        crate_location=crate_location,
         metadata=metadata,
-        # crate=crate,
         notes=("Crate source prepared successfully",),
         rocrate=rocrate,
     )

@@ -42,7 +42,7 @@ from application.use_cases.build_execution_plan import (
 )
 
 from application.use_cases.inspect_crate import (
-    _inspect_rocrate_simple
+    _inspect_rocrate
 )
 from application.use_cases.prepare_provenance import (
     DefaultPrepareProvenanceService,
@@ -50,7 +50,7 @@ from application.use_cases.prepare_provenance import (
 )
 from application.use_cases.verify_inputs import (
     VerifyInputsStatus,
-    _verify_rocrate_simple
+    _verify_rocrate
 )
 # from config import settings
 from config.settings import AppSettings, build_default_settings
@@ -59,11 +59,11 @@ from domain.models.execution import ExecutionBackend
 from infrastructure.adapters import (
     LocalFileSystem,
     ShutilExecutionBackendDetector,
-    SubprocessExecutionParticipant,
+    SubprocessExecutionAgent,
 )
 
 from application.use_cases.import_crate import (
-    _import_rocrate_simple,
+    _import_rocrate,
 )
 from presentation.cli import view
 
@@ -223,8 +223,8 @@ def run_app(argv: list[str] | None = None) -> int:
 
     view.console.print(f"Running submission command: {plan_result.plan.command.as_string()}")
 
-    participant = SubprocessExecutionParticipant()
-    outcome = view.run_with_spinner("Executing workflow...", participant.submit, plan_result.submission)
+    agent = SubprocessExecutionAgent()
+    outcome = view.run_with_spinner("Executing workflow...", agent.submit, plan_result.submission)
     view.print_final_summary(outcome)
 
     logger.info(
@@ -255,17 +255,17 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
     file_system = LocalFileSystem()
 
-    # calls the _import_rocrate_simple function to import the RO-Crate from the source provided by the user
+    # calls the _import_rocrate function to import the RO-Crate from the source provided by the user
     # the function will return an ImportCrateResult object containing the imported crate and its location
     # import_result = ImportCrateResult(
     #     source=source_with_rocrate,
     #     validation=validation,
     #     acquisition=acquisition,
-    #     location=location,
+    #     crate_location=crate_location,
     #     crate=crate,
     #     notes=("Crate source prepared successfully",),
     # )
-    import_result = _import_rocrate_simple(args.source, workspace_directory, shared_crate_directory, file_system)
+    import_result = _import_rocrate(args.source, workspace_directory, shared_crate_directory, file_system)
 
     # ╭─ 1. Crate source imported ──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
     # │ Source type   zip                                                                                                                   │
@@ -274,7 +274,10 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
     
     view.print_import_result(import_result)
-    inspect_result = _inspect_rocrate_simple(import_result.location)
+
+    # calls the _inspect_rocrate function to inspect the imported RO-Crate
+    # the function will return an InspectCrateResult object containing the crate and its metadata
+    inspect_result = _inspect_rocrate(import_result)
 
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")
@@ -324,7 +327,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
 
     view.print_inspect_result(inspect_result, crate, original_submission_command)
 
-    verify_result = _verify_rocrate_simple(crate, file_system)
+    verify_result = _verify_rocrate(crate, file_system)
     view.print_verification_table(verify_result)
 
     if verify_result.status == VerifyInputsStatus.FAILED:

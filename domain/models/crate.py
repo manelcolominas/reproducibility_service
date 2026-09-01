@@ -22,9 +22,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
-from rocrate.rocrate import ROCrate
-
-
 class CrateSourceKind(str, Enum):
     """
         Represents the kind of source from which a crate 
@@ -40,16 +37,6 @@ class DataPersistenceKind(str, Enum):
     FALSE = "false"
     UNKNOWN = "unknown"
 
-
-class ArtifactKind(str, Enum):
-    INPUT = "input"
-    OUTPUT = "output"
-    SOURCE = "source"
-    RESOURCE = "resource"
-    RESULT = "result"
-    OTHER = "other"
-
-
 @dataclass(frozen=True, slots=True)
 class CrateSource:
     type: CrateSourceKind
@@ -58,7 +45,6 @@ class CrateSource:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("CrateSource.name cannot be empty")
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,13 +84,16 @@ class WorkflowMetadata:
     def with_agent(self, agent: WorkflowParticipant | None) -> "WorkflowMetadata":
         return replace(self, agent=agent)
 
+class ArtifactKind(str, Enum):
+    SOURCE = "source"
+    INPUT = "input"
+    OUTPUT = "output"
 
 @dataclass(frozen=True, slots=True)
 class WorkflowArtifact:
     type: ArtifactKind
     name: str
     path: str
-    metadata_id: str | None = None
     size_bytes: int | None = None
     accessible: bool = True
     exists: bool = True
@@ -117,34 +106,13 @@ class WorkflowArtifact:
         if self.size_bytes is not None and self.size_bytes < 0:
             raise ValueError("WorkflowArtifact.size_bytes cannot be negative")
 
-
 @dataclass(frozen=True, slots=True)
-class CrateIndex:
-    inputs: tuple[WorkflowArtifact, ...] = ()
-    outputs: tuple[WorkflowArtifact, ...] = ()
-    sources: tuple[WorkflowArtifact, ...] = ()
-    resources: tuple[WorkflowArtifact, ...] = ()
+class WorkflowArtifactSummary:
+    total: int = 0
+    artifacts: list[WorkflowArtifact] = field(default_factory=list)
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "total", len(self.artifacts))
 
-    def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
-        return (*self.inputs, *self.outputs, *self.sources, *self.resources)
-
-
-# @dataclass(frozen=True, slots=True)
-# class CrateSummary:
-#     location: Path
-#     metadata: WorkflowMetadata
-#     index: CrateIndex = field(default_factory=CrateIndex)
-#     crate_format_version: str | None = None
-#     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-#     @property
-#     def has_inputs(self) -> bool:
-#         return len(self.index.inputs) > 0
-
-#     @property
-#     def has_outputs(self) -> bool:
-#         return len(self.index.outputs) > 0
-
-#     @property
-#     def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
-#         return self.index.all_artifacts()
+def _verify_rocrate_artifacts(artifacts: list[WorkflowArtifact]) -> WorkflowArtifactSummary:
+    # Implement the verification logic here
+    return WorkflowArtifactSummary(artifacts=artifacts)

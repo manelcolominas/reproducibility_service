@@ -30,7 +30,6 @@ class ExecutionBackend(str, Enum):
 
 
 class ExecutionStatus(str, Enum):
-    PENDING = "pending"
     READY = "ready"
     RUNNING = "running"
     SUCCEEDED = "succeeded"

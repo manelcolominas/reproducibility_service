@@ -37,9 +37,6 @@ from application.ports.executor import ExecutionOutcome
 from application.use_cases.inspect_crate import InspectCrateResult
 from application.use_cases.import_crate import ImportCrateResult
 from application.use_cases.prepare_provenance import PrepareProvenanceResult
-from application.use_cases.verify_inputs import VerifyInputsResult
-# from domain.models.crate import CrateSummary
-from domain.models.verification import VerificationState
 from domain.models.execution import ExecutionPlan, ExecutionBackend
 
 from application.use_cases.build_execution_plan import (
@@ -240,14 +237,14 @@ def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Source type", result.source.type.value)
     table.add_row("Source name", result.source.name)
-    table.add_row("Ro-Crate path", str(result.location))
+    table.add_row("Ro-Crate path", str(result.crate_location))
     if result.acquisition is not None:
         table.add_row("Acquisition", result.acquisition.kind)
     console.print(
         Panel(table, title="1. Crate source imported", border_style="green", title_align="left")
     )
 
-def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None, submission_command: str | None = None) -> None:
+def print_inspect_result(result: InspectCrateResult,  | None, submission_command: str | None = None) -> None:
     if crate is None:
         print_error("Could not extract usable metadata from the crate")
         return
@@ -263,17 +260,14 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None,
 
     body = table
     if result.inspect_output:
-        body = Group(
-            Text.from_ansi(result.inspect_output.rstrip()),
-            table,
-        )
+        body = Group(Text.from_ansi(result.inspect_output.rstrip()),table)
 
     console.print(
         Panel(
             body,
             title="[bold green]2. Metadata inspected[/bold green]",
             border_style="green",
-            title_align="left",
+            title_align="left"
         )
     )
 
@@ -298,7 +292,7 @@ def print_verification_table(result: VerifyInputsResult) -> None:
     console.print(table)
     summary = result.summary
     console.print(
-        f"  {summary.verified}/{summary.total} verified, "
+        f"{summary.verified}/{summary.total} verified"
         f"{summary.failed} failed, {summary.warnings} warnings\n"
     )
 

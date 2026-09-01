@@ -27,7 +27,7 @@ import yaml
 
 from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import WorkflowMetadata, WorkflowParticipant, DataPersistenceKind #, CrateSummary
+from domain.models.crate import WorkflowMetadata, WorkflowParticipant, DataPersistenceKind 
 from infrastructure.adapters import LocalFileSystem
 
 class PrepareProvenanceStatus(str, Enum):
@@ -65,7 +65,7 @@ def _existing_path_from_source(source_name: str, crate_root: Path) -> Path | Non
     return candidate if candidate.exists() else None
 
 
-def _collect_real_sources(crate: CrateSummary) -> list[str]:
+def _collect_real_sources(  ) -> list[str]:
     crate_root = crate.location
     if crate_root is None:
         return []
@@ -123,7 +123,6 @@ def _sanitize_sources_main_file(workflow_info: dict[str, Any], sources: list[str
 
 @dataclass(frozen=True, slots=True)
 class PrepareProvenanceRequest:
-    # crate: CrateSummary
     provenance_root: Path
     participant_name: str | None = None
     participant_email: str | None = None
@@ -335,7 +334,7 @@ def _load_base_ro_crate_info(metadata: WorkflowMetadata) -> dict[str, Any] | Non
     return raw if isinstance(raw, dict) else None
 
 
-def _render_fallback_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -> str:
+def _render_fallback_ro_crate_info_yaml(metadata: WorkflowMetadata, ) -> str:
     sources = _collect_real_sources(crate)
 
     document: dict[str, Any] = {
@@ -351,7 +350,7 @@ def _render_fallback_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: Crate
     return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
 
-def render_ro_crate_info_yaml(metadata: WorkflowMetadata, crate: CrateSummary) -> str:
+def render_ro_crate_info_yaml(metadata: WorkflowMetadata, ) -> str:
     base_document = _load_base_ro_crate_info(metadata)
     if base_document is None:
         return _render_fallback_ro_crate_info_yaml(metadata, crate)

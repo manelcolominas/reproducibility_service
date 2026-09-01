@@ -18,83 +18,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping, runtime_checkable
 
-from domain.errors import ValidationError
 from domain.models.crate import (
-    CrateIndex,
-    #CrateSummary,
     DataPersistenceKind,
     WorkflowArtifact,
     WorkflowMetadata,
     WorkflowParticipant,
 )
-
-
-class MetadataFormat(str, Enum):
-    UNKNOWN = "unknown"
-    RO_CRATE_JSON = "ro_crate_json"
-    COMPSS_YAML = "compss_yaml"
-
-
-class MetadataSourceKind(str, Enum):
-    FILE = "file"
-    DIRECTORY = "directory"
-    URL = "url"
-
-
-@dataclass(frozen=True, slots=True)
-class MetadataSource:
-    type: MetadataSourceKind
-    location: str
-    format_hint: MetadataFormat = MetadataFormat.UNKNOWN
-
-    def __post_init__(self) -> None:
-        if not self.location.strip():
-            raise ValidationError("MetadataSource.location cannot be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class MetadataDocument:
-    source: MetadataSource
-    format: MetadataFormat
-    raw: Mapping[str, Any]
-    path: Path | None = None
-
-    def __post_init__(self) -> None:
-        if self.format == MetadataFormat.UNKNOWN:
-            raise ValidationError("MetadataDocument.format cannot be UNKNOWN")
-
-
-@dataclass(frozen=True, slots=True)
-class MetadataNormalizationResult:
-    document: MetadataDocument
-    metadata: WorkflowMetadata | None = None
-    index: CrateIndex | None = None
-    #crate: CrateSummary | None = None
-    warnings: tuple[str, ...] = ()
-    issues: tuple[str, ...] = ()
-
-    @property
-    def is_usable(self) -> bool:
-        return self.metadata is not None
-
-
-@dataclass(frozen=True, slots=True)
-class MetadataParseRequest:
-    source: MetadataSource
-    expected_format: MetadataFormat = MetadataFormat.UNKNOWN
-    allow_partial_metadata: bool = True
-    strict: bool = False
-
-@dataclass(frozen=True, slots=True)
-class MetadataInspectionResult:
-    ok: bool
-    stdout: str | None = None
-    stderr: str | None = None
-    warning: str | None = None
 
 
 def build_workflow_metadata(

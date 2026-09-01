@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import runtime_checkable
-
 from rocrate.rocrate import ROCrate
 
 from domain.models.crate import CrateSource

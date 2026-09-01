@@ -16,55 +16,37 @@
 #
 
 from __future__ import annotations
+import os
+import pty
+import subprocess
+from pathlib import Path
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
 
 from application.ports.metadata_parser import (
-    MetadataDocument,
-    MetadataFormat,
-    MetadataNormalizationResult,
-    MetadataParseRequest,
-    MetadataSource,
-    MetadataSourceKind,
+    WorkflowMetadata,
+    
 )
 from infrastructure.adapters import (
     CrateMetadataParser,
     CrateMetadataNormalizer,
-    LocalPyCompssMetadataInspector,
 )
 from domain.errors import ValidationError
-# from domain.models.crate import CrateSummary
-from domain.models.verification import VerificationSummary
+from application.use_cases.import_crate import ImportCrateResult
+from domain.models.crate import WorkflowArtifactSummary
 
 
 class InspectCrateStatus(str, Enum):
-    PENDING = "pending"
-    PARSED = "parsed"
-    NORMALIZED = "normalized"
-    INSPECTED = "inspected"
+    SUCCEEDED = "succeeded"
     FAILED = "failed"
-
-
-@dataclass(frozen=True, slots=True)
-class InspectCrateRequest:
-    crate_root: Path
-    metadata_path: Path | None = None
-
-    def __post_init__(self) -> None:
-        if not str(self.crate_root).strip():
-            raise ValidationError("InspectCrateRequest.crate_root cannot be empty")
 
 @dataclass(frozen=True, slots=True)
 class InspectCrateResult:
     status: InspectCrateStatus
-    request: InspectCrateRequest
-    document: MetadataDocument
-    normalization: MetadataNormalizationResult
-    #crate: CrateSummary | None = None
-    verification: VerificationSummary | None = None
+    normalization:  None = None
+    verification: WorkflowArtifactSummary | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
     inspect_output: str | None = None
@@ -72,56 +54,83 @@ class InspectCrateResult:
 
     @property
     def inspected(self) -> bool:
-        return self.status == InspectCrateStatus.INSPECTED
+        return self.status == InspectCrateStatus.SUCCEEDED
 
     @property
     def has_warnings(self) -> bool:
         return len(self.warnings) > 0
 
 
-def _inspect_rocrate_simple(crate_root: Path):
-    parser = CrateMetadataParser()
-    normalizer = CrateMetadataNormalizer()
-    inspector = LocalPyCompssMetadataInspector()
+class LocalPyCompssMetadataInspector:
+    """Runs pycompss inspect on the crate metadata source using a PTY so Rich keeps colors."""
 
-    metadata_source = MetadataSource(
-        type=MetadataSourceKind.DIRECTORY,
-        location=str(crate_root),
-        format_hint=MetadataFormat.UNKNOWN,
-    )
-    parse_request = MetadataParseRequest(
-        source=metadata_source,
-        expected_format=MetadataFormat.UNKNOWN,
-        allow_partial_metadata=True,
-        strict=False,
-    )
+    def __init__(self, executable: str = "pycompss") -> None:
+        self._executable = executable
 
-    document = parser.parse(parse_request)
-    normalization = normalizer.normalize(document)
+    def inspect(self, ) -> :
+        if document.format == RO_CRATE_JSON and document.path is not None:
+            target = document.path.parent
+        elif document.format == COMPSS_YAML and document.path is not None:
+            target = document.path
+        else:
+            target = Path(document.source.location)
+        # if you want the verbose output
+        #command = [self._executable, "inspect", "-v", str(target)]
+        command = [self._executable, "inspect", str(target)]
 
-    crate = normalization.crate
-    if crate is None and normalization.metadata is not None:
-        crate = normalization.metadata
+        try:
+            master_fd, slave_fd = pty.openpty()
+        except OSError as exc:
+            return (
+                ok=False,
+                warning=f"pycompss inspect PTY allocation failed: {exc}",
+            )
 
-    inspect_output = None
-    warnings = list(normalization.warnings)
-    try:
-        inspection = inspector.inspect(document)
-        inspect_output = inspection.stdout
-        if inspection.warning:
-            warnings.append(inspection.warning)
-    except Exception as exc:
-        warnings.append(f"pycompss inspect failed: {exc}")
+        try:
+            process = subprocess.Popen(command, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, close_fds=True)
+        except FileNotFoundError:
+            os.close(master_fd)
+            os.close(slave_fd)
+            return (ok=False, warning="pycompss inspect unavailable: executable 'pycompss' not found")
+        except OSError as exc:
+            os.close(master_fd)
+            os.close(slave_fd)
+            return (ok=False, warning=f"pycompss inspect could not be executed: {exc}")
 
-    status = InspectCrateStatus.INSPECTED if normalization.is_usable else InspectCrateStatus.FAILED
+        os.close(slave_fd)
 
-    return InspectCrateResult(
-        status=status,
-        request=InspectCrateRequest(crate_root=crate_root),
-        document=document,
-        normalization=normalization,
-        crate=crate,
-        warnings=tuple(warnings),
-        notes=tuple(normalization.issues),
-        inspect_output=inspect_output,
-    )
+        chunks: list[bytes] = []
+        try:
+            while True:
+                try:
+                    data = os.read(master_fd, 4096)
+                except OSError:
+                    break
+                if not data:
+                    break
+                chunks.append(data)
+        finally:
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
+
+        return_code = process.wait()
+        output = b"".join(chunks).decode("utf-8", errors="replace").rstrip()
+
+        if return_code == 0:
+            return ( ok=True, stdout=output or None)
+
+        details = output or "no diagnostic output"
+        return ( ok=False, stdout=output or None, warning=f"pycompss inspect failed (exit code {return_code}): {details}" )
+
+
+def _inspect_rocrate(import_crate_result: ImportCrateResult) -> InspectCrateResult:
+
+        return InspectCrateResult(
+            status=
+            normalization=
+            warnings=
+            notes=
+            inspect_output=
+        )
