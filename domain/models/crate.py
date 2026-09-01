@@ -54,15 +54,11 @@ class ArtifactKind(str, Enum):
 class CrateSource:
     type: CrateSourceKind
     name: str
-    # rocrate: ROCrate | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("CrateSource.name cannot be empty")
 
-    # set the RO-Crate for this source and return a new CrateSource object with the updated RO-Crate
-    # def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSource":
-    #     return replace(self, rocrate=rocrate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +90,6 @@ class WorkflowMetadata:
     generated_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     execution_site: str | None = None
-    # rocrate: ROCrate | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -102,9 +97,6 @@ class WorkflowMetadata:
 
     def with_agent(self, agent: WorkflowParticipant | None) -> "WorkflowMetadata":
         return replace(self, agent=agent)
-
-    # def with_rocrate(self, rocrate: ROCrate | None) -> "WorkflowMetadata":
-    #     return replace(self, rocrate=rocrate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,13 +131,12 @@ class CrateIndex:
 
 @dataclass(frozen=True, slots=True)
 class CrateSummary:
-    # source: CrateSource
     location: Path
     metadata: WorkflowMetadata
     index: CrateIndex = field(default_factory=CrateIndex)
     crate_format_version: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    # rocrate: ROCrate | None = None
+    rocrate: ROCrate | None = None
 
     @property
     def has_inputs(self) -> bool:
@@ -159,5 +150,5 @@ class CrateSummary:
     def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
         return self.index.all_artifacts()
 
-    # def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
-    #     return replace(self, rocrate=rocrate)
+    def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
+        return replace(self, rocrate=rocrate)

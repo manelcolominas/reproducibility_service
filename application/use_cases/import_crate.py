@@ -20,23 +20,19 @@ from rocrate.rocrate import ROCrate
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum
 from io import BytesIO
-import json
 from pathlib import Path
 import os
-import shutil
 import re
 import requests
 import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote
 
 from application.ports.crate_source import (
     SourceAcquisitionResult,
     SourceValidationResult,
-    #ensure_rocrate,
     load_rocrate_if_valid,
 )
 from domain.errors import FileSystemError, ValidationError
@@ -67,7 +63,7 @@ class ImportCrateResult:
     rocrate: ROCrate | None = None
 
 
-def _import_rocrate_simple(source_name, workspace_directory, crate_directory, file_system):
+def _import_rocrate_simple(source_name, workspace_directory, shared_crate_directory, file_system):
     # take the source_name and convert it to string and remove whitespace from both ends
     raw_value = str(source_name).strip()
 
@@ -155,21 +151,18 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
     #  using the create_directory function from the file_system object
     file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
     # we get the absolute path of the source
-    source_absolute_path = Path(source.name).expanduser().resolve()
+    #source_absolute_path = Path(source.name).expanduser().resolve()
     # we get the absolute path of the crate directory
-    destination_absolute_path = crate_directory.resolve()
+    destination_absolute_path = shared_crate_directory.resolve()
 
     # if the source is a directory we enter into this block
     if source.type == CrateSourceKind.DIRECTORY:
         # we create the crate directory if it does not exist, using the create_directory function from
         # the file_system object
-        file_system.create_directory(path=crate_directory, parents=True, exist_ok=True)
+        file_system.create_directory(path=shared_crate_directory, parents=True, exist_ok=True)
 
         # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
-        #################################################################
-        # and the absolute path of the prepared root directory. ????????
-        #################################################################
-        acquisition = SourceAcquisitionResult(source=source, source_root=source_absolute_path, prepared_root=destination_absolute_path)
+        acquisition = SourceAcquisitionResult(source=source, source_root=destination_absolute_path)
 
     # if the source is a zip file we enter into this block
     elif source.type == CrateSourceKind.ZIP:
@@ -200,7 +193,7 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         #       └── ro-crate-preview.html
 
         # therefore, we extract it in the parent directory of the crate directory
-        archive_file.extractall(crate_directory.parent)
+        archive_file.extractall(shared_crate_directory.parent)
         # we get a structure like this :
         # parent_directory
         #       └── RO-Crate
@@ -224,12 +217,9 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
 
         # we create a SourceAcquisitionResult object where we store the source that it is a CrateSource Object, wich it is : 
         #  CrateSource(type=CrateSourceKind.ZIP, name=str(source_relative_path))
-        #  the absolute path of the source,
+        #  the absolute path of the source root,
         #  whether the source was extracted or not.
-        #######################################################
-        #  and the absolute path of the prepared root directory. ???????????????
-        #########################################################
-        acquisition = SourceAcquisitionResult(source=source,source_root=source_absolute_path,prepared_root=destination_absolute_path,extracted=True)
+        acquisition = SourceAcquisitionResult(source=source, source_root=destination_absolute_path, extracted=True)
 
     else:
         # we create a Request object to download the crate source from the given URL
@@ -266,19 +256,19 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
         # determine the final directory name for the crate based on the downloaded filename
         final_dirname = _crate_dirname_from_downloaded_filename(filename=downloaded_filename)
         # build the final crate directory path based on the parent directory and the final directory name
-        final_crate_directory = crate_directory.parent / final_dirname
+        final_shared_crate_directory = shared_crate_directory.parent / final_dirname
 
         # create the final crate directory if it doesn't exist using the function create_directory from the file system object
-        file_system.create_directory(path=final_crate_directory, parents=True, exist_ok=True)
+        file_system.create_directory(path=final_shared_crate_directory, parents=True, exist_ok=True)
 
         # attempt to extract the downloaded archive into the final crate directory
         try:
             # open the downloaded bytes as a zip archive
             archive_file = zipfile.ZipFile(BytesIO(download_bytes))
             # extract all contents of the zip archive into the final crate directory
-            archive_file.extractall(final_crate_directory)
+            archive_file.extractall(final_shared_crate_directory)
             # set the prepared root to the final crate directory
-            prepared_root = final_crate_directory
+            source_root = final_shared_crate_directory
             # mark the extraction as successful
             extracted = True
         # if a BadZipFile exception occurs, it will be caught here and a FileSystemError will be raised
@@ -286,10 +276,9 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
             raise FileSystemError("Failed to extract crate.", details=str(exc)) from exc
 
         # create the SourceAcquisitionResult object
-        # prepared_root ??????
-        acquisition = SourceAcquisitionResult(source=source,source_root=source_absolute_path,prepared_root=prepared_root,downloaded=True,extracted=extracted)
-    
-    crate_location = acquisition.prepared_root
+        acquisition = SourceAcquisitionResult(source=source, source_root=source_root, downloaded=True, extracted=extracted)
+
+    crate_location = acquisition.source_root
 
     # load the RO-Crate
     # will return RO-Crate object if valid, otherwise None
@@ -300,27 +289,21 @@ def _import_rocrate_simple(source_name, workspace_directory, crate_directory, fi
 
     # we set the attribute 'rocrate' of the source variable with the loaded RO-Crate from
     # the call rocrate = load_rocrate_if_valid(crate_location)
-
-
-    #source_with_rocrate = source.with_rocrate(rocrate)
+    
 
     metadata = WorkflowMetadata(
         name=(rocrate.root_dataset.get("name") if rocrate else crate_location.name) or "unnamed-workflow",
         description=str((rocrate.root_dataset.get("description") if rocrate else "") or ""),
         source_metadata_path=crate_location / "ro-crate-metadata.json",
-        #rocrate=rocrate,
     )
 
     crate = CrateSummary(
-        #source=source_with_rocrate,º
         location=crate_location,
-        metadata=metadata,
-        #rocrate=rocrate,
+        metadata=metadata
     )
 
     return ImportCrateResult(
         source=source,
-        #source=source_with_rocrate,
         validation=validation,
         acquisition=acquisition,
         location=crate_location,

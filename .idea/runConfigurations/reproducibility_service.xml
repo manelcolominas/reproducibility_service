@@ -9,6 +9,7 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop/bsc-wdc/codi_compss/proves/635" />
+    <!-- <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop/bsc-wdc/codi_compss/proves/matmul_files_local" /> -->
     <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
@@ -19,6 +20,7 @@
     <!-- <option name="PARAMETERS" value="http://workflowhub.org/workflows/635/ro_crate?version=1" /> -->
     <!-- <option name="PARAMETERS" value="workflow-635-1.crate" /> -->
     <option name="PARAMETERS" value="workflow-635-1.crate.zip" />
+    <!-- <option name="PARAMETERS" value="COMPSs_RO-Crate_20260810_112548" /> -->
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

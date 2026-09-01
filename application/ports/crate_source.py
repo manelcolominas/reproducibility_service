@@ -20,7 +20,6 @@ class SourceAcquisitionResult:
 
     source: CrateSource
     source_root: Path
-    prepared_root: Path
     extracted: bool = False
     downloaded: bool = False
 
@@ -33,14 +32,12 @@ class SourceAcquisitionResult:
         return "already in disk"
 
     def __post_init__(self) -> None:
-        # Validate that the source_root and prepared_root are not empty.
+        # Validate that the source_root is not empty.
         if not str(self.source_root).strip():
             raise ValueError("SourceAcquisitionResult.source_root cannot be empty")
-        if not str(self.prepared_root).strip():
-            raise ValueError("SourceAcquisitionResult.prepared_root cannot be empty")
-        # Validate that the prepared_root exists on the filesystem.
-        if not self.prepared_root.exists():
-            raise ValueError("SourceAcquisitionResult.prepared_root does not exist")
+        # Validate that the source_root exists on the filesystem.
+        if not self.source_root.exists():
+            raise ValueError("SourceAcquisitionResult.source_root does not exist")
 
 
 @dataclass(frozen=True, slots=True)
