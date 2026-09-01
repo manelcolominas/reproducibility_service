@@ -140,7 +140,7 @@ def _import_rocrate(source_name, workspace_directory, shared_crate_directory, fi
     # a SourceValidationResult object is created with attributes shown above.
     # that basically stores the bool values of the source validation checks, if it exists, 
     # if it is readable, if it is a directory, if it is a file, if it is a url and a message.
-    validation = SourceValidationResult(source=source, exists=exists,readable=readable,directory=directory,file=file,url=url,message=message)
+    validation = SourceValidationResult(source=source, exists=exists, readable=readable, directory=directory, file=file, url=url, message=message)
 
     # is valid, if not we raise a FileSystemError with the message from the validation object.
     if not validation.is_valid:
@@ -376,6 +376,6 @@ def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
             name = name[:-4].strip()
         # if the resulting name is empty, fallback to the default name "Ro-Crate"
         if not name:
-            name  = "Ro-Crate"
+            name = "Ro-Crate"
     # return the final crate directory name
     return name

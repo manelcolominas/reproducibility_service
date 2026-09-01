@@ -112,7 +112,3 @@ class WorkflowArtifactSummary:
     artifacts: list[WorkflowArtifact] = field(default_factory=list)
     def __post_init__(self) -> None:
         object.__setattr__(self, "total", len(self.artifacts))
-
-def _verify_rocrate_artifacts(artifacts: list[WorkflowArtifact]) -> WorkflowArtifactSummary:
-    # Implement the verification logic here
-    return WorkflowArtifactSummary(artifacts=artifacts)
