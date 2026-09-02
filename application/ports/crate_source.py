@@ -67,9 +67,6 @@ def _metadata_yaml_file_exists(root: Path) -> bool:
 
 
 def load_rocrate_if_valid(root: Path) -> ROCrate | None:
-    if not _metadata_json_file_exists(root):
-        raise FileNotFoundError("ro-crate-metadata.json file does not exist")
-
     try:
         crate = ROCrate(root)
         return crate

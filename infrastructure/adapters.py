@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+from importlib.resources import path
 import json
 import os
 import subprocess
@@ -98,6 +99,10 @@ class LocalFileSystem:
             return FileSystemOperationResult(path=path, succeeded=True, bytes_transferred=len(content))
         except OSError as exc:
             return FileSystemOperationResult(path=path, succeeded=False, message=str(exc))
+
+    def get_size(self, path: Path) -> int:
+        size_in_bytes = path.stat().st_size
+        return size_in_bytes
 
 # --------------------------------------------------------------------------- #
 # Execution adapters

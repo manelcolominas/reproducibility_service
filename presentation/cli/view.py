@@ -37,6 +37,7 @@ from application.ports.executor import ExecutionOutcome
 from application.use_cases.inspect_crate import InspectCrateResult
 from application.use_cases.import_crate import ImportCrateResult
 from application.use_cases.prepare_provenance import PrepareProvenanceResult
+from domain.models.crate import EntityKind
 from domain.models.execution import ExecutionPlan, ExecutionBackend
 
 from application.use_cases.build_execution_plan import (
@@ -276,25 +277,41 @@ def print_inspect_result(result, submission_command: str | None = None) -> None:
         for warning in result.warnings:
             console.print(f"  [yellow]![/yellow] {warning}")
             
-def print_verification_table(result: VerifyInputsResult) -> None:
+def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     table = Table(title="3. Input verification", show_lines=False)
-    table.add_column("Artifact")
-    table.add_column("State")
+    table.add_column("Entity")
+    table.add_column("Type")
+    # table.add_column("Size (bytes)")
+    table.add_column("Exists")
     table.add_column("Path")
 
-    for item in result.summary.items:
-        style = "green" if item.state == VerificationState.VERIFIED else "red"
+    for item in inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary.entities:
+        style = "green" if item.exists else "red"
+        if item.exists:
+            item_exists_row_value = "Exists"
+            style = "green"
+        elif item.type in {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}:
+            item_exists_row_value = "Missing"
+            style = "red"
+        else:
+            item_exists_row_value = "Warning"
+            style = "yellow"
+
         table.add_row(
-            item.reference.metadata_name,
-            f"[{style}]{item.state.value}[/{style}]",
-            str(item.resolved_path or ""),
+            item.name,
+            item.type.value,
+            # str(item.size_bytes),
+            f"[{style}]{item_exists_row_value}[/{style}]",
+            str(item.path or ""),
         )
 
     console.print(table)
-    summary = result.summary
+    workflow_entity_summary = inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary
     console.print(
-        f"{summary.verified}/{summary.total} verified"
-        f"{summary.failed} failed, {summary.warnings} warnings\n"
+        f"{workflow_entity_summary.total} checked"
+        f", {workflow_entity_summary.total_success} succeeded"
+        f", {workflow_entity_summary.total_failed} failed"
+        f", {workflow_entity_summary.total_warnings} warnings\n"
     )
 
 def print_execution_plan(plan: ExecutionPlan) -> None:

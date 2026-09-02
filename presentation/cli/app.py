@@ -145,7 +145,7 @@ def run_app(argv: list[str] | None = None) -> int:
         # takes the current working where the reproducibility service is launched.
         runs_root = Path.cwd()
         # a hidden directory named ".crate_downloaded" is created temporarily in the runs_root to store the downloaded crate from the URL.
-        shared_crate_directory = runs_root / ".crate_downloaded"
+        shared_crate_directory = runs_root / "crate_downloaded_provisional_name"
 
     # if the source is a local path or zip file.
     else:
@@ -179,7 +179,7 @@ def run_app(argv: list[str] | None = None) -> int:
     # just build the path in the code, doesn't create the directory yet.
     workspace_directory = runs_root / f"reproducibility_service_{run_id}"
 
-    # create the workspace_directory
+    # create the workspace_directory (reproducibility service {run_id} )
     workspace_directory.mkdir(parents=True, exist_ok=True)
 
     # build a logger for the reproducibility service run, which will log messages

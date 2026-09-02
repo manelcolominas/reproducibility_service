@@ -60,7 +60,7 @@ class ImportCrateResult:
     validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
     crate_location: Path
-    metadata: WorkflowMetadata | None = None
+    workflow_metadata: WorkflowMetadata | None = None
     data_persistence: DataPersistenceKind | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
@@ -153,7 +153,7 @@ def _import_rocrate(source_name, workspace_directory, shared_crate_directory, fi
 
     # we create the workspace directory (reproducibility_service_{run_id}) if it does not exist,
     #  using the create_directory function from the file_system object
-    file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
+    # file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
     # we get the absolute path of the source
     #source_absolute_path = Path(source.name).expanduser().resolve()
     # we get the absolute path of the crate directory
@@ -163,7 +163,7 @@ def _import_rocrate(source_name, workspace_directory, shared_crate_directory, fi
     if source.type == CrateSourceKind.DIRECTORY:
         # we create the crate directory if it does not exist, using the create_directory function from
         # the file_system object
-        file_system.create_directory(path=shared_crate_directory, parents=True, exist_ok=True)
+        # file_system.create_directory(path=shared_crate_directory, parents=True, exist_ok=True)
 
         # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
         acquisition = SourceAcquisitionResult(source=source, source_root=destination_absolute_path)
@@ -294,7 +294,7 @@ def _import_rocrate(source_name, workspace_directory, shared_crate_directory, fi
     # we set the attribute 'rocrate' of the source variable with the loaded RO-Crate from
     # the call rocrate = load_rocrate_if_valid(crate_location)
 
-    metadata = WorkflowMetadata(
+    workflow_metadata = WorkflowMetadata(
         name=(rocrate.root_dataset.get("name") if rocrate else crate_location.name) or "unnamed-workflow",
         description=str((rocrate.root_dataset.get("description") if rocrate else "") or ""),
         source_metadata_path=crate_location / "ro-crate-metadata.json",
@@ -305,7 +305,7 @@ def _import_rocrate(source_name, workspace_directory, shared_crate_directory, fi
         validation=validation,
         acquisition=acquisition,
         crate_location=crate_location,
-        metadata=metadata,
+        workflow_metadata=workflow_metadata,
         notes=("Crate source prepared successfully",),
         rocrate=rocrate,
     )

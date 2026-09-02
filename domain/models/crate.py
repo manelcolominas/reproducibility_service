@@ -62,7 +62,7 @@ class WorkflowMetadata:
     version: str | None = None
     authors: tuple[WorkflowParticipant, ...] = ()
     agent: WorkflowParticipant | None = None
-    workflow_artifact_summary: WorkflowEntitySummary | None = None
+    workflow_entity_summary: WorkflowEntitySummary | None = None
     license: str | None = None
     crate_version: str | None = None
     compss_version: str | None = None
@@ -80,11 +80,11 @@ class WorkflowMetadata:
 class EntityKind(str, Enum):
     SOFTWARE_SOURCE_CODE = "SoftwareSourceCode"
     IMAGE_OBJECT = "ImageObject"
-    INPUT_OR_OUTPUT = "input"
+    INPUT_OR_OUTPUT = "Input or Output"
     RO_CRATE_INFO_YAML = "yaml"
     # we could support it also, some workflows has a yaml file as configuration
     # CONFIG_FILE = "ConfigFile"
-    README = "readme"
+    README = "README"
     UNKNOWN = "unknown"
     COMPSS_SUBMISSION_COMMAND_LINE_FILE = "compss_submission_command_line"
 
@@ -94,20 +94,21 @@ class WorkflowEntity:
     name: str
     path: str
     size_bytes: int | None = None
-    accessible: bool = True
     exists: bool = True
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("WorkflowEntity.name cannot be empty")
-        # if not self.path:
-        #     raise ValueError("WorkflowEntity.path cannot be empty")
         # if self.size_bytes is not None and self.size_bytes < 0:
         #     raise ValueError("WorkflowEntity.size_bytes cannot be negative")
 
 @dataclass(frozen=True, slots=True)
 class WorkflowEntitySummary:
     total: int = 0
-    artifacts: list[WorkflowEntity] = field(default_factory=list)
+    total_success: int = 0
+    total_failed: int = 0
+    total_warnings: int = 0
+    entities: list[WorkflowEntity] = field(default_factory=list)
+
     def __post_init__(self) -> None:
-        object.__setattr__(self, "total", len(self.artifacts))
+        object.__setattr__(self, "total", len(self.entities))

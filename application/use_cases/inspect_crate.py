@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+from zipfile import Path
 
 from application.use_cases.import_crate import ImportCrateResult
 
 from domain.models.crate import EntityKind
+from infrastructure.adapters import LocalFileSystem
 from infrastructure.pycompss_inspect import LocalPyCompssMetadataInspector
 from application.use_cases.import_crate import ImportCrateResult, DataPersistenceKind
 from domain.models.crate import WorkflowEntity, WorkflowEntitySummary
@@ -74,27 +76,57 @@ def _infer_data_persistence(import_crate_result: ImportCrateResult) -> DataPersi
 
     return data_persistence
 
-def _verify_rocrate(inspect_crate_result: InspectCrateResult, file_system) -> InspectCrateResult:
+def _verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalFileSystem) -> InspectCrateResult:
 
     import_crate_result = inspect_crate_result.import_crate_result
     has_part = get_workflow_entities(import_crate_result)
 
+    required_missing = {
+        EntityKind.SOFTWARE_SOURCE_CODE,
+        EntityKind.INPUT_OR_OUTPUT,
+    }
+    
     if has_part:
-        artifacts = []
+        entities = []
+        total = 0
+        total_success = 0
+        total_failed = 0
+        total_warnings = 0
+        
         for item in has_part:
             entity_kind = check_type_of_entity(item)
             entity_path = inspect_crate_result.import_crate_result.crate_location / item.id
-            entity = WorkflowEntity(type=entity_kind,name=item.id,path=entity_path,accessible=file_system.exists(entity_path),exists=file_system.exists(entity_path))
-            artifacts.append(entity)
+            entity_name = item.id
+        
+            try:
+                exists = file_system.exists(entity_path)
+                entity_size = file_system.get_size(entity_path)
+            except Exception:
+                exists = False
+                entity_size = None
+        
+            total += 1
+            if exists:
+                total_success += 1
+                if entity_size is None:
+                    total_warnings += 1
+            elif entity_kind in required_missing:
+                total_failed += 1
+            else:
+                total_warnings += 1
 
-        entity_summary = WorkflowEntitySummary(artifacts=artifacts)
+            entity = WorkflowEntity(type=entity_kind, name=entity_name, path=entity_path,exists=exists,size_bytes=entity_size)
 
-        metadata = inspect_crate_result.import_crate_result.metadata
-        if metadata:
-            updated_metadata = replace(metadata, workflow_artifact_summary=entity_summary)
+            entities.append(entity)
+        
+        entity_summary = WorkflowEntitySummary(total=total,total_success=total_success,total_failed=total_failed,total_warnings=total_warnings,entities=entities)
+
+        workflow_metadata = inspect_crate_result.import_crate_result.workflow_metadata
+        if workflow_metadata:
+            updated_workflow_metadata = replace(workflow_metadata, workflow_entity_summary=entity_summary)
             updated_import_crate_result = replace(
                 inspect_crate_result.import_crate_result,
-                metadata=updated_metadata,
+                workflow_metadata=updated_workflow_metadata,
             )
             inspect_crate_result = replace(
                 inspect_crate_result,
