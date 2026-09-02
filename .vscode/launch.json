@@ -11,9 +11,9 @@
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_local",
       "console": "integratedTerminal",
       "args": [
-        //"http://workflowhub.org/workflows/635/ro_crate?version=1"
+        "http://workflowhub.org/workflows/635/ro_crate?version=1"
         //"workflow-635-1.crate"
-        "workflow-635-1.crate.zip"
+        //"workflow-635-1.crate.zip"
         //"/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate"
 
         // matmul_files_local

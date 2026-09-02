@@ -240,7 +240,7 @@ def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Source type", result.source.type.value)
     table.add_row("Source name", result.source.name)
-    table.add_row("Ro-Crate path", str(result.location))
+    table.add_row("RO-Crate path", str(result.location))
     if result.acquisition is not None:
         table.add_row("Acquisition", result.acquisition.kind)
     console.print(

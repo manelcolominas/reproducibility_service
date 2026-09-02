@@ -149,7 +149,12 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
 
     # we create the workspace directory (reproducibility_service_{run_id}) if it does not exist,
     #  using the create_directory function from the file_system object
-    file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
+
+
+    ############
+    #file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
+
+
     # we get the absolute path of the source
     #source_absolute_path = Path(source.name).expanduser().resolve()
     # we get the absolute path of the crate directory
@@ -159,7 +164,9 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
     if source.type == CrateSourceKind.DIRECTORY:
         # we create the crate directory if it does not exist, using the create_directory function from
         # the file_system object
-        file_system.create_directory(path=shared_crate_directory, parents=True, exist_ok=True)
+
+        ############################333
+        #file_system.create_directory(path=shared_crate_directory, parents=True, exist_ok=True)
 
         # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
         acquisition = SourceAcquisitionResult(source=source, source_root=destination_absolute_path)
@@ -369,9 +376,9 @@ def _filename_from_http_response(response: requests.Response) -> str | None:
 
     
 def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
-    # if the filename is None, we use a default name "Ro-Crate"
+    # if the filename is None, we use a default name "RO-Crate"
     if filename is None:
-        name = "Ro-Crate"
+        name = "RO-Crate"
     else:
         # strip any leading and trailing whitespace from the filename
         name = filename.strip()
@@ -379,8 +386,8 @@ def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
         if name.lower().endswith(".zip"):
             # remove the ".zip" extension
             name = name[:-4].strip()
-        # if the resulting name is empty, fallback to the default name "Ro-Crate"
+        # if the resulting name is empty, fallback to the default name "RO-Crate"
         if not name:
-            name  = "Ro-Crate"
+            name  = "RO-Crate"
     # return the final crate directory name
     return name

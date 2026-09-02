@@ -145,7 +145,7 @@ def run_app(argv: list[str] | None = None) -> int:
         # takes the current working where the reproducibility service is launched.
         runs_root = Path.cwd()
         # a hidden directory named ".crate_downloaded" is created temporarily in the runs_root to store the downloaded crate from the URL.
-        shared_crate_directory = runs_root / ".crate_downloaded"
+        shared_crate_directory = runs_root / "crate_downloaded"
 
     # if the source is a local path or zip file.
     else:
