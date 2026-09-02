@@ -25,7 +25,6 @@ from typing import Any
 
 import yaml
 
-from application.ports.metadata_parser import MetadataDocument, MetadataNormalizationResult
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import WorkflowMetadata, WorkflowParticipant, DataPersistenceKind 
 from infrastructure.adapters import LocalFileSystem
@@ -162,8 +161,6 @@ class PrepareProvenanceResult:
     status: PrepareProvenanceStatus
     request: PrepareProvenanceRequest
     plan: PrepareProvenancePlan
-    metadata_document: MetadataDocument | None = None
-    normalization: MetadataNormalizationResult | None = None
     updated_metadata: WorkflowMetadata | None = None
     provenance_config_file: Path | None = None
     warnings: tuple[str, ...] = ()

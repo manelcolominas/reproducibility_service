@@ -48,11 +48,7 @@ from application.use_cases.prepare_provenance import (
     DefaultPrepareProvenanceService,
     PrepareProvenanceRequest,
 )
-from application.use_cases.verify_inputs import (
-    VerifyInputsStatus,
-    _verify_rocrate
-)
-# from config import settings
+
 from config.settings import AppSettings, build_default_settings
 from domain.errors import ServiceError
 from domain.models.execution import ExecutionBackend
@@ -67,6 +63,7 @@ from application.use_cases.import_crate import (
 )
 from presentation.cli import view
 
+from infrastructure.pycompss_inspect import LocalPyCompssMetadataInspector
 
 def build_arg_parser() -> argparse.ArgumentParser:
     # creates and configures the command-line argument parser for the reproducibility service,
@@ -277,7 +274,8 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
 
     # calls the _inspect_rocrate function to inspect the imported RO-Crate
     # the function will return an InspectCrateResult object containing the crate and its metadata
-    inspect_result = _inspect_rocrate(import_result)
+    inspector = LocalPyCompssMetadataInspector()
+    inspect_result = _inspect_rocrate(import_result, inspector)
 
     if inspect_result.crate is None:
         logger.info("final_status=invalid_crate_metadata")
@@ -291,7 +289,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     )
 
     crate = inspect_result.crate
-    original_submission_command = plan_service._discover_command(crate)
+    original_submission_command = plan_service._discover_command(crate.crate_location)
 
     # ╭─ 2. Metadata inspected ───────────────────────────────────────────────────────────────────╮
     # │ ───────────────────────────── RO-Crate Inspection ──────────────────────────────          │
