@@ -18,8 +18,7 @@
 from __future__ import annotations
 from rocrate.rocrate import ROCrate
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 import os
@@ -29,6 +28,8 @@ import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote
+from enum import Enum
+    
 
 from application.ports.crate_source import (
     SourceAcquisitionResult,
@@ -48,6 +49,10 @@ BROWSER_HEADERS = {
         "Accept-Language": "en-US,en;q=0.9",
     }
 
+class DataPersistenceKind(str, Enum):
+    TRUE = "true"
+    FALSE = "false"
+    UNKNOWN = "unknown"
 
 @dataclass(frozen=True, slots=True)
 class ImportCrateResult:
@@ -56,9 +61,9 @@ class ImportCrateResult:
     acquisition: SourceAcquisitionResult | None
     crate_location: Path
     metadata: WorkflowMetadata | None = None
+    data_persistence: DataPersistenceKind | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     rocrate: ROCrate | None = None
 
 

@@ -31,9 +31,8 @@ from application.ports.file_system import (
     FileSystemOperationResult,
 )
 from domain.models.crate import (
-    ArtifactKind,
-    DataPersistenceKind,
-    WorkflowArtifact,
+    EntityKind,
+    WorkflowEntity,
     WorkflowMetadata,
     WorkflowParticipant,
 )

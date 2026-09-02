@@ -244,7 +244,8 @@ def print_import_result(result: ImportCrateResult) -> None:
         Panel(table, title="1. Crate source imported", border_style="green", title_align="left")
     )
 
-def print_inspect_result(result, crate, submission_command: str | None = None) -> None:
+def print_inspect_result(result, submission_command: str | None = None) -> None:
+    crate = result.import_crate_result
     if crate is None:
         print_error("Could not extract usable metadata from the crate")
         return
@@ -256,7 +257,7 @@ def print_inspect_result(result, crate, submission_command: str | None = None) -
         "Submission command",
         submission_command or "[dim]not resolved yet[/dim]",
     )
-    table.add_row("Data persistence","[green]true[/green]" if crate.metadata.data_persistence.value == "true" else f"[red]{crate.metadata.data_persistence.value}[/red]")
+    table.add_row("Data persistence","[green]true[/green]" if crate.data_persistence.value == "true" else f"[red]{crate.data_persistence.value}[/red]")
 
     body = table
     if result.inspect_output:

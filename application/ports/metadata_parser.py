@@ -21,11 +21,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from domain.models.crate import (
-    DataPersistenceKind,
-    WorkflowArtifact,
+    WorkflowEntity,
     WorkflowMetadata,
     WorkflowParticipant,
 )
+from application.use_cases.import_crate import DataPersistenceKind
 
 
 def build_workflow_metadata(
@@ -34,7 +34,6 @@ def build_workflow_metadata(
     version: str | None = None,
     authors: tuple[WorkflowParticipant, ...] = (),
     submitter: WorkflowParticipant | None = None,
-    data_persistence: DataPersistenceKind = DataPersistenceKind.UNKNOWN,
     source_metadata_path: Path | None = None,
 ) -> WorkflowMetadata:
     return WorkflowMetadata(
@@ -43,6 +42,5 @@ def build_workflow_metadata(
         version=version,
         authors=authors,
         submitter=submitter,
-        data_persistence=data_persistence,
         source_metadata_path=source_metadata_path,
     )

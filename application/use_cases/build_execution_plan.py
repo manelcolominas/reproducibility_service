@@ -262,7 +262,6 @@ class BuildExecutionPlanResult:
     plan: ExecutionPlan
     context: ExecutionContext
     submission: ExecutionSubmission
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
 

@@ -26,8 +26,9 @@ from typing import Any
 import yaml
 
 from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import WorkflowMetadata, WorkflowParticipant, DataPersistenceKind 
+from domain.models.crate import WorkflowMetadata, WorkflowParticipant 
 from infrastructure.adapters import LocalFileSystem
+from application.use_cases.import_crate import DataPersistenceKind
 
 class PrepareProvenanceStatus(str, Enum):
     PENDING = "pending"
@@ -165,7 +166,6 @@ class PrepareProvenanceResult:
     provenance_config_file: Path | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def prepared(self) -> bool:
@@ -290,7 +290,6 @@ class DefaultPrepareProvenanceService:
             authors=authors,
             agent=participant,
             license=existing.license,
-            created_at=existing.created_at,
             generated_at=datetime.now(timezone.utc),
             crate_version=existing.crate_version,
             compss_version=existing.compss_version,

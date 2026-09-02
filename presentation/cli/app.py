@@ -61,9 +61,12 @@ from infrastructure.adapters import (
 from application.use_cases.import_crate import (
     _import_rocrate,
 )
-from presentation.cli import view
 
-from infrastructure.pycompss_inspect import LocalPyCompssMetadataInspector
+from application.use_cases.inspect_crate import (
+    _verify_rocrate,
+)
+
+from presentation.cli import view
 
 def build_arg_parser() -> argparse.ArgumentParser:
     # creates and configures the command-line argument parser for the reproducibility service,
@@ -274,10 +277,9 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
 
     # calls the _inspect_rocrate function to inspect the imported RO-Crate
     # the function will return an InspectCrateResult object containing the crate and its metadata
-    inspector = LocalPyCompssMetadataInspector()
-    inspect_result = _inspect_rocrate(import_result, inspector)
+    inspect_result = _inspect_rocrate(import_result)
 
-    if inspect_result.crate is None:
+    if inspect_result.import_crate_result is None:
         logger.info("final_status=invalid_crate_metadata")
         view.print_error("Could not build a usable crate summary from the metadata found.")
         return None, None
@@ -288,8 +290,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         results_dir_name=settings.results_dir_name,
     )
 
-    crate = inspect_result.crate
-    original_submission_command = plan_service._discover_command(crate.crate_location)
+    original_submission_command = plan_service._discover_command(inspect_result.import_crate_result.crate_location)
 
     # ╭─ 2. Metadata inspected ───────────────────────────────────────────────────────────────────╮
     # │ ───────────────────────────── RO-Crate Inspection ──────────────────────────────          │
@@ -323,9 +324,9 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     # │ Data persistence   true                                                                   │
     # ╰───────────────────────────────────────────────────────────────────────────────────────────╯
 
-    view.print_inspect_result(inspect_result, crate, original_submission_command)
+    view.print_inspect_result(inspect_result, original_submission_command)
 
-    verify_result = _verify_rocrate(crate, file_system)
+    verify_result = _verify_rocrate(inspect_result, file_system)
     view.print_verification_table(verify_result)
 
     if verify_result.status == VerifyInputsStatus.FAILED:
