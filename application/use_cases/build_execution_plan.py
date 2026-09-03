@@ -38,6 +38,7 @@ from domain.models.execution import (
 
 _COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
 
+# DO NOT DELETE THIS CLASS
 class FlagValueKind(str, Enum):
     NONE = "none"
     BOOL = "bool"
@@ -46,6 +47,7 @@ class FlagValueKind(str, Enum):
     PATH = "path"
     DIRECTORY = "directory"
 
+# DO NOT DELETE THIS CLASS
 @dataclass(frozen=True, slots=True)
 class FlagDefinition:
     name: str
@@ -56,6 +58,7 @@ class FlagDefinition:
     repeatable: bool = False
     prefer_equals: bool = False
 
+# DO NOT DELETE THIS FUNCTION
 def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
     choices: list[tuple[str, str]] = []
 
@@ -70,7 +73,7 @@ def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
 
 FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     # LOCAL and SLURM shared flags
-    FlagDefinition("--debug", "Enable debug mode for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d",)),
+    FlagDefinition("--debug", "Enable debug mode for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d")),
     FlagDefinition("--pythonpath", "Path to Python modules for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--log_level", "Set the log level for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--lang", "Language for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
@@ -134,9 +137,9 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--python_cache_profiler", "Enable or disable cache profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
     FlagDefinition("--wall_clock_limit", "Set the wall clock limit for the COMPSs runtime in seconds.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--shutdown_in_node_failure", "Enable or disable shutdown in node failure (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p",)),
+    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p")),
     FlagDefinition("--provenance_folder", "Folder to store the generated provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z",)),
+    FlagDefinition("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z")),
 
     # SLURM-only
     FlagDefinition("--heterogeneous", "Enable heterogeneous execution.", (ExecutionBackend.SLURM,), FlagValueKind.NONE),
@@ -196,11 +199,13 @@ _LOCAL_UNSUPPORTED_FLAGS = {
     if ExecutionBackend.LOCAL not in flag.backend_scope
 }
 
+# DO NOT DELETE THIS CLASS
 class SubmissionCommandEditKind(str, Enum):
     ADD = "add"
     REMOVE = "remove"
     SET_VALUE = "set_value"
 
+# DO NOT DELETE THIS CLASS
 @dataclass(frozen=True, slots=True)
 class SubmissionCommandEdit:
     kind: SubmissionCommandEditKind
@@ -209,11 +214,6 @@ class SubmissionCommandEdit:
 
 FLAG_BY_NAME = {flag.name: flag for flag in FLAG_DEFINITIONS}
 FLAG_BY_ALIAS = {alias: flag.name for flag in FLAG_DEFINITIONS for alias in flag.aliases}
-
-class BuildExecutionPlanStatus(str, Enum):
-    PENDING = "pending"
-    READY = "ready"
-    FAILED = "failed"
 
 @dataclass(frozen=True, slots=True)
 class ParsedFlag:
@@ -259,7 +259,6 @@ class BuildExecutionPlanRequest:
 
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanResult:
-    status: BuildExecutionPlanStatus
     request: BuildExecutionPlanRequest
     backend: ExecutionBackend
     command: RuntimeCommand
@@ -268,11 +267,6 @@ class BuildExecutionPlanResult:
     submission: ExecutionSubmission
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
-
-    @property
-    def ready(self) -> bool:
-        return self.status == BuildExecutionPlanStatus.READY
-
 
 class BuildExecutionPlanPortError(CommandBuildError):
     pass
@@ -291,24 +285,9 @@ class DefaultBuildExecutionPlanService:
     def execute(self, request: BuildExecutionPlanRequest) -> BuildExecutionPlanResult:
         backend = self._select_backend(request)
         context = self._build_context(request, backend)
-        command = self.build_command(
-            request=request,
-            backend=backend,
-            execution_directory=context.execution_directory,
-        )
-        plan = ExecutionPlan(
-            backend=backend,
-            command=command,
-            context=context,
-            provenance_enabled=request.provenance_enabled,
-        )
-        submission = ExecutionSubmission(
-            command=command,
-            backend=backend,
-            workspace_directory=context.workspace_directory,
-            log_directory=context.log_directory,
-            results_directory=context.results_directory,
-        )
+        command = self.build_command(request=request, backend=backend, execution_directory=context.execution_directory)
+        plan = ExecutionPlan(backend=backend,command=command,context=context,provenance_enabled=request.provenance_enabled)
+        submission = ExecutionSubmission(command=command, backend=backend,workspace_directory=context.workspace_directory,log_directory=context.log_directory,results_directory=context.results_directory)
 
         warnings: list[str] = []
         notes: list[str] = []
@@ -316,17 +295,7 @@ class DefaultBuildExecutionPlanService:
         if request.provenance_enabled:
             notes.append("Provenance is enabled")
 
-        return BuildExecutionPlanResult(
-            status=BuildExecutionPlanStatus.READY,
-            request=request,
-            backend=backend,
-            command=command,
-            plan=plan,
-            context=context,
-            submission=submission,
-            warnings=tuple(warnings),
-            notes=tuple(notes),
-        )
+        return BuildExecutionPlanResult(request=request, backend=backend, command=command, plan=plan, context=context, submission=submission, warnings=tuple(warnings), notes=tuple(notes))
 
     def _select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
         # Respect explicit user choice first
@@ -382,18 +351,9 @@ class DefaultBuildExecutionPlanService:
 
         edits = list(request.submission_edits)
         if request.provenance_enabled:
-            has_provenance_add = any(
-                edit.kind == SubmissionCommandEditKind.ADD
-                and edit.name.split(" - ", 1)[0].split("=", 1)[0].strip() in {"--provenance", "-p"}
-                for edit in edits
-            )
+            has_provenance_add = any(edit.kind == SubmissionCommandEditKind.ADD and edit.name.split(" - ", 1)[0].split("=", 1)[0].strip() in {"--provenance", "-p"} for edit in edits)
             if not has_provenance_add:
-                edits.append(
-                    SubmissionCommandEdit(
-                        kind=SubmissionCommandEditKind.ADD,
-                        name="--provenance",
-                    )
-                )
+                edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--provenance"))
         parsed = self.apply_edits(parsed, tuple(edits))
 
         return self.serialize_submission_command(parsed, working_directory=execution_directory)
@@ -446,23 +406,9 @@ class DefaultBuildExecutionPlanService:
             if definition is None:
                 if "=" in token:
                     raw_name, raw_value = token.split("=", 1)
-                    flags.append(
-                        ParsedFlag(
-                            definition_name=None,
-                            token=raw_name,
-                            value=raw_value,
-                            raw_tokens=(token,),
-                        )
-                    )
+                    flags.append(ParsedFlag(definition_name=None,token=raw_name,value=raw_value,raw_tokens=(token)))
                 else:
-                    flags.append(
-                        ParsedFlag(
-                            definition_name=None,
-                            token=token,
-                            value=None,
-                            raw_tokens=(token,),
-                        )
-                    )
+                    flags.append(ParsedFlag(definition_name=None,token=token,value=None,raw_tokens=(token)))
                 index += 1
                 continue
         
@@ -484,13 +430,7 @@ class DefaultBuildExecutionPlanService:
                 raise BuildExecutionPlanFailure(f"Flag {definition.name} does not accept a value")
         
             flags.append(
-                ParsedFlag(
-                    definition_name=definition.name,
-                    token=canonical_name,
-                    value=value,
-                    raw_tokens=tuple(raw_tokens),
-                )
-            )
+                ParsedFlag(definition_name=definition.name,token=canonical_name,value=value,raw_tokens=tuple(raw_tokens)))
             index += 1
         
         return ParsedSubmissionCommand(executable=executable, flags=tuple(flags),positionals=tuple(positionals))
@@ -548,11 +488,7 @@ class DefaultBuildExecutionPlanService:
                 else:
                     flags.append(self.build_flag(edit.name, edit.value))
 
-        return ParsedSubmissionCommand(
-            executable=parsed.executable,
-            flags=tuple(flags),
-            positionals=parsed.positionals,
-        )
+        return ParsedSubmissionCommand(executable=parsed.executable, flags=tuple(flags),positionals=parsed.positionals)
 
     def strip_provenance(self, parsed: ParsedSubmissionCommand) -> ParsedSubmissionCommand:
         filtered = [
@@ -575,19 +511,11 @@ class DefaultBuildExecutionPlanService:
             if self.canonical_name(flag.token) not in _LOCAL_UNSUPPORTED_FLAGS
             and self.canonical_name(flag.definition_name) not in _LOCAL_UNSUPPORTED_FLAGS
         ]
-        return ParsedSubmissionCommand(
-            executable=parsed.executable,
-            flags=tuple(filtered_flags),
-            positionals=parsed.positionals,
-        )
+        return ParsedSubmissionCommand(executable=parsed.executable, flags=tuple(filtered_flags),positionals=parsed.positionals)
 
     def normalize_executable(self,parsed: ParsedSubmissionCommand, backend: ExecutionBackend, runtime_executable: str | None) -> ParsedSubmissionCommand:
         executable = runtime_executable or ("enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss")
-        return ParsedSubmissionCommand(
-            executable=executable,
-            flags=parsed.flags,
-            positionals=parsed.positionals,
-        )
+        return ParsedSubmissionCommand(executable=executable,flags=parsed.flags,positionals=parsed.positionals)
 
     def remap_paths(self, parsed: ParsedSubmissionCommand, crate_root: Path) -> ParsedSubmissionCommand:
         remapped_flags: list[ParsedFlag] = []
@@ -596,13 +524,7 @@ class DefaultBuildExecutionPlanService:
                 remapped_flags.append(flag)
             else:
                 remapped_flags.append(
-                    ParsedFlag(
-                        definition_name=flag.definition_name,
-                        token=flag.token,
-                        value=self._remap_single_argument(flag.value, crate_root),
-                        raw_tokens=flag.raw_tokens,
-                    )
-                )
+                    ParsedFlag(definition_name=flag.definition_name, token=flag.token, value=self._remap_single_argument(flag.value, crate_root),raw_tokens=flag.raw_tokens))
 
         remapped_positionals = tuple(self._remap_single_argument(argument, crate_root) for argument in parsed.positionals)
 
@@ -663,13 +585,7 @@ class DefaultBuildExecutionPlanService:
     def _candidate_local_paths(self, original: Path, crate_root: Path) -> list[Path]:
         parts = list(original.parts)
 
-        anchors = (
-            "application_sources",
-            "dataset",
-            "datasets",
-            "data",
-            "src",
-        )
+        anchors = ("application_sources","dataset","datasets","data","src")
 
         candidates: list[Path] = []
         for anchor in anchors:
@@ -696,6 +612,8 @@ class DefaultBuildExecutionPlanService:
             return text + "/"
         return text
 
+
+    # DO NOT DELETE THIS FUNCTION
     def _discover_command(self, crate_root: Path) -> str | None:
         # crate_root is now passed directly as an argument, no need to extract from crate
     
@@ -728,6 +646,7 @@ class DefaultBuildExecutionPlanService:
             return command
         return None
 
+    # DO NOT DELETE THIS FUNCTION
     def get_create_action(self, crate: ROCrate) -> dict | None:
         for entity in crate.get_entities():
             raw_type = entity.get("@type")
@@ -735,6 +654,8 @@ class DefaultBuildExecutionPlanService:
                 return entity
         return None
 
+    
+    # DO NOT DELETE THIS FUNCTION
     def normalize_submission_command(self, value: object) -> str | None:
         text = value.strip()
         for prefix in _COMMAND_PREFIXES:

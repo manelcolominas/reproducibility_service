@@ -23,6 +23,7 @@ from enum import Enum
 from pathlib import Path
 
 
+# DO NOT DELETE THIS CLASS
 class ExecutionBackend(str, Enum):
     AUTO = "auto"
     LOCAL = "local"
@@ -37,6 +38,7 @@ class ExecutionStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class RuntimeCommand:
     executable: str
@@ -81,6 +83,7 @@ class ExecutionContext:
             raise ValueError("ExecutionContext.results_directory cannot be empty")
 
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ExecutionPlan:
     backend: ExecutionBackend

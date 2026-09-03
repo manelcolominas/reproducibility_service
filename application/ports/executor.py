@@ -27,6 +27,7 @@ from domain.models.execution import (
     RuntimeCommand,
 )
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ExecutionSubmission:
     command: RuntimeCommand

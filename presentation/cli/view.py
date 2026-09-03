@@ -65,6 +65,7 @@ console = Console()
 def _option_takes_value(flag_spec: str) -> bool:
     return "=" in flag_spec
 
+# DO NOT DELETE THIS FUNCTION
 def _canonical_flag_base(flag: str) -> str:
     raw = (flag or "").split("=", 1)[0].split(" - ", 1)[0].strip()
     return FLAG_CANONICAL_MAP.get(raw, raw)
@@ -74,23 +75,15 @@ SLURM_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS
 SLURM_ONLY_FLAG_BASES = SLURM_FLAG_BASES - LOCAL_FLAG_BASES
 VALUE_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if _option_takes_value(flag)}
 
-def edit_submission_command(
-    backend: ExecutionBackend,
-    current_command: list[str] | None = None,
-) -> list[SubmissionCommandEdit] | None:
+
+# DO NOT DELETE THIS FUNCTION
+def edit_submission_command(backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
     current_flags = _extract_current_flags(current_command)
     edits: list[SubmissionCommandEdit] = []
 
     while True:
         action = questionary.select(
-            "What do you want to do?",
-            choices=[
-                "remove a flag",
-                "edit a flag value",
-                "add a new flag",
-                "finish",
-            ],
-        ).ask()
+            "What do you want to do?", choices=[ "remove a flag", "edit a flag value", "add a new flag","finish"]).ask()
 
         if action is None:
             return None
@@ -105,13 +98,7 @@ def edit_submission_command(
             flag = questionary.select("Choose a flag to remove", choices=current_flags).ask()
             if flag is None:
                 continue
-            edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.REMOVE,
-                    name=flag.split("=", 1)[0],
-                    value=None,
-                )
-            )
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE,name=flag.split("=", 1)[0],value=None))
             current_flags.remove(flag)
 
         elif action == "edit a flag value":
@@ -139,13 +126,7 @@ def edit_submission_command(
                 except ValueError as exc:
                     console.print(f"[yellow]{exc}[/yellow]")
 
-            edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.SET_VALUE,
-                    name=flag_name,
-                    value=value,
-                )
-            )
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_VALUE,name=flag_name,value=value))
 
         elif action == "add a new flag":
             choices = _available_flag_choices(backend, current_flags)
@@ -181,13 +162,7 @@ def edit_submission_command(
             else:
                 value = None
 
-            edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.ADD,
-                    name=flag_name,
-                    value=value,
-                )
-            )
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=flag_name,value=value))
 
             new_item = flag_name if value is None else f"{flag_name}={value}"
             current_flags = [
@@ -241,9 +216,7 @@ def print_import_result(result: ImportCrateResult) -> None:
     table.add_row("Ro-Crate path", str(result.crate_location))
     if result.acquisition is not None:
         table.add_row("Acquisition", result.acquisition.kind)
-    console.print(
-        Panel(table, title="1. Crate source imported", border_style="green", title_align="left")
-    )
+    console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
 
 def print_inspect_result(result, submission_command: str | None = None) -> None:
     crate = result.import_crate_result
@@ -369,6 +342,7 @@ def _first_true(**flags: bool) -> str:
             return name
     return "unknown"
 
+# DO NOT DELETE THIS FUNCTION
 def _flag_base(flag: str) -> str:
     return _canonical_flag_base(flag)
 
@@ -408,6 +382,9 @@ def _validate_flag_value(flag_name: str, value: str) -> str:
 
     return value
 
+
+
+# DO NOT DELETE THIS FUNCTION
 def _extract_current_flags(current_command: list[str] | None) -> list[str]:
     if not current_command:
         return []
@@ -430,11 +407,7 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
         if "=" in token:
             flag = token
             index += 1
-        elif (
-            _flag_base(token) in VALUE_FLAG_BASES
-            and index + 1 < len(current_command)
-            and not current_command[index + 1].startswith("-")
-        ):
+        elif (_flag_base(token) in VALUE_FLAG_BASES and index + 1 < len(current_command) and not current_command[index + 1].startswith("-")):
             flag = f"{token}={current_command[index + 1]}"
             index += 2
         else:
