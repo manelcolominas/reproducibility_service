@@ -42,39 +42,118 @@ from domain.models.execution import ExecutionPlan, ExecutionBackend
 
 from application.use_cases.build_execution_plan import (
     SubmissionCommandEdit,
-    SubmissionCommandEditKind,
-    FlagValueKind,
-    FLAG_DEFINITIONS,
-    build_flag_options
+    SubmissionCommandEditKind
 )
 
-LOCAL_FLAG_OPTIONS = build_flag_options(ExecutionBackend.LOCAL)
-SLURM_FLAG_OPTIONS = build_flag_options(ExecutionBackend.SLURM)
-
 PROVENANCE_FLAGS = {"--provenance", "-p"}
-
-FLAG_CANONICAL_MAP = {
-"-p": "--provenance",
-"-d": "--debug",
-"-z": "--zip_provenance",
-}
 
 # Create a single console instance from Rich library to be used throughout the module for rendering output.
 console = Console()
 
-def _option_takes_value(flag_spec: str) -> bool:
-    return "=" in flag_spec
+from application.use_cases.flags import (
+    _canonical_flag_base,
+    _resolve_flag_definition,
+    _flag_requires_value,
+    _validate_flag_value,
+    _extract_current_flags,
+    _available_flag_choices
+)
 
-# DO NOT DELETE THIS FUNCTION
-def _canonical_flag_base(flag: str) -> str:
-    raw = (flag or "").split("=", 1)[0].split(" - ", 1)[0].strip()
-    return FLAG_CANONICAL_MAP.get(raw, raw)
+def print_banner() -> None:
+    console.print(
+        # creates a Panel object of the rich library, which is a box with a border and a title. 
+        # The content of the panel is a Text object that contains the text "COMPSs Reproducibility Service"
+        # in bold cyan color and centered. The panel also has a subtitle that says "reproduce a COMPSs workflow run from an RO-Crate"
+        # and a cyan border style.
+        Panel(
+            Text("COMPSs Reproducibility Service", style="bold cyan", justify="center"),
+            subtitle="reproduce a COMPSs workflow run from an RO-Crate",
+            border_style="cyan",
+        )
+    )
+    # and then it prints it on the console using the console.print() method.
 
-LOCAL_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in LOCAL_FLAG_OPTIONS}
-SLURM_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS}
-SLURM_ONLY_FLAG_BASES = SLURM_FLAG_BASES - LOCAL_FLAG_BASES
-VALUE_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if _option_takes_value(flag)}
+def print_error(message: str, details: str | None = None) -> None:
+    body = message if not details else f"{message}\n[dim]{details}[/dim]"
+    console.print(Panel(body, title="Error", border_style="red", title_align="left"))
 
+def print_import_result(result: ImportCrateResult) -> None:
+    table = Table.grid(padding=(0, 1))
+    table.add_row("Source type", result.source.type.value)
+    table.add_row("Source name", result.source.name)
+    table.add_row("Ro-Crate path", str(result.crate_location))
+    if result.acquisition is not None:
+        table.add_row("Acquisition", result.acquisition.kind)
+    console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
+
+def print_inspect_result(result, submission_command: str | None = None) -> None:
+    crate = result.import_crate_result
+    if crate is None:
+        print_error("Could not extract usable metadata from the crate")
+        return
+
+    table = Table.grid(padding=(0, 1))
+    table.add_column(style="bold cyan", no_wrap=True)
+    table.add_column(style="white")
+    table.add_row(
+        "Submission command",
+        submission_command or "[dim]not resolved yet[/dim]",
+    )
+    table.add_row("Data persistence","[green]true[/green]" if crate.data_persistence.value == "true" else f"[red]{crate.data_persistence.value}[/red]")
+
+    body = table
+    if result.inspect_output:
+        body = Group(Text.from_ansi(result.inspect_output.rstrip()),table)
+
+    console.print(
+        Panel(
+            body,
+            title="[bold green]2. Metadata inspected[/bold green]",
+            border_style="green",
+            title_align="left"
+        )
+    )
+
+    if result.warnings:
+        for warning in result.warnings:
+            console.print(f"  [yellow]![/yellow] {warning}")
+            
+def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
+    table = Table(title="3. Input verification", show_lines=False)
+    table.add_column("Entity")
+    table.add_column("Type")
+    # table.add_column("Size (bytes)")
+    table.add_column("Exists")
+    table.add_column("Path")
+
+    for item in inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary.entities:
+        style = "green" if item.exists else "red"
+        if item.exists:
+            item_exists_row_value = "Exists"
+            style = "green"
+        elif item.type in {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}:
+            item_exists_row_value = "Missing"
+            style = "red"
+        else:
+            item_exists_row_value = "Warning"
+            style = "yellow"
+
+        table.add_row(
+            item.name,
+            item.type.value,
+            # str(item.size_bytes),
+            f"[{style}]{item_exists_row_value}[/{style}]",
+            str(item.path or ""),
+        )
+
+    console.print(table)
+    workflow_entity_summary = inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary
+    console.print(
+        f"{workflow_entity_summary.total} checked"
+        f", {workflow_entity_summary.total_success} succeeded"
+        f", {workflow_entity_summary.total_failed} failed"
+        f", {workflow_entity_summary.total_warnings} warnings\n"
+    )
 
 # DO NOT DELETE THIS FUNCTION
 def edit_submission_command(backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
@@ -173,120 +252,6 @@ def edit_submission_command(backend: ExecutionBackend, current_command: list[str
 
     return edits
 
-def _available_flag_choices(backend: ExecutionBackend, current_flags: list[str]) -> list[str]:
-    available = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
-    current_bases = {_canonical_flag_base(flag) for flag in current_flags}
-    choices: list[str] = []
-
-    for flag_spec, description in available:
-        base = _canonical_flag_base(flag_spec)
-        if base in current_bases:
-            continue
-
-        definition = _resolve_flag_definition(base)
-        if definition is not None and backend not in definition.backend_scope:
-            continue
-
-        choices.append(f"{flag_spec} - {description}")
-
-    return choices
-
-def print_banner() -> None:
-    console.print(
-        # creates a Panel object of the rich library, which is a box with a border and a title. 
-        # The content of the panel is a Text object that contains the text "COMPSs Reproducibility Service"
-        # in bold cyan color and centered. The panel also has a subtitle that says "reproduce a COMPSs workflow run from an RO-Crate"
-        # and a cyan border style.
-        Panel(
-            Text("COMPSs Reproducibility Service", style="bold cyan", justify="center"),
-            subtitle="reproduce a COMPSs workflow run from an RO-Crate",
-            border_style="cyan",
-        )
-    )
-    # and then it prints it on the console using the console.print() method.
-
-def print_error(message: str, details: str | None = None) -> None:
-    body = message if not details else f"{message}\n[dim]{details}[/dim]"
-    console.print(Panel(body, title="Error", border_style="red", title_align="left"))
-
-def print_import_result(result: ImportCrateResult) -> None:
-    table = Table.grid(padding=(0, 1))
-    table.add_row("Source type", result.source.type.value)
-    table.add_row("Source name", result.source.name)
-    table.add_row("Ro-Crate path", str(result.crate_location))
-    if result.acquisition is not None:
-        table.add_row("Acquisition", result.acquisition.kind)
-    console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
-
-def print_inspect_result(result, submission_command: str | None = None) -> None:
-    crate = result.import_crate_result
-    if crate is None:
-        print_error("Could not extract usable metadata from the crate")
-        return
-
-    table = Table.grid(padding=(0, 1))
-    table.add_column(style="bold cyan", no_wrap=True)
-    table.add_column(style="white")
-    table.add_row(
-        "Submission command",
-        submission_command or "[dim]not resolved yet[/dim]",
-    )
-    table.add_row("Data persistence","[green]true[/green]" if crate.data_persistence.value == "true" else f"[red]{crate.data_persistence.value}[/red]")
-
-    body = table
-    if result.inspect_output:
-        body = Group(Text.from_ansi(result.inspect_output.rstrip()),table)
-
-    console.print(
-        Panel(
-            body,
-            title="[bold green]2. Metadata inspected[/bold green]",
-            border_style="green",
-            title_align="left"
-        )
-    )
-
-    if result.warnings:
-        for warning in result.warnings:
-            console.print(f"  [yellow]![/yellow] {warning}")
-            
-def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
-    table = Table(title="3. Input verification", show_lines=False)
-    table.add_column("Entity")
-    table.add_column("Type")
-    # table.add_column("Size (bytes)")
-    table.add_column("Exists")
-    table.add_column("Path")
-
-    for item in inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary.entities:
-        style = "green" if item.exists else "red"
-        if item.exists:
-            item_exists_row_value = "Exists"
-            style = "green"
-        elif item.type in {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}:
-            item_exists_row_value = "Missing"
-            style = "red"
-        else:
-            item_exists_row_value = "Warning"
-            style = "yellow"
-
-        table.add_row(
-            item.name,
-            item.type.value,
-            # str(item.size_bytes),
-            f"[{style}]{item_exists_row_value}[/{style}]",
-            str(item.path or ""),
-        )
-
-    console.print(table)
-    workflow_entity_summary = inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary
-    console.print(
-        f"{workflow_entity_summary.total} checked"
-        f", {workflow_entity_summary.total_success} succeeded"
-        f", {workflow_entity_summary.total_failed} failed"
-        f", {workflow_entity_summary.total_warnings} warnings\n"
-    )
-
 def print_execution_plan(plan: ExecutionPlan) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Backend", plan.backend.value)
@@ -332,94 +297,4 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
     if outcome.result.error_message:
         table.add_row("Error", outcome.result.error_message)
 
-    console.print(
-        Panel(table, title="5. Execution summary", border_style=status_style, title_align="left")
-    )
-
-def _first_true(**flags: bool) -> str:
-    for name, value in flags.items():
-        if value:
-            return name
-    return "unknown"
-
-# DO NOT DELETE THIS FUNCTION
-def _flag_base(flag: str) -> str:
-    return _canonical_flag_base(flag)
-
-def _resolve_flag_definition(flag_name: str):
-    base = _canonical_flag_base(flag_name)
-    for flag in FLAG_DEFINITIONS:
-        if base == flag.name or base in flag.aliases:
-            return flag
-    return None
-
-def _flag_requires_value(flag_name: str) -> bool:
-    definition = _resolve_flag_definition(flag_name)
-    if definition is None:
-        return False
-    return definition.value_kind != FlagValueKind.NONE
-
-def _validate_flag_value(flag_name: str, value: str) -> str:
-    definition = _resolve_flag_definition(flag_name)
-    if definition is None:
-        return value
-
-    if definition.value_kind == FlagValueKind.NONE:
-        raise ValueError(f"Flag {flag_name} does not accept a value")
-
-    if definition.value_kind == FlagValueKind.BOOL:
-        normalized = value.lower()
-        if normalized not in {"true", "false"}:
-            raise ValueError(f"Flag {flag_name} expects a boolean value: true/false")
-        return normalized
-
-    if definition.value_kind == FlagValueKind.INT:
-        try:
-            int(value)
-            return value
-        except ValueError as exc:
-            raise ValueError(f"Flag {flag_name} expects an integer value") from exc
-
-    return value
-
-
-
-# DO NOT DELETE THIS FUNCTION
-def _extract_current_flags(current_command: list[str] | None) -> list[str]:
-    if not current_command:
-        return []
-
-    extracted: list[str] = []
-    seen_bases: set[str] = set()
-    index = 1
-
-    while index < len(current_command):
-        token = current_command[index]
-
-        if not token.startswith("-"):
-            index += 1
-            continue
-
-        if token in PROVENANCE_FLAGS:
-            index += 1
-            continue
-
-        if "=" in token:
-            flag = token
-            index += 1
-        elif (_flag_base(token) in VALUE_FLAG_BASES and index + 1 < len(current_command) and not current_command[index + 1].startswith("-")):
-            flag = f"{token}={current_command[index + 1]}"
-            index += 2
-        else:
-            flag = token
-            index += 1
-
-        canonical_base = _canonical_flag_base(flag)
-        if canonical_base == "--provenance":
-            continue
-
-        if canonical_base not in seen_bases:
-            extracted.append(flag)
-            seen_bases.add(canonical_base)
-
-    return extracted
+    console.print(Panel(table, title="5. Execution summary", border_style=status_style, title_align="left"))
