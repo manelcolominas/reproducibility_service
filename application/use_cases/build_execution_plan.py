@@ -279,12 +279,7 @@ class BuildExecutionPlanFailure(BuildExecutionPlanPortError):
 
 
 class DefaultBuildExecutionPlanService:
-    def __init__(
-        self,
-        backend_detector: ExecutionBackendDetector | None = None,
-        log_dir_name: str = "log",
-        results_dir_name: str = "Result",
-    ) -> None:
+    def __init__(self, backend_detector: ExecutionBackendDetector | None = None, log_dir_name: str = "log",results_dir_name: str = "Result") -> None:
         self._backend_detector = backend_detector
         self._log_dir_name = log_dir_name
         self._results_dir_name = results_dir_name
@@ -364,17 +359,8 @@ class DefaultBuildExecutionPlanService:
             return ExecutionBackend.LOCAL
         return None
 
-    def _build_context(
-        self,
-        request: BuildExecutionPlanRequest,
-        backend: ExecutionBackend,
-    ) -> ExecutionContext:
-        return ExecutionContext(
-            backend=backend,
-            workspace_directory=request.workspace_directory,
-            log_directory=request.workspace_directory / self._log_dir_name,
-            results_directory=request.workspace_directory / self._results_dir_name,
-        )
+    def _build_context(self,request: BuildExecutionPlanRequest,backend: ExecutionBackend) -> ExecutionContext:
+        return ExecutionContext(backend=backend,workspace_directory=request.workspace_directory,log_directory=request.workspace_directory / self._log_dir_name,results_directory=request.workspace_directory / self._results_dir_name)
 
     def build_command( self, request: BuildExecutionPlanRequest, backend: ExecutionBackend, execution_directory: Path | None = None ) -> RuntimeCommand:
         raw_command = request.submission_command or self._discover_command(request.crate_root)
@@ -429,11 +415,7 @@ class DefaultBuildExecutionPlanService:
 
         arguments.extend(parsed.positionals)
 
-        return RuntimeCommand(
-            executable=parsed.executable,
-            arguments=tuple(arguments),
-            working_directory=working_directory,
-        )
+        return RuntimeCommand(executable=parsed.executable,arguments=tuple(arguments),working_directory=working_directory)
 
     def parse_submission_command(self, raw_command: str, schema: dict[str, FlagDefinition]) -> ParsedSubmissionCommand:
         parts = [part for part in raw_command.strip().split() if part]
@@ -539,10 +521,7 @@ class DefaultBuildExecutionPlanService:
                     None,
                 )
 
-            first_idx = next(
-                (i for i, flag in enumerate(flags) if self.flag_matches(flag, target)),
-                None,
-            )
+            first_idx = next((i for i, flag in enumerate(flags) if self.flag_matches(flag, target)), None)
 
             if edit.kind == SubmissionCommandEditKind.ADD:
                 if definition is not None and definition.repeatable:
@@ -578,17 +557,11 @@ class DefaultBuildExecutionPlanService:
             if self.canonical_name(flag.token) not in {"--provenance", "-p"}
             and self.canonical_name(flag.definition_name) not in {"--provenance", "-p"}
         ]
-        return ParsedSubmissionCommand(
-            executable=parsed.executable,
-            flags=tuple(filtered),
-            positionals=parsed.positionals,
-        )
+
+        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(filtered),positionals=parsed.positionals)
     
     def strip_unsupported_for_backend(
-        self,
-        parsed: ParsedSubmissionCommand,
-        backend: ExecutionBackend,
-    ) -> ParsedSubmissionCommand:
+        self,parsed: ParsedSubmissionCommand,backend: ExecutionBackend) -> ParsedSubmissionCommand:
         if backend != ExecutionBackend.LOCAL:
             return parsed
     
@@ -604,11 +577,7 @@ class DefaultBuildExecutionPlanService:
             positionals=parsed.positionals,
         )
 
-    def normalize_executable(self,
-        parsed: ParsedSubmissionCommand,
-        backend: ExecutionBackend,
-        runtime_executable: str | None,
-    ) -> ParsedSubmissionCommand:
+    def normalize_executable(self,parsed: ParsedSubmissionCommand, backend: ExecutionBackend, runtime_executable: str | None) -> ParsedSubmissionCommand:
         executable = runtime_executable or ("enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss")
         return ParsedSubmissionCommand(
             executable=executable,
@@ -631,15 +600,9 @@ class DefaultBuildExecutionPlanService:
                     )
                 )
 
-        remapped_positionals = tuple(
-            self._remap_single_argument(argument, crate_root)
-            for argument in parsed.positionals
-        )
-        return ParsedSubmissionCommand(
-            executable=parsed.executable,
-            flags=tuple(remapped_flags),
-            positionals=remapped_positionals,
-        )
+        remapped_positionals = tuple(self._remap_single_argument(argument, crate_root) for argument in parsed.positionals)
+
+        return ParsedSubmissionCommand( executable=parsed.executable, flags=tuple(remapped_flags), positionals=remapped_positionals )
 
 
     def _remap_single_argument(self, arg: str, crate_root: Path) -> str:
@@ -742,63 +705,38 @@ class DefaultBuildExecutionPlanService:
     
         rocrate = self._load_rocrate(crate_root)
         if rocrate:
-            command = self._extract_command_from_rocrate(rocrate)
+            command = self.extract_command_from_rocrate(rocrate)
             if command:
                 return command
     
         return None
-    
-    
+
     def _load_rocrate(self, crate_root: Path) -> ROCrate | None:
         try:
             return ROCrate(crate_root)
         except Exception:
             return None
-    
-    
-    def _extract_command_from_rocrate(self, crate: ROCrate) -> str | None:
-        graph = list(crate.get_entities())
-    
-        # 1. Prefer the workflow-level entity
-        main_entity = crate.root_dataset.get("mainEntity")
-        for entity in graph:
-            if entity == main_entity:
-                command = self._normalize_submission_command(entity.get("description"))
-                if command:
-                    return command
-    
-        # 2. Then prefer the first matching CreateAction
-        for entity in graph:
-            if self._is_create_action(entity):
-                command = self._normalize_submission_command(entity.get("description"))
-                if command:
-                    return command
-    
-        # 3. Then any other usable description
-        for entity in graph:
-            command = self._normalize_submission_command(entity.get("description"))
-            if command:
-                return command
-    
+
+    def extract_command_from_rocrate(self, crate: ROCrate) -> str | None:
+        create_action = self.get_create_action(crate)
+        if create_action:
+            command = create_action.get("description")
+            return command
         return None
 
+    def get_create_action(self, crate: ROCrate) -> dict | None:
+        for entity in crate.get_entities():
+            raw_type = entity.get("@type")
+            if raw_type == "CreateAction":
+                return entity
+        return None
 
-    def _normalize_submission_command(self, value: object) -> str | None:
-        if not isinstance(value, str):
-            return None
+    def normalize_submission_command(self, value: object) -> str | None:
         text = value.strip()
         for prefix in _COMMAND_PREFIXES:
             if text == prefix or text.startswith(prefix + " "):
                 return text
         return None
-
-    def _is_create_action(self, entity: dict) -> bool:
-        raw_type = entity.get("@type") or entity.get("type")
-        if isinstance(raw_type, str):
-            return raw_type == "CreateAction"
-        if isinstance(raw_type, list):
-            return any(str(t) == "CreateAction" for t in raw_type)
-        return False
 
     def _default_executable(self, backend: ExecutionBackend) -> str:
         return "enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss"
@@ -820,7 +758,7 @@ class DefaultBuildExecutionPlanService:
             return None
         canonical = self.canonical_name(name)
         return FLAG_BY_NAME.get(canonical)
-
+    
     def validate_flag_token(self, token: str, backend: ExecutionBackend | None = None) -> FlagDefinition | None:
         canonical = self.canonical_name(token)
         if canonical is None:

@@ -329,19 +329,16 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     verify_result = _verify_rocrate(inspect_result, file_system)
     view.print_verification_table(verify_result)
 
-    if verify_result.status == VerifyInputsStatus.FAILED:
-        if not args.yes and not view.console.input(
-            "[yellow]Some inputs are missing. Continue anyway ? [y/N]: [/yellow]"
-        ).lower().startswith("y"):
+    if inspect_result.import_crate_result.workflow_metadata.workflow_entity_summary.total_failed > 0:
+        if not args.yes and not view.console.input("[yellow]Some important files are missing. Continue anyway ? [y/N]: [/yellow]").lower().startswith("y"):
             logger.info("final_status=aborted_after_failed_verification")
             view.console.print("Aborted after failed verification.")
-            return crate, None
+            return None, None
+
 
     provenance_flag = args.provenance
     if not args.yes and not provenance_flag:
-        provenance_flag = view.console.input(
-            "[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]"
-        ).lower().startswith("y")
+        provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
 
     if provenance_flag and not args.yes:
         wants_name = view.console.input(
@@ -355,19 +352,12 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
                 view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
     plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_flag)
-    logger.info(
-        "resolved_command=%s backend=%s provenance_enabled=%s",
-        plan_result.plan.command.as_string(),
-        plan_result.plan.backend.value,
-        provenance_flag,
-    )
+    logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
-    if not args.yes and view.console.input(
-        "[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]"
-    ).lower().startswith("y"):
+    if not args.yes and view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y"):
         plan_result = _update_plan_with_selected_flags(
             args=args,
             plan_service=plan_service,
@@ -400,14 +390,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     return crate, plan_result
 
 
-def _build_plan(
-    args: argparse.Namespace,
-    plan_service,
-    crate,
-    workspace_directory: Path,
-    provenance_enabled: bool,
-    submission_edits: tuple[SubmissionCommandEdit, ...] = (),
-    ):
+def _build_plan(args: argparse.Namespace, plan_service, crate, workspace_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = ()):
     backend = ExecutionBackend(args.backend)
 
     cli_extra_edits: list[SubmissionCommandEdit] = []
@@ -415,53 +398,26 @@ def _build_plan(
         if "=" in raw_flag:
             name, value = raw_flag.split("=", 1)
             cli_extra_edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.ADD,
-                    name=name.strip(),
-                    value=value.strip() or None,
-                )
+                SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=name.strip(),value=value.strip() or None)
             )
         else:
-            cli_extra_edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.ADD,
-                    name=raw_flag.strip(),
-                    value=None,
-                )
-            )
+            cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag.strip(),value=None))
     
     merged_edits = tuple(cli_extra_edits) + tuple(submission_edits)
     
     try:
         return plan_service.execute(
-            BuildExecutionPlanRequest(
-                crate=crate,
-                workspace_directory=workspace_directory,
-                backend=backend,
-                provenance_enabled=provenance_enabled,
-                submission_command=args.command,
-                submission_edits=merged_edits,
-            )
+            BuildExecutionPlanRequest(crate=crate, workspace_directory=workspace_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits)
         )
     except BuildExecutionPlanFailure as exc:
         if args.yes or args.command:
             raise
     
         reason = str(exc).strip() or "unknown error"
-        manual_command = Prompt.ask(
-            "[yellow]Could not use the submission command from the crate "
-            f"({reason}). Enter one manually (e.g. 'runcompss main.py')[/yellow]"
-        )
+        manual_command = Prompt.ask("[yellow]Could not use the submission command from the crate "f"({reason}). Enter one manually (e.g. 'runcompss main.py')[/yellow]")
 
         return plan_service.execute(
-            BuildExecutionPlanRequest(
-                crate=crate,
-                workspace_directory=workspace_directory,
-                backend=backend,
-                provenance_enabled=provenance_enabled,
-                submission_command=manual_command,
-                submission_edits=merged_edits,
-            )
+            BuildExecutionPlanRequest(crate=crate,workspace_directory=workspace_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=manual_command,submission_edits=merged_edits)
         )
 
 def _build_run_logger(workspace_directory: Path) -> logging.Logger:
@@ -496,52 +452,23 @@ def _build_run_logger(workspace_directory: Path) -> logging.Logger:
 
     return logger
 
-def _update_plan_with_selected_flags(
-        args: argparse.Namespace,
-        plan_service,
-        crate,
-        workspace_directory: Path,
-        provenance_enabled: bool,
-        current_plan,
-        logger: logging.Logger,
-    ):
+def _update_plan_with_selected_flags(args: argparse.Namespace, plan_service,crate, workspace_directory: Path, provenance_enabled: bool, current_plan,logger: logging.Logger):
 
-    raw_edits = view.edit_submission_command(
-        current_plan.plan.backend,
-        current_plan.plan.command.as_list(),
-    )
+    raw_edits = view.edit_submission_command(current_plan.plan.backend,current_plan.plan.command.as_list())
     if raw_edits is None:
         return current_plan
 
     normalized_edits: list[SubmissionCommandEdit] = []
     for edit in raw_edits:
         kind_value = edit.kind.value if hasattr(edit.kind, "value") else str(edit.kind)
-        normalized_edits.append(
-            SubmissionCommandEdit(
-                kind=SubmissionCommandEditKind(kind_value),
-                name=edit.name,
-                value=edit.value,
-            )
-        )
+        normalized_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind(kind_value),name=edit.name,value=edit.value))
 
     args.command = current_plan.plan.command.as_string()
     args.extra_flag = []
 
-    plan_result = _build_plan(
-        args,
-        plan_service,
-        crate,
-        workspace_directory,
-        provenance_enabled,
-        submission_edits=tuple(normalized_edits),
-    )
+    plan_result = _build_plan(args,plan_service,crate,workspace_directory,provenance_enabled,submission_edits=tuple(normalized_edits))
 
-    logger.info(
-        "resolved_command=%s backend=%s provenance_enabled=%s",
-        plan_result.plan.command.as_string(),
-        plan_result.plan.backend.value,
-        provenance_enabled,
-    )
+    logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_enabled)
 
     return plan_result
 
