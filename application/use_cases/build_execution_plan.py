@@ -232,6 +232,7 @@ class ParsedSubmissionCommand:
 class BuildExecutionPlanRequest:
     crate_root: Path
     workspace_directory: Path
+    execution_directory: Path
     backend: ExecutionBackend = ExecutionBackend.AUTO
     provenance_enabled: bool = False
     submission_command: str | None = None
@@ -758,7 +759,7 @@ class DefaultBuildExecutionPlanService:
             return None
         canonical = self.canonical_name(name)
         return FLAG_BY_NAME.get(canonical)
-    
+
     def validate_flag_token(self, token: str, backend: ExecutionBackend | None = None) -> FlagDefinition | None:
         canonical = self.canonical_name(token)
         if canonical is None:
