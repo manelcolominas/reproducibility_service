@@ -138,55 +138,37 @@ class SubprocessExecutionAgent:
         stderr_path = submission.log_directory / "log.err"
         started_at = datetime.now(timezone.utc)
 
-        return_code: int | None
+        return_code: int | None = None
         error_message: str | None = None
+
         try:
-            with open(stdout_path, "w", encoding="utf-8") as stdout_file, \
-                 open(stderr_path, "w", encoding="utf-8") as stderr_file:
-                completed = subprocess.run(
-                    submission.command.as_list(),
-                    cwd=str(submission.command.working_directory or submission.execution_directory or submission.workspace_directory),
-                    stdout=stdout_file,
-                    stderr=stderr_file,
-                    check=False,
-                )
+            with open(stdout_path, "w", encoding="utf-8") as stdout_file, open(
+                stderr_path, "w", encoding="utf-8"
+            ) as stderr_file:
+                completed = subprocess.run(submission.command.as_list(),cwd=str(submission.command.working_directory or submission.execution_directory or submission.workspace_directory),stdout=stdout_file,stderr=stderr_file, check=False)
             return_code = completed.returncode
-            status = ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED
+            status = (ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED)
             if return_code != 0:
                 error_message = f"Process exited with code {return_code}"
         except FileNotFoundError as exc:
-            return_code = None
             status = ExecutionStatus.FAILED
             error_message = f"Executable not found: {exc.filename or submission.command.executable}"
         except OSError as exc:
-            return_code = None
             status = ExecutionStatus.FAILED
             error_message = str(exc)
 
         finished_at = datetime.now(timezone.utc)
-        context = ExecutionContext( backend=submission.backend, workspace_directory=submission.workspace_directory, log_directory=submission.log_directory, results_directory=submission.results_directory)
+        context = ExecutionContext(
+            backend=submission.backend,
+            workspace_directory=submission.workspace_directory,
+            log_directory=submission.log_directory,
+            results_directory=submission.results_directory,
+        )
         log = ExecutionLog(stdout_path=stdout_path, stderr_path=stderr_path)
-
         generated_ro_crate_path = self._find_generated_ro_crate_path(submission)
 
-        return_code = completed.returncode
-        status = ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED
-        if return_code != 0:
-            error_message = f"Process exited with code {return_code}"
+        result = ExecutionResult(status=status,command=submission.command,context=context,log=log,return_code=return_code,started_at=started_at,finished_at=finished_at,summary_message="Execution succeeded" if status == ExecutionStatus.SUCCEEDED else "Execution failed", error_message=error_message,generated_ro_crate_path=generated_ro_crate_path)
 
-        result = ExecutionResult(
-            status=status,
-            command=submission.command,
-            context=context,
-            log=log,
-            return_code=return_code,
-            started_at=started_at,
-            finished_at=finished_at,
-            summary_message="Execution succeeded" if status == ExecutionStatus.SUCCEEDED else "Execution failed",
-            error_message=error_message,
-            generated_ro_crate_path=generated_ro_crate_path,
-        )
-        
         return ExecutionOutcome(result=result, submission=submission)
 
     def _find_generated_ro_crate_path(self, submission: ExecutionSubmission) -> Path:

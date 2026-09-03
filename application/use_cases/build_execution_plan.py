@@ -228,6 +228,9 @@ class ParsedSubmissionCommand:
     flags: tuple[ParsedFlag, ...]
     positionals: tuple[str, ...]
 
+
+
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanRequest:
     crate_root: Path

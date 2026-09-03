@@ -44,10 +44,10 @@ from application.use_cases.build_execution_plan import (
 from application.use_cases.inspect_crate import (
     _inspect_rocrate
 )
-from application.use_cases.prepare_provenance import (
-    DefaultPrepareProvenanceService,
-    PrepareProvenanceRequest,
-)
+# from application.use_cases.prepare_provenance import (
+#     DefaultPrepareProvenanceService,
+#     PrepareProvenanceRequest,
+# )
 
 from config.settings import AppSettings, build_default_settings
 from domain.errors import ServiceError
@@ -199,7 +199,7 @@ def run_app(argv: list[str] | None = None) -> int:
 
     # try to run the pipeline of the reproducibility service,
     try:
-        crate, plan_result = _run_pipeline(args, settings, workspace_directory, shared_crate_directory, logger)
+        _ , plan_result = _run_pipeline(args, settings, workspace_directory, shared_crate_directory, logger)
 
     except ServiceError as exc:
         logger.exception("service_error=%s details=%s", exc.message, exc.details)
@@ -289,6 +289,8 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         log_dir_name=settings.log_dir_name,
         results_dir_name=settings.results_dir_name,
     )
+    crate_root = inspect_result.import_crate_result.crate_location
+    execution_directory = workspace_directory / settings.results_dir_name
 
     original_submission_command = plan_service._discover_command(inspect_result.import_crate_result.crate_location)
 
@@ -327,98 +329,91 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     view.print_inspect_result(inspect_result, original_submission_command)
 
     verify_result = _verify_rocrate(inspect_result, file_system)
+    workflow_metadata = inspect_result.import_crate_result.workflow_metadata
+    entity_summary = (workflow_metadata.workflow_entity_summary if workflow_metadata is not None else None)
+
     view.print_verification_table(verify_result)
 
-    if inspect_result.import_crate_result.workflow_metadata.workflow_entity_summary.total_failed > 0:
+    if entity_summary is not None and entity_summary.total_failed > 0:
         if not args.yes and not view.console.input("[yellow]Some important files are missing. Continue anyway ? [y/N]: [/yellow]").lower().startswith("y"):
             logger.info("final_status=aborted_after_failed_verification")
             view.console.print("Aborted after failed verification.")
             return None, None
 
 
-    provenance_flag = args.provenance
-    if not args.yes and not provenance_flag:
-        provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
+    provenance_flag = False
+    # provenance_flag = args.provenance
+    # if not args.yes and not provenance_flag:
+    #     provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
 
-    if provenance_flag and not args.yes:
-        wants_name = view.console.input(
-            "[yellow]Do you want to provide your name ? [y/N]: [/yellow]"
-        ).lower().startswith("y")
-        if wants_name:
-            typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
-            if typed_name:
-                args.participant_name = typed_name
-            else:
-                view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
+    # if provenance_flag and not args.yes:
+    #     wants_name = view.console.input(
+    #         "[yellow]Do you want to provide your name ? [y/N]: [/yellow]"
+    #     ).lower().startswith("y")
+    #     if wants_name:
+    #         typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
+    #         if typed_name:
+    #             args.participant_name = typed_name
+    #         else:
+    #             view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
-    plan_result = _build_plan(args, plan_service, crate, workspace_directory, provenance_flag)
+    plan_result = _build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag)
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
     if not args.yes and view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y"):
-        plan_result = _update_plan_with_selected_flags(
-            args=args,
-            plan_service=plan_service,
-            crate=crate,
-            workspace_directory=workspace_directory,
-            provenance_enabled=provenance_flag,
-            current_plan=plan_result,
-            logger=logger,
-        )
+        plan_result = _update_plan_with_selected_flags(args=args, plan_service=plan_service, crate_root=crate_root, workspace_directory=workspace_directory,execution_directory=execution_directory,provenance_enabled=provenance_flag,current_plan=plan_result,logger=logger)
 
     view.print_execution_plan(plan_result.plan)
 
-    if provenance_flag:
-        provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
-        provenance_result = provenance_service.execute(
-            PrepareProvenanceRequest(
-                crate=crate,
-                provenance_root=plan_result.context.results_directory,
-                participant_name=args.participant_name,
-                participant_email=args.participant_email,
-                participant_organization=args.participant_org,
-                participant_orcid=args.participant_orcid,
-                participant_ror=args.participant_ror,
-            )
-        )
-        if provenance_result.provenance_config_file:
-            logger.info("provenance_metadata=%s", provenance_result.provenance_config_file)
-        view.print_provenance_result(provenance_result)
+    # if provenance_flag:
+    #     provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
+    #     provenance_result = provenance_service.execute(
+    #         PrepareProvenanceRequest(
+    #             crate=crate,
+    #             provenance_root=plan_result.context.results_directory,
+    #             participant_name=args.participant_name,
+    #             participant_email=args.participant_email,
+    #             participant_organization=args.participant_org,
+    #             participant_orcid=args.participant_orcid,
+    #             participant_ror=args.participant_ror,
+    #         )
+    #     )
+    #     if provenance_result.provenance_config_file:
+    #         logger.info("provenance_metadata=%s", provenance_result.provenance_config_file)
+    #     view.print_provenance_result(provenance_result)
 
-    return crate, plan_result
+    return crate_root, plan_result
 
 
-def _build_plan(args: argparse.Namespace, plan_service, crate, workspace_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = ()):
+def _build_plan(args: argparse.Namespace, plan_service, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = () ):
     backend = ExecutionBackend(args.backend)
 
     cli_extra_edits: list[SubmissionCommandEdit] = []
     for raw_flag in args.extra_flag:
         if "=" in raw_flag:
             name, value = raw_flag.split("=", 1)
-            cli_extra_edits.append(
-                SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=name.strip(),value=value.strip() or None)
-            )
+            cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=name.strip(),value=value.strip() or None))
         else:
             cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag.strip(),value=None))
-    
+
     merged_edits = tuple(cli_extra_edits) + tuple(submission_edits)
-    
+
     try:
-        return plan_service.execute(
-            BuildExecutionPlanRequest(crate=crate, workspace_directory=workspace_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits)
-        )
+        return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))
     except BuildExecutionPlanFailure as exc:
         if args.yes or args.command:
             raise
-    
-        reason = str(exc).strip() or "unknown error"
-        manual_command = Prompt.ask("[yellow]Could not use the submission command from the crate "f"({reason}). Enter one manually (e.g. 'runcompss main.py')[/yellow]")
 
-        return plan_service.execute(
-            BuildExecutionPlanRequest(crate=crate,workspace_directory=workspace_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=manual_command,submission_edits=merged_edits)
+        reason = str(exc).strip() or "unknown error"
+        manual_command = Prompt.ask(
+            "[yellow]Could not use the submission command from the crate "
+            f"({reason}). Enter one manually (e.g. 'runcompss/enqueue_compss main.py')[/yellow]"
         )
+
+        return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=manual_command,submission_edits=merged_edits))
 
 def _build_run_logger(workspace_directory: Path) -> logging.Logger:
     # create the path for the log directory
@@ -452,8 +447,7 @@ def _build_run_logger(workspace_directory: Path) -> logging.Logger:
 
     return logger
 
-def _update_plan_with_selected_flags(args: argparse.Namespace, plan_service,crate, workspace_directory: Path, provenance_enabled: bool, current_plan,logger: logging.Logger):
-
+def _update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, current_plan, logger: logging.Logger ):
     raw_edits = view.edit_submission_command(current_plan.plan.backend,current_plan.plan.command.as_list())
     if raw_edits is None:
         return current_plan
@@ -466,7 +460,7 @@ def _update_plan_with_selected_flags(args: argparse.Namespace, plan_service,crat
     args.command = current_plan.plan.command.as_string()
     args.extra_flag = []
 
-    plan_result = _build_plan(args,plan_service,crate,workspace_directory,provenance_enabled,submission_edits=tuple(normalized_edits))
+    plan_result = _build_plan(args, plan_service, crate_root, workspace_directory, execution_directory, provenance_enabled, submission_edits=tuple(normalized_edits))
 
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_enabled)
 
