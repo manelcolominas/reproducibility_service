@@ -6,18 +6,21 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/reproducibility_service.py",
-      //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635",
+      "cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635",
       //"cwd": "/home/mcolomin/Desktop",
-      "cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_local",
+      //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_local",
+      //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_mn5",
       "console": "integratedTerminal",
       "args": [
         //"https://workflowhub.org/workflows/635/ro_crate?version=1"
-        //"workflow-635-1.crate"
+        "workflow-635-1.crate"
         //"workflow-635-1.crate.zip"
         //"/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate"
 
         // matmul_files_local
-        "COMPSs_RO-Crate_20260810_112548"
+        //"COMPSs_RO-Crate_20260810_112548"
+        // matmul_files_mn5
+        //"COMPSs_RO-Crate_20260804_112127"
       ]
     }
   ]

@@ -461,7 +461,7 @@ class DefaultBuildExecutionPlanService:
             if path.is_file():
                 first_line = path.read_text(encoding="utf-8").splitlines()
                 if first_line:
-                    command = self._normalize_submission_command(first_line[0])
+                    command = self.normalize_submission_command(first_line[0])
                     if command:
                         return command
     
@@ -480,18 +480,20 @@ class DefaultBuildExecutionPlanService:
             return None
 
     def extract_command_from_rocrate(self, crate: ROCrate) -> str | None:
-        create_action = self.get_create_action(crate)
+        create_action = self.get_create_action_of_submission_command(crate)
         if create_action:
             command = create_action.get("description")
             return command
         return None
 
     # DO NOT DELETE THIS FUNCTION
-    def get_create_action(self, crate: ROCrate) -> dict | None:
+    def get_create_action_of_submission_command(self, crate: ROCrate) -> dict | None:
         for entity in crate.get_entities():
             raw_type = entity.get("@type")
             if raw_type == "CreateAction":
-                return entity
+                entity_id = entity.id
+                if entity_id.startswith("#COMPSs_"):
+                    return entity
         return None
 
     
