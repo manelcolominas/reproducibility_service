@@ -58,11 +58,11 @@ from infrastructure.adapters import (
 )
 
 from application.use_cases.import_crate import (
-    _import_rocrate,
+    import_rocrate,
 )
 
 from application.use_cases.inspect_crate import (
-    _verify_rocrate,
+    verify_rocrate,
 )
 
 from presentation.cli import view
@@ -246,7 +246,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
     file_system = LocalFileSystem()
 
-    # calls the _import_rocrate function to import the RO-Crate from the source provided by the user
+    # calls the import_rocrate function to import the RO-Crate from the source provided by the user
     # the function will return an ImportCrateResult object containing the imported crate and its location
     # import_result = ImportCrateResult(
     #     source=source_with_rocrate,
@@ -256,7 +256,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     #     crate=crate,
     #     notes=("Crate source prepared successfully",),
     # )
-    import_result = _import_rocrate(args.source, workspace_directory, shared_crate_directory, file_system)
+    import_result = import_rocrate(args.source, workspace_directory, shared_crate_directory, file_system)
 
     # ╭─ 1. Crate source imported ──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
     # │ Source type   zip                                                                                                                   │
@@ -315,7 +315,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 
     view.print_inspect_result(inspect_result, original_submission_command)
 
-    verify_result = _verify_rocrate(inspect_result, file_system)
+    verify_result = verify_rocrate(inspect_result, file_system)
     workflow_metadata = inspect_result.import_crate_result.workflow_metadata
     entity_summary = (workflow_metadata.workflow_entity_summary if workflow_metadata is not None else None)
 
@@ -447,7 +447,7 @@ def update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crat
     args.command = current_plan.plan.command.as_string()
     args.extra_flag = []
 
-    plan_result = _build_plan(args, plan_service, crate_root, workspace_directory, execution_directory, provenance_enabled, submission_edits=tuple(normalized_edits))
+    plan_result = build_plan(args, plan_service, crate_root, workspace_directory, execution_directory, provenance_enabled, submission_edits=tuple(normalized_edits))
 
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_enabled)
 

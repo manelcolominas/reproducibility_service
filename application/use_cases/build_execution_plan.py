@@ -23,15 +23,13 @@ from pathlib import Path
 import os
 from rocrate.rocrate import ROCrate
 
-from application.ports.executor import (
-    ExecutionSubmission,
-)
 from domain.errors import ValidationError
 from domain.models.execution import (
     ExecutionBackend,
     ExecutionContext,
     ExecutionPlan,
     RuntimeCommand,
+    ExecutionSubmission,
 )
 from domain.models.execution import ExecutionBackendDetector
 

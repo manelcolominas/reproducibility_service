@@ -27,7 +27,6 @@ from pathlib import Path
 
 import yaml
 
-from application.ports.executor import ExecutionOutcome
 from application.ports.file_system import (
     FileSystemOperationResult,
 )
@@ -37,13 +36,13 @@ from domain.models.crate import (
     WorkflowMetadata,
     WorkflowParticipant,
 )
-from application.ports.executor import ExecutionSubmission
 from domain.models.execution import (
-    ExecutionBackend,
     ExecutionContext,
     ExecutionLog,
     ExecutionResult,
     ExecutionStatus,
+    ExecutionSubmission,
+    ExecutionOutcome
 )
 
 # --------------------------------------------------------------------------- #
@@ -151,11 +150,3 @@ class SubprocessExecutionAgent:
                 generated_ro_crate_path = candidate.resolve()
                 break
         return generated_ro_crate_path
-
-__all__ = [
-    "LocalFileSystem",
-    "LocalCrateSourceResolver",
-    "LocalCrateSourceValidator",
-    "LocalCrateSourceAcquirer",
-    "SubprocessExecutionAgent",
-]

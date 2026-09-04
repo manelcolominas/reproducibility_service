@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from zipfile import Path
-
 from application.use_cases.import_crate import ImportCrateResult
 
 from domain.models.crate import EntityKind
@@ -76,7 +74,7 @@ def _infer_data_persistence(import_crate_result: ImportCrateResult) -> DataPersi
 
     return data_persistence
 
-def _verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalFileSystem) -> InspectCrateResult:
+def verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalFileSystem) -> InspectCrateResult:
 
     import_crate_result = inspect_crate_result.import_crate_result
     has_part = get_workflow_entities(import_crate_result)

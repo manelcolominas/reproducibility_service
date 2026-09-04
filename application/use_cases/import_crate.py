@@ -67,7 +67,7 @@ class ImportCrateResult:
     rocrate: ROCrate | None = None
 
 
-def _import_rocrate(source_name, workspace_directory, shared_crate_directory, file_system):
+def import_rocrate(source_name, workspace_directory, shared_crate_directory, file_system):
     # take the source_name and convert it to string and remove whitespace from both ends
     raw_value = str(source_name).strip()
 

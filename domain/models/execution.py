@@ -147,3 +147,29 @@ class ExecutionBackendDetector:
         if any(os.getenv(key) for key in self._SLURM_ENV_KEYS):
             return ExecutionBackend.SLURM
         return ExecutionBackend.LOCAL
+
+# DO NOT DELETE
+@dataclass(frozen=True, slots=True)
+class ExecutionSubmission:
+    command: RuntimeCommand
+    backend: ExecutionBackend
+    workspace_directory: Path
+    log_directory: Path
+    results_directory: Path
+
+    @property
+    def execution_directory(self) -> Path:
+        return self.results_directory
+
+@dataclass(frozen=True, slots=True)
+class ExecutionOutcome:
+    result: ExecutionResult
+    submission: ExecutionSubmission
+
+    @property
+    def succeeded(self) -> bool:
+        return self.result.succeeded
+
+    @property
+    def failed(self) -> bool:
+        return self.result.failed

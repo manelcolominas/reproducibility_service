@@ -81,8 +81,4 @@ def build_default_settings(service_root: Path | None = None) -> AppSettings:
     # and the original_crate_dir_name is set to an empty string.
     # is just provisional in the pipeline, it will be set to the correct runs_root, crate directory name.
     root = service_root or Path(__file__).resolve().parents[2]
-    return AppSettings(
-        service_root=root,
-        runs_root=root,
-        original_crate_dir_name="",
-    )
+    return AppSettings(service_root=root, runs_root=root, original_crate_dir_name="")
