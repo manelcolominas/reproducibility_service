@@ -156,7 +156,7 @@ def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     )
 
 # DO NOT DELETE THIS FUNCTION
-def edit_submission_command(backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
+def print_questionary_edit_submission_command(backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
     current_flags = _extract_current_flags(current_command)
     edits: list[SubmissionCommandEdit] = []
 

@@ -104,27 +104,6 @@ class LocalFileSystem:
         size_in_bytes = path.stat().st_size
         return size_in_bytes
 
-# --------------------------------------------------------------------------- #
-# Execution adapters
-# --------------------------------------------------------------------------- #
-
-class ShutilExecutionBackendDetector:
-    """Detects SLURM vs local execution."""
-
-    _SLURM_ENV_KEYS = (
-        "SLURM_JOB_ID",
-        "SLURM_CLUSTER_NAME",
-        "SLURM_SUBMIT_DIR",
-        "SLURM_NTASKS",
-        "SLURM_JOB_NODELIST",
-    )
-
-    def detect(self) -> ExecutionBackend:
-        # Only treat as SLURM when actually inside a SLURM environment
-        if any(os.getenv(key) for key in self._SLURM_ENV_KEYS):
-            return ExecutionBackend.SLURM
-        return ExecutionBackend.LOCAL
-
 ### DO NOT DELETE
 class SubprocessExecutionAgent:
     """Runs the built COMPSs command as a local subprocess."""
@@ -142,10 +121,9 @@ class SubprocessExecutionAgent:
         error_message: str | None = None
 
         try:
-            with open(stdout_path, "w", encoding="utf-8") as stdout_file, open(
-                stderr_path, "w", encoding="utf-8"
-            ) as stderr_file:
-                completed = subprocess.run(submission.command.as_list(),cwd=str(submission.command.working_directory or submission.execution_directory or submission.workspace_directory),stdout=stdout_file,stderr=stderr_file, check=False)
+            stdout_file = open(stdout_path, "w", encoding="utf-8")
+            stderr_file = open(stderr_path, "w", encoding="utf-8")
+            completed = subprocess.run(submission.command.as_list(),cwd=str(submission.command.working_directory or submission.execution_directory or submission.workspace_directory),stdout=stdout_file,stderr=stderr_file, check=False)
             return_code = completed.returncode
             status = (ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED)
             if return_code != 0:
@@ -158,20 +136,15 @@ class SubprocessExecutionAgent:
             error_message = str(exc)
 
         finished_at = datetime.now(timezone.utc)
-        context = ExecutionContext(
-            backend=submission.backend,
-            workspace_directory=submission.workspace_directory,
-            log_directory=submission.log_directory,
-            results_directory=submission.results_directory,
-        )
+        context = ExecutionContext(backend=submission.backend,workspace_directory=submission.workspace_directory,log_directory=submission.log_directory,results_directory=submission.results_directory)
         log = ExecutionLog(stdout_path=stdout_path, stderr_path=stderr_path)
-        generated_ro_crate_path = self._find_generated_ro_crate_path(submission)
+        generated_ro_crate_path = self.find_generated_ro_crate_path(submission)
 
         result = ExecutionResult(status=status,command=submission.command,context=context,log=log,return_code=return_code,started_at=started_at,finished_at=finished_at,summary_message="Execution succeeded" if status == ExecutionStatus.SUCCEEDED else "Execution failed", error_message=error_message,generated_ro_crate_path=generated_ro_crate_path)
 
         return ExecutionOutcome(result=result, submission=submission)
 
-    def _find_generated_ro_crate_path(self, submission: ExecutionSubmission) -> Path:
+    def find_generated_ro_crate_path(self, submission: ExecutionSubmission) -> Path:
         generated_ro_crate_path = None
         for candidate in sorted(submission.results_directory.rglob("COMPSs_RO-Crate*"), key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True):
             if candidate.is_dir() or candidate.is_file():
@@ -184,6 +157,5 @@ __all__ = [
     "LocalCrateSourceResolver",
     "LocalCrateSourceValidator",
     "LocalCrateSourceAcquirer",
-    "ShutilExecutionBackendDetector",
     "SubprocessExecutionAgent",
 ]

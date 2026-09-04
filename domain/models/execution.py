@@ -21,6 +21,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+import os
 
 
 # DO NOT DELETE THIS CLASS
@@ -59,6 +60,7 @@ class RuntimeCommand:
         return replace(self, arguments=self.arguments + arguments)
 
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ExecutionContext:
     backend: ExecutionBackend
@@ -128,3 +130,20 @@ class ExecutionResult:
     @property
     def failed(self) -> bool:
         return self.status == ExecutionStatus.FAILED
+
+class ExecutionBackendDetector:
+    """Detects SLURM vs local execution."""
+
+    _SLURM_ENV_KEYS = (
+        "SLURM_JOB_ID",
+        "SLURM_CLUSTER_NAME",
+        "SLURM_SUBMIT_DIR",
+        "SLURM_NTASKS",
+        "SLURM_JOB_NODELIST",
+    )
+
+    def detect(self) -> ExecutionBackend:
+        # Only treat as SLURM when actually inside a SLURM environment
+        if any(os.getenv(key) for key in self._SLURM_ENV_KEYS):
+            return ExecutionBackend.SLURM
+        return ExecutionBackend.LOCAL

@@ -24,7 +24,8 @@
     <!-- matmul_files_local -->
     <!-- <option name="PARAMETERS" value="COMPSs_RO-Crate_20260810_112548" /> -->
     <!-- matmul_files_mn5 -->
-    <option name="PARAMETERS" value="COMPSs_RO-Crate_20260804_112127" />
+    <!-- <option name="PARAMETERS" value="COMPSs_RO-Crate_20260804_112127" /> -->
+    <option name="PARAMETERS" value="COMPSs_RO-Crate_20260804_112127 --backend=local --run-id=635 --participant-name=Manel -y --extra-flag=--lang=python --extra-flag=--workers=4" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

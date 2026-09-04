@@ -51,10 +51,9 @@ from application.use_cases.inspect_crate import (
 
 from config.settings import AppSettings, build_default_settings
 from domain.errors import ServiceError
-from domain.models.execution import ExecutionBackend
+from domain.models.execution import  ( ExecutionBackend, ExecutionBackendDetector )
 from infrastructure.adapters import (
     LocalFileSystem,
-    ShutilExecutionBackendDetector,
     SubprocessExecutionAgent,
 )
 
@@ -199,7 +198,7 @@ def run_app(argv: list[str] | None = None) -> int:
 
     # try to run the pipeline of the reproducibility service,
     try:
-        _ , plan_result = _run_pipeline(args, settings, workspace_directory, shared_crate_directory, logger)
+        _ , plan_result = run_pipeline(args, settings, workspace_directory, shared_crate_directory, logger)
 
     except ServiceError as exc:
         logger.exception("service_error=%s details=%s", exc.message, exc.details)
@@ -214,27 +213,19 @@ def run_app(argv: list[str] | None = None) -> int:
         logger.info("final_status=not_executed")
         return 0
 
-    logger.info(
-        "backend=%s provenance_enabled=%s command=%s",
-        plan_result.plan.backend.value,
-        plan_result.plan.provenance_enabled,
-        plan_result.plan.command.as_string(),
-    )
+    logger.info("backend=%s provenance_enabled=%s command=%s",plan_result.plan.backend.value,plan_result.plan.provenance_enabled,plan_result.plan.command.as_string())
 
     view.console.print(f"Running submission command: {plan_result.plan.command.as_string()}")
 
     agent = SubprocessExecutionAgent()
     outcome = view.run_with_spinner("Executing workflow...", agent.submit, plan_result.submission)
+    
     view.print_final_summary(outcome)
 
-    logger.info(
-        "final_status=%s return_code=%s",
-        "succeeded" if outcome.succeeded else "failed",
-        outcome.result.return_code,
-    )
+    logger.info("final_status=%s return_code=%s","succeeded" if outcome.succeeded else "failed",outcome.result.return_code)
     return 0 if outcome.succeeded else 1
 
-def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_directory: Path, shared_crate_directory: Path, logger: logging.Logger ):
+def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_directory: Path, shared_crate_directory: Path, logger: logging.Logger ):
     """
     Runs the pipeline of the reproducibility service.
 
@@ -284,11 +275,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
         view.print_error("Could not build a usable crate summary from the metadata found.")
         return None, None
 
-    plan_service = DefaultBuildExecutionPlanService(
-        backend_detector=ShutilExecutionBackendDetector(),
-        log_dir_name=settings.log_dir_name,
-        results_dir_name=settings.results_dir_name,
-    )
+    plan_service = DefaultBuildExecutionPlanService(backend_detector=ExecutionBackendDetector(),log_dir_name=settings.log_dir_name,results_dir_name=settings.results_dir_name)
     crate_root = inspect_result.import_crate_result.crate_location
     execution_directory = workspace_directory / settings.results_dir_name
 
@@ -335,7 +322,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     view.print_verification_table(verify_result)
 
     if entity_summary is not None and entity_summary.total_failed > 0:
-        if not args.yes and not view.console.input("[yellow]Some important files are missing. Continue anyway ? [y/N]: [/yellow]").lower().startswith("y"):
+        if not view.console.input("[yellow]Some important files are missing. Do you want to continue anyway ? [y/N]: [/yellow]").lower().startswith("y"):
             logger.info("final_status=aborted_after_failed_verification")
             view.console.print("Aborted after failed verification.")
             return None, None
@@ -357,14 +344,14 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     #         else:
     #             view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
-    plan_result = _build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag)
+    plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag)
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
-    if not args.yes and view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y"):
-        plan_result = _update_plan_with_selected_flags(args=args, plan_service=plan_service, crate_root=crate_root, workspace_directory=workspace_directory,execution_directory=execution_directory,provenance_enabled=provenance_flag,current_plan=plan_result,logger=logger)
+    if view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y"):
+        plan_result = update_plan_with_selected_flags(args=args, plan_service=plan_service, crate_root=crate_root, workspace_directory=workspace_directory,execution_directory=execution_directory,provenance_enabled=provenance_flag,current_plan=plan_result,logger=logger)
 
     view.print_execution_plan(plan_result.plan)
 
@@ -388,7 +375,7 @@ def _run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_di
     return crate_root, plan_result
 
 
-def _build_plan(args: argparse.Namespace, plan_service, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = () ):
+def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = () ):
     backend = ExecutionBackend(args.backend)
 
     cli_extra_edits: list[SubmissionCommandEdit] = []
@@ -447,8 +434,8 @@ def _build_run_logger(workspace_directory: Path) -> logging.Logger:
 
     return logger
 
-def _update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, current_plan, logger: logging.Logger ):
-    raw_edits = view.edit_submission_command(current_plan.plan.backend,current_plan.plan.command.as_list())
+def update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, current_plan, logger: logging.Logger ):
+    raw_edits = view.print_questionary_edit_submission_command(current_plan.plan.backend,current_plan.plan.command.as_list())
     if raw_edits is None:
         return current_plan
 

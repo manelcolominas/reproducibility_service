@@ -24,20 +24,20 @@ import os
 from rocrate.rocrate import ROCrate
 
 from application.ports.executor import (
-    ExecutionBackendDetector,
     ExecutionSubmission,
 )
-from domain.errors import CommandBuildError, ValidationError
+from domain.errors import ValidationError
 from domain.models.execution import (
     ExecutionBackend,
     ExecutionContext,
     ExecutionPlan,
     RuntimeCommand,
 )
+from domain.models.execution import ExecutionBackendDetector
 
 from application.use_cases.flags import FLAG_DEFINITIONS, FlagValueKind, FlagDefinition, SLURM_ONLY_FLAG_BASES
 
-_COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
+COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
 
 # DO NOT DELETE THIS CLASS
 class SubmissionCommandEditKind(str, Enum):
@@ -55,6 +55,7 @@ class SubmissionCommandEdit:
 FLAG_BY_NAME = {flag.name: flag for flag in FLAG_DEFINITIONS}
 FLAG_BY_ALIAS = {alias: flag.name for flag in FLAG_DEFINITIONS for alias in flag.aliases}
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ParsedFlag:
     definition_name: str | None
@@ -62,6 +63,7 @@ class ParsedFlag:
     value: str | None = None
     raw_tokens: tuple[str, ...] = ()
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ParsedSubmissionCommand:
     executable: str
@@ -108,22 +110,21 @@ class BuildExecutionPlanResult:
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
 
-class BuildExecutionPlanPortError(CommandBuildError):
+
+class BuildExecutionPlanFailure(Exception):
     pass
 
 
-class BuildExecutionPlanFailure(BuildExecutionPlanPortError):
-    pass
-
-
+# DO NOT DELETE THIS CLASS
 class DefaultBuildExecutionPlanService:
     def __init__(self, backend_detector: ExecutionBackendDetector | None = None, log_dir_name: str = "log",results_dir_name: str = "Result") -> None:
-        self._backend_detector = backend_detector
+        self.backend_detector = backend_detector
         self._log_dir_name = log_dir_name
         self._results_dir_name = results_dir_name
 
+    # DO NOT DELETE THIS METHODS
     def execute(self, request: BuildExecutionPlanRequest) -> BuildExecutionPlanResult:
-        backend = self._select_backend(request)
+        backend = self.select_backend(request)
         context = self._build_context(request, backend)
         command = self.build_command(request=request, backend=backend, execution_directory=context.execution_directory)
         plan = ExecutionPlan(backend=backend,command=command,context=context,provenance_enabled=request.provenance_enabled)
@@ -137,50 +138,39 @@ class DefaultBuildExecutionPlanService:
 
         return BuildExecutionPlanResult(request=request, backend=backend, command=command, plan=plan, context=context, submission=submission, warnings=tuple(warnings), notes=tuple(notes))
 
-    def _select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
+
+    # DO NOT DELETE THIS FUNCTION
+    def select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
         # Respect explicit user choice first
         if request.backend != ExecutionBackend.AUTO:
-            return request.backend
+            detected = self.backend_detector.detect()
+            if detected  == request.backend:
+                return detected
+            else:
+                raise BuildExecutionPlanFailure(f"Detected backend {detected} does not match requested backend {request.backend}")
     
         # In auto mode, prioritize the runtime environment detection
-        if self._backend_detector is not None:
-            detected = self._backend_detector.detect()
+        if self.backend_detector is not None:
+            detected = self.backend_detector.detect()
             if detected in (ExecutionBackend.LOCAL, ExecutionBackend.SLURM):
                 return detected
-    
-        # Fallback to crate command inference only if detection is unavailable
-        raw_command = request.submission_command or self._discover_command(request.crate_root)
-        inferred = self._infer_backend_from_command(raw_command)
-        if inferred is not None:
-            return inferred
     
         # Safe default
         return ExecutionBackend.LOCAL
 
-    def _infer_backend_from_command(self, raw_command: str | None) -> ExecutionBackend | None:
-        if not raw_command:
-            return None
-    
-        parts = raw_command.strip().split()
-        if not parts:
-            return None
-    
-        executable = Path(parts[0]).name
-        if executable == "enqueue_compss":
-            return ExecutionBackend.SLURM
-        if executable == "runcompss":
-            return ExecutionBackend.LOCAL
-        return None
-
+    # DO NOT DELETE
     def _build_context(self,request: BuildExecutionPlanRequest,backend: ExecutionBackend) -> ExecutionContext:
         return ExecutionContext(backend=backend,workspace_directory=request.workspace_directory,log_directory=request.workspace_directory / self._log_dir_name,results_directory=request.workspace_directory / self._results_dir_name)
 
+    # DO NOT DELETE
     def build_command( self, request: BuildExecutionPlanRequest, backend: ExecutionBackend, execution_directory: Path | None = None ) -> RuntimeCommand:
         raw_command = request.submission_command or self._discover_command(request.crate_root)
         if not raw_command:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
 
-        schema = {flag.name: flag for flag in FLAG_DEFINITIONS}
+        schema = {}
+        for flag in FLAG_DEFINITIONS:
+            schema[flag.name] = flag
         crate_root = request.crate_root
 
         parsed = self.parse_submission_command(raw_command, schema)
@@ -189,15 +179,9 @@ class DefaultBuildExecutionPlanService:
         parsed = self.remap_paths(parsed, crate_root)
         parsed = self.strip_provenance(parsed)
 
-        edits = list(request.submission_edits)
-        if request.provenance_enabled:
-            has_provenance_add = any(edit.kind == SubmissionCommandEditKind.ADD and edit.name.split(" - ", 1)[0].split("=", 1)[0].strip() in {"--provenance", "-p"} for edit in edits)
-            if not has_provenance_add:
-                edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--provenance"))
-        parsed = self.apply_edits(parsed, tuple(edits))
-
         return self.serialize_submission_command(parsed, working_directory=execution_directory)
 
+    # DO NOT DELETE
     def serialize_submission_command(self, parsed: ParsedSubmissionCommand, working_directory: Path | None = None) -> RuntimeCommand:
         arguments: list[str] = []
 
@@ -221,8 +205,13 @@ class DefaultBuildExecutionPlanService:
 
         return RuntimeCommand(executable=parsed.executable,arguments=tuple(arguments),working_directory=working_directory)
 
+    # DO NOT DELETE
     def parse_submission_command(self, raw_command: str, schema: dict[str, FlagDefinition]) -> ParsedSubmissionCommand:
-        parts = [part for part in raw_command.strip().split() if part]
+        parts = []
+        for part in raw_command.strip().split():
+            if part:
+                parts.append(part)
+
         if not parts:
             raise BuildExecutionPlanFailure("The submission command is empty")
 
@@ -275,71 +264,26 @@ class DefaultBuildExecutionPlanService:
         
         return ParsedSubmissionCommand(executable=executable, flags=tuple(flags),positionals=tuple(positionals))
 
+    # DO NOT DELETE THIS FUNCTION
     def canonical_name(self, token: str | None) -> str | None:
         if token is None:
             return None
         base = token.split("=", 1)[0].strip()
         return FLAG_BY_ALIAS.get(base, base)
 
-    def flag_matches(self, flag: ParsedFlag, target: str) -> bool:
-        token_base = flag.token.split("=", 1)[0]
-        token_canonical = FLAG_BY_ALIAS.get(token_base, token_base)
-        definition_canonical = FLAG_BY_ALIAS.get(flag.definition_name, flag.definition_name) if flag.definition_name else None
-        return token_canonical == target or definition_canonical == target
-
-    def normalize_name(self, name: str) -> str:
-        raw = name.split(" - ", 1)[0].strip()
-        base = raw.split("=", 1)[0]
-        return base
-
-    def apply_edits(self, parsed: ParsedSubmissionCommand, edits: tuple[SubmissionCommandEdit, ...]) -> ParsedSubmissionCommand:
-        flags = list(parsed.flags)
-
-        for edit in edits:
-            target = self.canonical_name(edit.name)
-            definition = self.resolve_flag_definition(edit.name)
-
-            if definition is None:
-                definition = next(
-                    (flag for flag in FLAG_DEFINITIONS if flag.name == target or target in flag.aliases),
-                    None,
-                )
-
-            first_idx = next((i for i, flag in enumerate(flags) if self.flag_matches(flag, target)), None)
-
-            if edit.kind == SubmissionCommandEditKind.ADD:
-                if definition is not None and definition.repeatable:
-                    flags.append(self.build_flag(edit.name, edit.value))
-                    continue
-
-                if first_idx is not None:
-                    existing_token = flags[first_idx].token.split("=", 1)[0]
-                    flags[first_idx] = self.build_flag(existing_token, edit.value)
-                else:
-                    flags.append(self.build_flag(edit.name, edit.value))
-
-            elif edit.kind == SubmissionCommandEditKind.REMOVE:
-                flags = [flag for flag in flags if not self.flag_matches(flag, target)]
-
-            elif edit.kind == SubmissionCommandEditKind.SET_VALUE:
-                if first_idx is not None:
-                    existing_token = flags[first_idx].token.split("=", 1)[0]
-                    flags[first_idx] = self.build_flag(existing_token, edit.value)
-                else:
-                    flags.append(self.build_flag(edit.name, edit.value))
-
-        return ParsedSubmissionCommand(executable=parsed.executable, flags=tuple(flags),positionals=parsed.positionals)
-
+    # DO NOT DELETE THIS FUNCTION
     def strip_provenance(self, parsed: ParsedSubmissionCommand) -> ParsedSubmissionCommand:
-        filtered = [
-            flag
-            for flag in parsed.flags
-            if self.canonical_name(flag.token) not in {"--provenance", "-p"}
-            and self.canonical_name(flag.definition_name) not in {"--provenance", "-p"}
-        ]
+        filtered = []
+        for flag in parsed.flags:
+            token_canonical = self.canonical_name(flag.token)
+            definition_canonical = self.canonical_name(flag.definition_name)
+
+            if (token_canonical not in {"--provenance", "-p","-z", "--pythonpath"} and definition_canonical not in {"--provenance", "-p", "-z", "--pythonpath"}):
+                filtered.append(flag)
 
         return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(filtered),positionals=parsed.positionals)
-    
+
+    # DO NOT DELETE THIS FUNCTION
     def strip_unsupported_for_backend(
         self,parsed: ParsedSubmissionCommand,backend: ExecutionBackend) -> ParsedSubmissionCommand:
         if backend != ExecutionBackend.LOCAL:
@@ -353,25 +297,26 @@ class DefaultBuildExecutionPlanService:
         ]
         return ParsedSubmissionCommand(executable=parsed.executable, flags=tuple(filtered_flags),positionals=parsed.positionals)
 
+    # DO NOT DELETE THIS FUNCTION
     def normalize_executable(self,parsed: ParsedSubmissionCommand, backend: ExecutionBackend, runtime_executable: str | None) -> ParsedSubmissionCommand:
         executable = runtime_executable or ("enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss")
         return ParsedSubmissionCommand(executable=executable,flags=parsed.flags,positionals=parsed.positionals)
 
+    # DO NOT DELETE THIS FUNCTION
     def remap_paths(self, parsed: ParsedSubmissionCommand, crate_root: Path) -> ParsedSubmissionCommand:
         remapped_flags: list[ParsedFlag] = []
         for flag in parsed.flags:
             if flag.value is None:
                 remapped_flags.append(flag)
             else:
-                remapped_flags.append(
-                    ParsedFlag(definition_name=flag.definition_name, token=flag.token, value=self._remap_single_argument(flag.value, crate_root),raw_tokens=flag.raw_tokens))
+                remapped_flags.append(ParsedFlag(definition_name=flag.definition_name, token=flag.token, value=self.remap_single_argument(flag.value, crate_root),raw_tokens=flag.raw_tokens))
 
-        remapped_positionals = tuple(self._remap_single_argument(argument, crate_root) for argument in parsed.positionals)
+        remapped_positionals = tuple(self.remap_single_argument(argument, crate_root) for argument in parsed.positionals)
 
         return ParsedSubmissionCommand( executable=parsed.executable, flags=tuple(remapped_flags), positionals=remapped_positionals )
 
-
-    def _remap_single_argument(self, arg: str, crate_root: Path) -> str:
+    # DO NOT DELETE THIS FUNCTION
+    def remap_single_argument(self, arg: str, crate_root: Path) -> str:
         had_trailing_slash = arg.endswith("/") and arg != "/"
 
         expanded = os.path.expanduser(arg)
@@ -381,12 +326,12 @@ class DefaultBuildExecutionPlanService:
             if path.exists():
                 return arg
 
-            candidates = self._candidate_local_paths(path, crate_root)
+            candidates = self.candidate_local_paths(path, crate_root)
             for candidate in candidates:
                 if candidate.exists():
                     return self._format_mapped_path(candidate, had_trailing_slash)
         else:
-            candidates = self._candidate_relative_paths(path, crate_root)
+            candidates = self.candidate_relative_paths(path, crate_root)
             for candidate in candidates:
                 if candidate.exists():
                     return self._format_mapped_path(candidate, had_trailing_slash)
@@ -398,7 +343,7 @@ class DefaultBuildExecutionPlanService:
         return arg
 
 
-    def _candidate_relative_paths(self, original: Path, crate_root: Path) -> list[Path]:
+    def candidate_relative_paths(self, original: Path, crate_root: Path) -> list[Path]:
         candidates: list[Path] = []
         if original.parts:
             candidates.append(crate_root.joinpath(*original.parts))
@@ -422,7 +367,7 @@ class DefaultBuildExecutionPlanService:
         return unique
 
 
-    def _candidate_local_paths(self, original: Path, crate_root: Path) -> list[Path]:
+    def candidate_local_paths(self, original: Path, crate_root: Path) -> list[Path]:
         parts = list(original.parts)
 
         anchors = ("application_sources","dataset","datasets","data","src")
@@ -465,7 +410,7 @@ class DefaultBuildExecutionPlanService:
                     if command:
                         return command
     
-        rocrate = self._load_rocrate(crate_root)
+        rocrate = self.load_rocrate(crate_root)
         if rocrate:
             command = self.extract_command_from_rocrate(rocrate)
             if command:
@@ -473,12 +418,15 @@ class DefaultBuildExecutionPlanService:
     
         return None
 
-    def _load_rocrate(self, crate_root: Path) -> ROCrate | None:
+
+    # DO NOT DELETE THIS FUNCTION
+    def load_rocrate(self, crate_root: Path) -> ROCrate | None:
         try:
             return ROCrate(crate_root)
         except Exception:
             return None
 
+    # DO NOT DELETE THIS FUNCTION
     def extract_command_from_rocrate(self, crate: ROCrate) -> str | None:
         create_action = self.get_create_action_of_submission_command(crate)
         if create_action:
@@ -500,25 +448,10 @@ class DefaultBuildExecutionPlanService:
     # DO NOT DELETE THIS FUNCTION
     def normalize_submission_command(self, value: object) -> str | None:
         text = value.strip()
-        for prefix in _COMMAND_PREFIXES:
+        for prefix in COMMAND_PREFIXES:
             if text == prefix or text.startswith(prefix + " "):
                 return text
         return None
-
-    def _default_executable(self, backend: ExecutionBackend) -> str:
-        return "enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss"
-
-    def build_flag(self,token_name: str, value: str | None) -> ParsedFlag:
-        base = self.normalize_name(token_name)
-        canonical = FLAG_BY_ALIAS.get(base, base)
-        definition_name = canonical if canonical in FLAG_BY_NAME else None
-        raw_tokens = (base,) if value is None else (base, value)
-        return ParsedFlag(
-            definition_name=definition_name,
-            token=base,
-            value=value,
-            raw_tokens=raw_tokens,
-        )
 
     def resolve_flag_definition(self, name: str | None) -> FlagDefinition | None:
         if not name:

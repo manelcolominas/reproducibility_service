@@ -52,16 +52,3 @@ class ExecutionOutcome:
     @property
     def failed(self) -> bool:
         return self.result.failed
-
-
-@runtime_checkable
-class ExecutionBackendDetector(Protocol):
-    def detect(self) -> ExecutionBackend:
-        ...
-
-def is_slurm_backend(backend: ExecutionBackend) -> bool:
-    return backend == ExecutionBackend.SLURM
-
-
-def is_local_backend(backend: ExecutionBackend) -> bool:
-    return backend == ExecutionBackend.LOCAL
