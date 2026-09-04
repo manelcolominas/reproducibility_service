@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+
+import yaml
+from pathlib import Path
 from application.use_cases.import_crate import ImportCrateResult
 
 from domain.models.crate import EntityKind
@@ -92,7 +95,7 @@ def verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalF
         total_warnings = 0
         
         for item in has_part:
-            entity_kind = check_type_of_entity(item)
+            entity_kind = check_type_of_entity(item, inspect_crate_result.import_crate_result.crate_location)
             entity_path = inspect_crate_result.import_crate_result.crate_location / item.id
             entity_name = item.id
         
@@ -133,8 +136,7 @@ def verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalF
 
     return inspect_crate_result
 
-def check_type_of_entity(item: dict) -> EntityKind:
-    
+def check_type_of_entity(item: dict, crate_location: Path) -> EntityKind:
     entity_type = item.type
     entity_name = item.id
     if "SoftwareSourceCode" in entity_type:
@@ -143,9 +145,32 @@ def check_type_of_entity(item: dict) -> EntityKind:
         return EntityKind.IMAGE_OBJECT
     elif "File" in entity_type and entity_name.startswith("dataset/"):
         return EntityKind.INPUT_OR_OUTPUT
+    elif "File" in entity_type and entity_name.endswith(".out"):
+        return EntityKind.WORKERS_OUTPUT
+    elif "File" in entity_type and entity_name.endswith(".err"):
+        return EntityKind.WORKERS_ERROR
     elif entity_name.endswith("README"):
         return EntityKind.README
     elif entity_name.startswith("compss_submission_command_line"):
         return EntityKind.COMPSS_SUBMISSION_COMMAND_LINE_FILE
+    elif is_compss_workflow_info_yaml(crate_location / entity_name):
+        return EntityKind.COMPSS_WORKFLOW_YAML_FILE
+    elif entity_name.endswith(".yaml") or entity_name.endswith(".yml"):
+        if not is_compss_workflow_info_yaml(crate_location / entity_name):
+            return EntityKind.WORKFLOW_CONFIGURATION_YAML_FILE
     else:
         return EntityKind.UNKNOWN
+
+
+def is_compss_workflow_info_yaml(path: Path) -> bool:
+    path = Path(path)
+
+    if not path.is_file() or path.suffix.lower() not in {".yaml", ".yml"}:
+        return False
+
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return False
+
+    return (isinstance(document, dict) and isinstance(document.get("COMPSs Workflow Information"), dict))

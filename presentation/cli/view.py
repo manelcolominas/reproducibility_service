@@ -30,6 +30,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
+from rich.live import Live
 
 import questionary
 
@@ -274,12 +275,23 @@ def print_provenance_result(result: PrepareProvenanceResult) -> None:
         for warning in result.warnings:
             console.print(f"  [yellow]![/yellow] {warning}")
 
+# def run_with_spinner(description: str, fn, *args, **kwargs):
+#     """
+#     """
+#     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
+#         progress.add_task(description, total=None)
+#         return fn(*args, **kwargs)
+
+
 def run_with_spinner(description: str, fn, *args, **kwargs):
-    """
-    """
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
+    progress = Progress(SpinnerColumn(style="bold cyan"), TextColumn("[bold cyan]{task.description}"), console=console, auto_refresh=False)
+
+    panel = Panel(progress, title="Working", subtitle="Please wait", border_style="cyan", padding=(1, 3),expand=True)
+
+    with Live(panel, console=console, refresh_per_second=12):
         progress.add_task(description, total=None)
         return fn(*args, **kwargs)
+    
 
 def print_final_summary(outcome: ExecutionOutcome) -> None:
     status_style = "green" if outcome.succeeded else "red"

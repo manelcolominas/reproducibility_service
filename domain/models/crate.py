@@ -78,12 +78,14 @@ class WorkflowMetadata:
         return replace(self, agent=agent)
 
 class EntityKind(str, Enum):
-    SOFTWARE_SOURCE_CODE = "SoftwareSourceCode"
-    IMAGE_OBJECT = "ImageObject"
+    SOFTWARE_SOURCE_CODE = "Software Source Code"
+    IMAGE_OBJECT = "Image Object"
     INPUT_OR_OUTPUT = "Input or Output"
-    RO_CRATE_INFO_YAML = "yaml"
     # we could support it also, some workflows has a yaml file as configuration
-    # CONFIG_FILE = "ConfigFile"
+    WORKERS_OUTPUT = "Workers Output"
+    WORKERS_ERROR = "Workers Error"
+    COMPSS_WORKFLOW_YAML_FILE = "COMPSs Workflow Information yaml file"
+    WORKFLOW_CONFIGURATION_YAML_FILE = "Workflow Configuration yaml file"
     README = "README"
     UNKNOWN = "unknown"
     COMPSS_SUBMISSION_COMMAND_LINE_FILE = "compss_submission_command_line"
