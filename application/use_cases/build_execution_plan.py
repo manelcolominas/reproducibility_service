@@ -123,7 +123,7 @@ class DefaultBuildExecutionPlanService:
     # DO NOT DELETE THIS METHODS
     def execute(self, request: BuildExecutionPlanRequest) -> BuildExecutionPlanResult:
         backend = self.select_backend(request)
-        context = self._build_context(request, backend)
+        context = self.build_context(request, backend)
         command = self.build_command(request=request, backend=backend, execution_directory=context.execution_directory)
         plan = ExecutionPlan(backend=backend,command=command,context=context,provenance_enabled=request.provenance_enabled)
         submission = ExecutionSubmission(command=command, backend=backend,workspace_directory=context.workspace_directory,log_directory=context.log_directory,results_directory=context.results_directory)
@@ -157,12 +157,12 @@ class DefaultBuildExecutionPlanService:
         return ExecutionBackend.LOCAL
 
     # DO NOT DELETE
-    def _build_context(self,request: BuildExecutionPlanRequest,backend: ExecutionBackend) -> ExecutionContext:
+    def build_context(self,request: BuildExecutionPlanRequest,backend: ExecutionBackend) -> ExecutionContext:
         return ExecutionContext(backend=backend,workspace_directory=request.workspace_directory,log_directory=request.workspace_directory / self._log_dir_name,results_directory=request.workspace_directory / self._results_dir_name)
 
     # DO NOT DELETE
     def build_command( self, request: BuildExecutionPlanRequest, backend: ExecutionBackend, execution_directory: Path | None = None ) -> RuntimeCommand:
-        raw_command = request.submission_command or self._discover_command(request.crate_root)
+        raw_command = request.submission_command or self.discover_command(request.crate_root)
         if not raw_command:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
 
@@ -172,6 +172,7 @@ class DefaultBuildExecutionPlanService:
         crate_root = request.crate_root
 
         parsed = self.parse_submission_command(raw_command, schema)
+        parsed = self.apply_submission_edits(parsed, request.submission_edits)
         parsed = self.normalize_executable(parsed, backend, request.runtime_executable)
         parsed = self.strip_unsupported_for_backend(parsed, backend)
         parsed = self.remap_paths(parsed, crate_root)
@@ -282,8 +283,7 @@ class DefaultBuildExecutionPlanService:
         return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(filtered),positionals=parsed.positionals)
 
     # DO NOT DELETE THIS FUNCTION
-    def strip_unsupported_for_backend(
-        self,parsed: ParsedSubmissionCommand,backend: ExecutionBackend) -> ParsedSubmissionCommand:
+    def strip_unsupported_for_backend(self,parsed: ParsedSubmissionCommand,backend: ExecutionBackend) -> ParsedSubmissionCommand:
         if backend != ExecutionBackend.LOCAL:
             return parsed
     
@@ -397,7 +397,7 @@ class DefaultBuildExecutionPlanService:
 
 
     # DO NOT DELETE THIS FUNCTION
-    def _discover_command(self, crate_root: Path) -> str | None:
+    def discover_command(self, crate_root: Path) -> str | None:
         # crate_root is now passed directly as an argument, no need to extract from crate
     
         for path in [crate_root / "compss_submission_command_line.txt", *sorted(crate_root.rglob("compss_submission_command_line.txt"))]:
@@ -470,3 +470,38 @@ class DefaultBuildExecutionPlanService:
             return None
     
         return definition
+
+    def apply_submission_edits(self, parsed: ParsedSubmissionCommand, edits: tuple[SubmissionCommandEdit, ...]) -> ParsedSubmissionCommand:
+        flags = list(parsed.flags)
+    
+        for edit in edits:
+            canonical_name = self.canonical_name(edit.name)
+    
+            if edit.kind == SubmissionCommandEditKind.REMOVE:
+                flags = [
+                    flag
+                    for flag in flags
+                    if self.canonical_name(flag.definition_name or flag.token) != canonical_name
+                ]
+                continue
+    
+            replacement = ParsedFlag(definition_name=canonical_name if self.resolve_flag_definition(canonical_name) else None, token=canonical_name or edit.name, value=edit.value, raw_tokens=())
+    
+            matching_indexes = [
+                index
+                for index, flag in enumerate(flags)
+                if self.canonical_name(flag.definition_name or flag.token) == canonical_name
+            ]
+    
+            if matching_indexes:
+                first_index = matching_indexes[0]
+                flags[first_index] = replacement
+                flags = [
+                    flag
+                    for index, flag in enumerate(flags)
+                    if index == first_index or index not in matching_indexes
+                ]
+            else:
+                flags.append(replacement)
+    
+        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(flags),positionals=parsed.positionals)

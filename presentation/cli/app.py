@@ -26,9 +26,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import os
 from pathlib import Path
+import re
 
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 from datetime import datetime
 
 
@@ -66,6 +69,8 @@ from application.use_cases.inspect_crate import (
 )
 
 from presentation.cli import view
+
+COMPSS_RS_FLAG_PATTERN = re.compile(r"^COMPSS_RS_(\d+)$")
 
 def build_arg_parser() -> argparse.ArgumentParser:
     # creates and configures the command-line argument parser for the reproducibility service,
@@ -196,6 +201,7 @@ def run_app(argv: list[str] | None = None) -> int:
     # ╰──────────────────────────────────────────── reproduce a COMPSs workflow run from an RO-Crate ────────────────────────────────────────────╯
     view.print_banner()
 
+
     # try to run the pipeline of the reproducibility service,
     try:
         _ , plan_result = run_pipeline(args, settings, workspace_directory, shared_crate_directory, logger)
@@ -279,7 +285,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     crate_root = inspect_result.import_crate_result.crate_location
     execution_directory = workspace_directory / settings.results_dir_name
 
-    original_submission_command = plan_service._discover_command(inspect_result.import_crate_result.crate_location)
+    original_submission_command = plan_service.discover_command(inspect_result.import_crate_result.crate_location)
 
     # ╭─ 2. Metadata inspected ───────────────────────────────────────────────────────────────────╮
     # │ ───────────────────────────── RO-Crate Inspection ──────────────────────────────          │
@@ -344,7 +350,23 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     #         else:
     #             view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
-    plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag)
+        
+    environment_flags: list[str] = []
+    
+    if not args.yes:
+        environment_flags = discover_environment_flags()
+    
+        if environment_flags:
+            view.console.print("\n[cyan]COMPSS_RS flags detected:[/cyan]")
+            for flag in environment_flags:
+                view.console.print(f"  {flag}")
+    
+            use_environment_flags = Confirm.ask("Do you want to use these flags?",default=False)
+    
+            if not use_environment_flags:
+                environment_flags = []
+
+    plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag, environment_flags=tuple(environment_flags))
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
     view.console.print()
@@ -375,10 +397,12 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     return crate_root, plan_result
 
 
-def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = () ):
+def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = (), environment_flags: tuple[str, ...] = ()):
     backend = ExecutionBackend(args.backend)
 
-    cli_extra_edits: list[SubmissionCommandEdit] = []
+    cli_extra_edits = build_flag_edits(args.extra_flag)
+    environment_edits = build_flag_edits(environment_flags)
+
     for raw_flag in args.extra_flag:
         if "=" in raw_flag:
             name, value = raw_flag.split("=", 1)
@@ -386,7 +410,7 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
         else:
             cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag.strip(),value=None))
 
-    merged_edits = tuple(cli_extra_edits) + tuple(submission_edits)
+    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits)
 
     try:
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))
@@ -452,6 +476,43 @@ def update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crat
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_enabled)
 
     return plan_result
+
+
+def discover_environment_flags() -> list[str]:
+    discovered: list[tuple[int, str, str]] = []
+
+    for name, value in os.environ.items():
+        match = COMPSS_RS_FLAG_PATTERN.fullmatch(name)
+        if match is None:
+            continue
+
+        value = value.strip()
+        if not value:
+            continue
+
+        discovered.append((int(match.group(1)), name, value))
+
+    discovered.sort(key=lambda item: item[0])
+    return [value for _, _, value in discovered]
+
+
+def build_flag_edits( raw_flags: tuple[str, ...] | list[str]) -> list[SubmissionCommandEdit]:
+    edits: list[SubmissionCommandEdit] = []
+
+    for raw_flag in raw_flags:
+        raw_flag = raw_flag.strip()
+
+        if not raw_flag:
+            continue
+
+        if "=" in raw_flag:
+            name, value = raw_flag.split("=", 1)
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=name.strip(),value=value.strip() or None))
+        else:
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag,value=None))
+
+    return edits
+
 
 def main() -> None:
     raise SystemExit(run_app(None))

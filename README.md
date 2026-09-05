@@ -33,7 +33,9 @@ compss_reproducibility_service workflow-635-1.crate.zip \
   --participant-email=john.doe@example.com \
   --participant-org=Example Org= \
   --participant-orcid=0000-0001-2345-6789 \
-  --participant-ror=https://ror.org/123456789
+  --participant-ror=https://ror.org/123456789 \
+  --extra_flag=--lang=python,
+  --extra_flag=--workers=4
 ```
 
 ### CLI options
