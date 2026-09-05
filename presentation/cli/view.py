@@ -51,12 +51,12 @@ PROVENANCE_FLAGS = {"--provenance", "-p"}
 console = Console()
 
 from application.use_cases.flags import (
-    _canonical_flag_base,
+    canonical_flag_base,
     _resolve_flag_definition,
     _flag_requires_value,
     _validate_flag_value,
-    _extract_current_flags,
-    _available_flag_choices
+    extract_current_flags,
+    available_flag_choices
 )
 
 def print_banner() -> None:
@@ -156,8 +156,10 @@ def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     )
 
 # DO NOT DELETE THIS FUNCTION
-def print_questionary_edit_submission_command(backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
-    current_flags = _extract_current_flags(current_command)
+def print_questionary_edit_submission_command( backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
+    current_flags = sort_flag_choices(extract_current_flags(current_command))
+
+    executable = current_command[0] if current_command else "runcompss"
     edits: list[SubmissionCommandEdit] = []
 
     while True:
@@ -174,22 +176,25 @@ def print_questionary_edit_submission_command(backend: ExecutionBackend, current
             if not current_flags:
                 console.print("[yellow]No flags available to remove.[/yellow]")
                 continue
-            flag = questionary.select("Choose a flag to remove", choices=current_flags).ask()
-            if flag is None:
+            remove_choices = [*sort_flag_choices(current_flags), "back"]
+            flag = questionary.select("Choose a flag to remove", choices=remove_choices).ask()
+            if flag is None or flag == "back":
                 continue
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE,name=flag.split("=", 1)[0],value=None))
             current_flags.remove(flag)
+            print_edited_submission_command(executable, current_flags)
 
         elif action == "edit a flag value":
             if not current_flags:
                 console.print("[yellow]No flags available to edit.[/yellow]")
                 continue
 
-            flag = questionary.select("Choose a flag to edit", choices=current_flags).ask()
-            if flag is None:
+            edit_choices = [*sort_flag_choices(current_flags), "back"]
+            flag = questionary.select("Choose a flag to edit", choices=edit_choices).ask()
+            if flag is None or flag == "back":
                 continue
 
-            flag_name = _canonical_flag_base(flag)
+            flag_name = canonical_flag_base(flag)
             definition = _resolve_flag_definition(flag_name)
 
             if definition is None:
@@ -206,26 +211,35 @@ def print_questionary_edit_submission_command(backend: ExecutionBackend, current
                     console.print(f"[yellow]{exc}[/yellow]")
 
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_VALUE,name=flag_name,value=value))
+            updated_flag = flag_name if value is None else f"{flag_name}={value}"
+
+            current_flags = [current_flag for current_flag in current_flags if canonical_flag_base(current_flag) != canonical_flag_base(flag)]
+            current_flags.append(updated_flag)
+            current_flags = sort_flag_choices(current_flags)
+
+            print_edited_submission_command(executable, current_flags)
 
         elif action == "add a new flag":
-            choices = _available_flag_choices(backend, current_flags)
+            choices = available_flag_choices(backend, current_flags)
             if not choices:
                 console.print("[yellow]No flags available to add.[/yellow]")
                 continue
 
-            selected = questionary.select("Choose a flag to add", choices=choices).ask()
-            if selected is None:
+            choices = sorted(choices,key=lambda choice: canonical_flag_base(choice.split(" - ", 1)[0]).casefold())
+            add_choices = [*choices, "back"]
+            selected = questionary.select("Choose a flag to add", choices=add_choices).ask()
+            if selected is None or selected == "back":
                 continue
 
             flag_spec = selected.split(" - ", 1)[0]
-            flag_name = _canonical_flag_base(flag_spec)
+            flag_name = canonical_flag_base(flag_spec)
 
             definition = _resolve_flag_definition(flag_name)
             if definition is None:
                 console.print(f"[red]Unknown flag: {flag_name}[/red]")
                 continue
 
-            if _canonical_flag_base(flag_name) in {_canonical_flag_base(flag) for flag in current_flags}:
+            if canonical_flag_base(flag_name) in {canonical_flag_base(flag) for flag in current_flags}:
                 console.print(f"[yellow]Flag already present: {flag_name}[/yellow]")
                 continue
 
@@ -246,9 +260,10 @@ def print_questionary_edit_submission_command(backend: ExecutionBackend, current
             new_item = flag_name if value is None else f"{flag_name}={value}"
             current_flags = [
                 f for f in current_flags
-                if _canonical_flag_base(f) != _canonical_flag_base(new_item)
+                if canonical_flag_base(f) != canonical_flag_base(new_item)
             ]
             current_flags.append(new_item)
+            print_edited_submission_command(executable,current_flags)
 
     return edits
 
@@ -309,3 +324,13 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
         table.add_row("Error", outcome.result.error_message)
 
     console.print(Panel(table, title="5. Execution summary", border_style=status_style, title_align="left"))
+
+def print_edited_submission_command(executable: str,flags: list[str]) -> None:
+    command = " ".join([executable, *flags])
+    console.print()
+    console.print("[cyan]Edited submission command:[/cyan]")
+    console.print(f"  {command}")
+    console.print()
+
+def sort_flag_choices(flags: list[str]) -> list[str]:
+    return sorted(flags,key=lambda flag: canonical_flag_base(flag).casefold())

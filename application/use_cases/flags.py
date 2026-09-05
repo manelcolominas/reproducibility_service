@@ -170,26 +170,26 @@ FLAG_CANONICAL_MAP = {
 LOCAL_FLAG_OPTIONS = build_flag_options(ExecutionBackend.LOCAL)
 SLURM_FLAG_OPTIONS = build_flag_options(ExecutionBackend.SLURM)
 
-def _canonical_flag_base(flag: str) -> str:
+def canonical_flag_base(flag: str) -> str:
     raw = (flag or "").split("=", 1)[0].split(" - ", 1)[0].strip()
     return FLAG_CANONICAL_MAP.get(raw, raw)
 
 def _option_takes_value(flag_spec: str) -> bool:
     return "=" in flag_spec
 
-LOCAL_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in LOCAL_FLAG_OPTIONS}
-SLURM_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS}
+LOCAL_FLAG_BASES = {canonical_flag_base(flag) for flag, _ in LOCAL_FLAG_OPTIONS}
+SLURM_FLAG_BASES = {canonical_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS}
 SLURM_ONLY_FLAG_BASES = SLURM_FLAG_BASES - LOCAL_FLAG_BASES
-VALUE_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if _option_takes_value(flag)}
+VALUE_FLAG_BASES = {canonical_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if _option_takes_value(flag)}
 
 
 # DO NOT DELETE THIS FUNCTION
 def _flag_base(flag: str) -> str:
-    return _canonical_flag_base(flag)
+    return canonical_flag_base(flag)
 
 # DO NOT DELETE THIS FUNCTION
 def _resolve_flag_definition(flag_name: str):
-    base = _canonical_flag_base(flag_name)
+    base = canonical_flag_base(flag_name)
     for flag in FLAG_DEFINITIONS:
         if base == flag.name or base in flag.aliases:
             return flag
@@ -227,7 +227,7 @@ def _validate_flag_value(flag_name: str, value: str) -> str:
     return value
 
 # DO NOT DELETE THIS FUNCTION
-def _extract_current_flags(current_command: list[str] | None) -> list[str]:
+def extract_current_flags(current_command: list[str] | None) -> list[str]:
     if not current_command:
         return []
 
@@ -256,7 +256,7 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
             flag = token
             index += 1
 
-        canonical_base = _canonical_flag_base(flag)
+        canonical_base = canonical_flag_base(flag)
         if canonical_base == "--provenance":
             continue
 
@@ -266,13 +266,13 @@ def _extract_current_flags(current_command: list[str] | None) -> list[str]:
 
     return extracted
 
-def _available_flag_choices(backend: ExecutionBackend, current_flags: list[str]) -> list[str]:
+def available_flag_choices(backend: ExecutionBackend, current_flags: list[str]) -> list[str]:
     available = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
-    current_bases = {_canonical_flag_base(flag) for flag in current_flags}
+    current_bases = {canonical_flag_base(flag) for flag in current_flags}
     choices: list[str] = []
 
     for flag_spec, description in available:
-        base = _canonical_flag_base(flag_spec)
+        base = canonical_flag_base(flag_spec)
         if base in current_bases:
             continue
 
