@@ -179,13 +179,13 @@ def canonical_flag_base(flag: str) -> str:
     raw = (flag or "").split("=", 1)[0].split(" - ", 1)[0].strip()
     return FLAG_CANONICAL_MAP.get(raw, raw)
 
-def _option_takes_value(flag_spec: str) -> bool:
+def option_takes_value(flag_spec: str) -> bool:
     return "=" in flag_spec
 
 LOCAL_FLAG_BASES = {canonical_flag_base(flag) for flag, _ in LOCAL_FLAG_OPTIONS}
 SLURM_FLAG_BASES = {canonical_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS}
 SLURM_ONLY_FLAG_BASES = SLURM_FLAG_BASES - LOCAL_FLAG_BASES
-VALUE_FLAG_BASES = {canonical_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if _option_takes_value(flag)}
+VALUE_FLAG_BASES = {canonical_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if option_takes_value(flag)}
 
 
 # DO NOT DELETE THIS FUNCTION
@@ -193,7 +193,7 @@ def _flag_base(flag: str) -> str:
     return canonical_flag_base(flag)
 
 # DO NOT DELETE THIS FUNCTION
-def _resolve_flag_definition(flag_name: str):
+def resolve_flag_definition(flag_name: str):
     base = canonical_flag_base(flag_name)
     for flag in FLAG_DEFINITIONS:
         if base == flag.name or base in flag.aliases:
@@ -201,15 +201,15 @@ def _resolve_flag_definition(flag_name: str):
     return None
 
 # DO NOT DELETE THIS FUNCTION
-def _flag_requires_value(flag_name: str) -> bool:
-    definition = _resolve_flag_definition(flag_name)
+def flag_requires_value(flag_name: str) -> bool:
+    definition = resolve_flag_definition(flag_name)
     if definition is None:
         return False
     return definition.value_kind != FlagValueKind.NONE
 
 # DO NOT DELETE THIS FUNCTION
-def _validate_flag_value(flag_name: str, value: str) -> str:
-    definition = _resolve_flag_definition(flag_name)
+def validate_flag_value(flag_name: str, value: str) -> str:
+    definition = resolve_flag_definition(flag_name)
     if definition is None:
         return value
 
@@ -281,7 +281,7 @@ def available_flag_choices(backend: ExecutionBackend, current_flags: list[str]) 
         if base in current_bases:
             continue
 
-        definition = _resolve_flag_definition(base)
+        definition = resolve_flag_definition(base)
         if definition is not None and backend not in definition.backend_scope:
             continue
 

@@ -52,9 +52,9 @@ console = Console()
 
 from application.use_cases.flags import (
     canonical_flag_base,
-    _resolve_flag_definition,
-    _flag_requires_value,
-    _validate_flag_value,
+    resolve_flag_definition,
+    flag_requires_value,
+    validate_flag_value,
     extract_current_flags,
     available_flag_choices
 )
@@ -195,7 +195,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 continue
 
             flag_name = canonical_flag_base(flag)
-            definition = _resolve_flag_definition(flag_name)
+            definition = resolve_flag_definition(flag_name)
 
             if definition is None:
                 console.print(f"[red]Unknown flag: {flag_name}[/red]")
@@ -203,9 +203,10 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
 
             value = ""
             while True:
-                raw_value = Prompt.ask(f"New value for {flag_name}").strip()
+                current_value = flag.split("=", 1)[1] if "=" in flag else ""
+                raw_value = questionary.text(f"New value for {flag_name}=", default=current_value).ask().strip()
                 try:
-                    value = _validate_flag_value(flag_name, raw_value)
+                    value = validate_flag_value(flag_name, raw_value)
                     break
                 except ValueError as exc:
                     console.print(f"[yellow]{exc}[/yellow]")
@@ -234,7 +235,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
             flag_spec = selected.split(" - ", 1)[0]
             flag_name = canonical_flag_base(flag_spec)
 
-            definition = _resolve_flag_definition(flag_name)
+            definition = resolve_flag_definition(flag_name)
             if definition is None:
                 console.print(f"[red]Unknown flag: {flag_name}[/red]")
                 continue
@@ -244,11 +245,11 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 continue
 
             value = None
-            if _flag_requires_value(flag_name):
+            if flag_requires_value(flag_name):
                 while True:
                     raw_value = Prompt.ask(f"Value for {flag_name}").strip()
                     try:
-                        value = _validate_flag_value(flag_name, raw_value)
+                        value = validate_flag_value(flag_name, raw_value)
                         break
                     except ValueError as exc:
                         console.print(f"[yellow]{exc}[/yellow]")
