@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import fcntl
 import os
 import pty
+import shutil
+import struct
+import struct
 import subprocess
 from pathlib import Path
+import termios
 
 
 class LocalPyCompssMetadataInspector:
@@ -18,6 +23,9 @@ class LocalPyCompssMetadataInspector:
 
         try:
             master_fd, slave_fd = pty.openpty()
+            terminal_size = shutil.get_terminal_size(fallback=(120, 40))
+            winsize = struct.pack("HHHH", terminal_size.lines, terminal_size.columns, 0, 0 )
+            fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
         except OSError as exc:
             return False, None, f"pycompss inspect PTY allocation failed: {exc}"
 
