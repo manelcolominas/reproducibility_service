@@ -26,7 +26,7 @@
         "--run-id=635",
         "--participant-name=Manel Colominas",
         "-y", 
-        "--extra-flag=--lang=java",
+        //"--extra-flag=--lang=java",
         "--extra-flag=--workers=4"
       ]
     }

@@ -139,21 +139,20 @@ class DefaultBuildExecutionPlanService:
 
     # DO NOT DELETE THIS FUNCTION
     def select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
-        # Respect explicit user choice first
         if request.backend != ExecutionBackend.AUTO:
-            detected = self.backend_detector.detect()
-            if detected  == request.backend:
-                return detected
-            else:
-                raise BuildExecutionPlanFailure(f"Detected backend {detected} does not match requested backend {request.backend}")
+            if self.backend_detector is None:
+                raise BuildExecutionPlanFailure("Cannot validate the requested backend because no backend detector is configured")
     
-        # In auto mode, prioritize the runtime environment detection
+            detected = self.backend_detector.detect()
+    
+            if detected != request.backend:
+                raise BuildExecutionPlanFailure(f"Detected backend {detected.value} does not match requested backend {request.backend.value}")
+    
+            return detected
+    
         if self.backend_detector is not None:
-            detected = self.backend_detector.detect()
-            if detected in (ExecutionBackend.LOCAL, ExecutionBackend.SLURM):
-                return detected
+            return self.backend_detector.detect()
     
-        # Safe default
         return ExecutionBackend.LOCAL
 
     # DO NOT DELETE
@@ -173,13 +172,14 @@ class DefaultBuildExecutionPlanService:
 
         parsed = self.parse_submission_command(raw_command, schema)
         parsed = self.apply_submission_edits(parsed, request.submission_edits)
+
         parsed = self.normalize_executable(parsed, backend, request.runtime_executable)
         parsed = self.strip_unsupported_for_backend(parsed, backend)
         parsed = self.remap_paths(parsed, crate_root)
-        parsed = self.strip_provenance(parsed)
+        parsed = self.strip_provenance(parsed, backend)
 
         return self.serialize_submission_command(parsed, working_directory=execution_directory)
-
+        
     # DO NOT DELETE
     def serialize_submission_command(self, parsed: ParsedSubmissionCommand, working_directory: Path | None = None) -> RuntimeCommand:
         arguments: list[str] = []
@@ -271,16 +271,24 @@ class DefaultBuildExecutionPlanService:
         return FLAG_BY_ALIAS.get(base, base)
 
     # DO NOT DELETE THIS FUNCTION
-    def strip_provenance(self, parsed: ParsedSubmissionCommand) -> ParsedSubmissionCommand:
+    def strip_provenance(self, parsed: ParsedSubmissionCommand, backend: ExecutionBackend) -> ParsedSubmissionCommand:
+        stripped_flags = {"--provenance", "--zip_provenance"}
+
+        if backend != ExecutionBackend.SLURM:
+            stripped_flags.add("--pythonpath")
+
         filtered = []
         for flag in parsed.flags:
-            token_canonical = self.canonical_name(flag.token)
-            definition_canonical = self.canonical_name(flag.definition_name)
+            flag_name = self.canonical_name(flag.definition_name or flag.token)
 
-            if (token_canonical not in {"--provenance", "-p","-z", "--pythonpath"} and definition_canonical not in {"--provenance", "-p", "-z", "--pythonpath"}):
+            if flag_name not in stripped_flags:
                 filtered.append(flag)
 
-        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(filtered),positionals=parsed.positionals)
+        return ParsedSubmissionCommand(
+            executable=parsed.executable,
+            flags=tuple(filtered),
+            positionals=parsed.positionals,
+        )
 
     # DO NOT DELETE THIS FUNCTION
     def strip_unsupported_for_backend(self,parsed: ParsedSubmissionCommand,backend: ExecutionBackend) -> ParsedSubmissionCommand:
@@ -315,41 +323,61 @@ class DefaultBuildExecutionPlanService:
         return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(remapped_flags),positionals=tuple(remapped_positionals))
 
     def remap_main_source_file(self, argument: str, crate_root: Path) -> str:
-        crate_source = self.find_software_source_code(argument, crate_root)
+        crate_source = self.find_main_entity_source_code(crate_root)
         if crate_source is not None:
             return str(crate_source)
-    
+
         return self.remap_existing_crate_path(argument, crate_root)
 
-    def find_software_source_code(self, argument: str, crate_root: Path) -> Path | None:
+    def find_software_source_directory(self, crate_root: Path) -> Path | None:
         rocrate = self.load_rocrate(crate_root)
         if rocrate is None:
             return None
-    
-        requested_name = Path(os.path.expanduser(argument)).name
-        matches: list[Path] = []
-    
+
+        source_files: list[Path] = []
+
         for entity in rocrate.get_entities():
             entity_type = entity.get("@type")
             entity_types = {entity_type} if isinstance(entity_type, str) else set(entity_type or [])
-    
+
             if "SoftwareSourceCode" not in entity_types:
                 continue
-    
+
             candidate = crate_root / entity.id
-            if candidate.name == requested_name and candidate.exists():
-                matches.append(candidate)
-    
-        if len(matches) == 1:
-            return matches[0]
-    
+            if candidate.is_file():
+                source_files.append(candidate)
+
+        directories = {source_file.parent for source_file in source_files}
+
+        if len(directories) == 1:
+            return next(iter(directories))
+
+        main_source = self.find_main_entity_source_code(crate_root)
+        if main_source is not None:
+            return main_source.parent
+
         return None
+
 
     def remap_flag(self, flag: ParsedFlag, crate_root: Path) -> ParsedFlag:
         if flag.value is None:
             return flag
 
-        definition = self.resolve_flag_definition(flag.definition_name or flag.token)
+        canonical_name = self.canonical_name(flag.definition_name or flag.token)
+
+        if canonical_name == "--pythonpath":
+            source_directory = self.find_software_source_directory(crate_root)
+            if source_directory is None:
+                return flag
+
+            return ParsedFlag(
+                definition_name=flag.definition_name,
+                token=flag.token,
+                value=self.format_mapped_path(source_directory, flag.value.endswith("/") and flag.value != "/"),
+                raw_tokens=flag.raw_tokens,
+            )
+
+        definition = self.resolve_flag_definition(canonical_name)
         if definition is None or definition.value_kind not in {FlagValueKind.PATH, FlagValueKind.DIRECTORY}:
             return flag
 
@@ -359,6 +387,27 @@ class DefaultBuildExecutionPlanService:
             value=self.remap_existing_crate_path(flag.value, crate_root),
             raw_tokens=flag.raw_tokens,
         )
+
+    def find_main_entity_source_code(self, crate_root: Path) -> Path | None:
+        rocrate = self.load_rocrate(crate_root)
+        if rocrate is None:
+            return None
+
+        main_entity = rocrate.root_dataset.get("mainEntity")
+        if main_entity is None:
+            return None
+
+        main_entity_id = getattr(main_entity, "id", None)
+        if main_entity_id is None and isinstance(main_entity, dict):
+            main_entity_id = main_entity.get("@id")
+            candidate = crate_root / main_entity_id
+            if candidate.is_file():
+                return candidate
+
+        if not main_entity_id:
+            return None
+
+        return None
 
     def remap_existing_crate_path(self, argument: str, crate_root: Path) -> str:
         had_trailing_slash = argument.endswith("/") and argument != "/"

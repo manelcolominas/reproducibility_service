@@ -25,7 +25,7 @@ class FlagDefinition:
 
 FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     # LOCAL and SLURM shared flags
-    FlagDefinition("--debug", "Enable debug mode for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d")),
+    FlagDefinition("--debug", "Enable debug mode for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d",)),
     FlagDefinition("--pythonpath", "Path to Python modules for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--log_level", "Set the log level for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--lang", "Language for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
@@ -89,9 +89,9 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--python_cache_profiler", "Enable or disable cache profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
     FlagDefinition("--wall_clock_limit", "Set the wall clock limit for the COMPSs runtime in seconds.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--shutdown_in_node_failure", "Enable or disable shutdown in node failure (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p")),
+    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p",)),
     FlagDefinition("--provenance_folder", "Folder to store the generated provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z")),
+    FlagDefinition("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z",)),
 
     # SLURM-only
     FlagDefinition("--heterogeneous", "Enable heterogeneous execution.", (ExecutionBackend.SLURM,), FlagValueKind.NONE),
@@ -158,14 +158,19 @@ def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
 
     return choices
 
-PROVENANCE_FLAGS = {"--provenance", "-p"}
+# Canonical flags names for provenance
+CANONICAL_PROVENANCE_FLAGS = {"--provenance", "--zip_provenance"}
 VALUE_FLAG_BASES = {flag.name for flag in FLAG_DEFINITIONS if flag.value_kind != FlagValueKind.NONE}
 
 FLAG_CANONICAL_MAP = {
-"-p": "--provenance",
-"-d": "--debug",
-"-z": "--zip_provenance",
+    alias: flag.name
+    for flag in FLAG_DEFINITIONS
+    for alias in flag.aliases
 }
+
+def canonical_flag_base(flag: str) -> str:
+    raw = (flag or "").split("=", 1)[0].split(" - ", 1)[0].strip()
+    return FLAG_CANONICAL_MAP.get(raw, raw)
 
 LOCAL_FLAG_OPTIONS = build_flag_options(ExecutionBackend.LOCAL)
 SLURM_FLAG_OPTIONS = build_flag_options(ExecutionBackend.SLURM)
@@ -242,7 +247,7 @@ def extract_current_flags(current_command: list[str] | None) -> list[str]:
             index += 1
             continue
 
-        if token in PROVENANCE_FLAGS:
+        if canonical_flag_base(token) in CANONICAL_PROVENANCE_FLAGS:
             index += 1
             continue
 
@@ -257,7 +262,7 @@ def extract_current_flags(current_command: list[str] | None) -> list[str]:
             index += 1
 
         canonical_base = canonical_flag_base(flag)
-        if canonical_base == "--provenance":
+        if canonical_base in CANONICAL_PROVENANCE_FLAGS:
             continue
 
         if canonical_base not in seen_bases:
