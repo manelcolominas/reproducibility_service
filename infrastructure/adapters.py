@@ -22,6 +22,7 @@ import json
 import os
 import subprocess
 import pty
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -107,19 +108,29 @@ class LocalFileSystem:
 class SubprocessExecutionAgent:
     """Runs the built COMPSs command as a local subprocess."""
 
+    def __init__(self, logger: logging.Logger | None = None) -> None:
+        self._logger = logger
+
     def submit(self, submission: ExecutionSubmission) -> ExecutionOutcome:
+        started_at = datetime.now(timezone.utc)
+        if self._logger is not None:
+            self._logger.info(
+                "subprocess_preparing command=%s working_directory=%s",
+                submission.command.as_list(),
+                submission.command.working_directory or submission.execution_directory or submission.workspace_directory,
+            )
         submission.workspace_directory.mkdir(parents=True, exist_ok=True)
         submission.log_directory.mkdir(parents=True, exist_ok=True)
         submission.results_directory.mkdir(parents=True, exist_ok=True)
 
         stdout_path = submission.log_directory / "log.out"
         stderr_path = submission.log_directory / "log.err"
-        started_at = datetime.now(timezone.utc)
-
         return_code: int | None = None
         error_message: str | None = None
 
         try:
+            if self._logger is not None:
+                self._logger.info("subprocess_output_files stdout=%s stderr=%s", stdout_path, stderr_path)
             stdout_file = open(stdout_path, "w", encoding="utf-8")
             stderr_file = open(stderr_path, "w", encoding="utf-8")
             completed = subprocess.run(submission.command.as_list(),cwd=str(submission.command.working_directory or submission.execution_directory or submission.workspace_directory),stdout=stdout_file,stderr=stderr_file, check=False)
@@ -127,17 +138,31 @@ class SubprocessExecutionAgent:
             status = (ExecutionStatus.SUCCEEDED if return_code == 0 else ExecutionStatus.FAILED)
             if return_code != 0:
                 error_message = f"Process exited with code {return_code}"
+            if self._logger is not None:
+                self._logger.info("subprocess_finished return_code=%s status=%s", return_code, status.value)
         except FileNotFoundError as exc:
             status = ExecutionStatus.FAILED
             error_message = f"Executable not found: {exc.filename or submission.command.executable}"
+            if self._logger is not None:
+                self._logger.exception("subprocess_failed error=%s", error_message)
         except OSError as exc:
             status = ExecutionStatus.FAILED
             error_message = str(exc)
+            if self._logger is not None:
+                self._logger.exception("subprocess_failed error=%s", error_message)
 
         finished_at = datetime.now(timezone.utc)
         context = ExecutionContext(backend=submission.backend,workspace_directory=submission.workspace_directory,log_directory=submission.log_directory,results_directory=submission.results_directory)
         log = ExecutionLog(stdout_path=stdout_path, stderr_path=stderr_path)
         generated_ro_crate_path = self.find_generated_ro_crate_path(submission)
+        if self._logger is not None:
+            self._logger.info(
+                "subprocess_result status=%s return_code=%s duration_seconds=%.3f generated_ro_crate=%s",
+                status.value,
+                return_code,
+                (finished_at - started_at).total_seconds(),
+                generated_ro_crate_path,
+            )
 
         result = ExecutionResult(status=status,command=submission.command,context=context,log=log,return_code=return_code,started_at=started_at,finished_at=finished_at,summary_message="Execution succeeded" if status == ExecutionStatus.SUCCEEDED else "Execution failed", error_message=error_message,generated_ro_crate_path=generated_ro_crate_path)
 
@@ -149,4 +174,6 @@ class SubprocessExecutionAgent:
             if candidate.is_dir() or candidate.is_file():
                 generated_ro_crate_path = candidate.resolve()
                 break
+        if self._logger is not None:
+            self._logger.info("generated_ro_crate_search results_directory=%s found=%s", submission.results_directory, generated_ro_crate_path)
         return generated_ro_crate_path

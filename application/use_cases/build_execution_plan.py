@@ -302,94 +302,122 @@ class DefaultBuildExecutionPlanService:
 
     # DO NOT DELETE THIS FUNCTION
     def remap_paths(self, parsed: ParsedSubmissionCommand, crate_root: Path) -> ParsedSubmissionCommand:
-        remapped_flags: list[ParsedFlag] = []
-        for flag in parsed.flags:
-            if flag.value is None:
-                remapped_flags.append(flag)
-            else:
-                remapped_flags.append(ParsedFlag(definition_name=flag.definition_name, token=flag.token, value=self.remap_single_argument(flag.value, crate_root),raw_tokens=flag.raw_tokens))
+        remapped_flags = [ self.remap_flag(flag, crate_root) for flag in parsed.flags ]
+    
+        remapped_positionals = list(parsed.positionals)
+        if remapped_positionals:
+            remapped_positionals[0] = self.remap_main_source_file(remapped_positionals[0],crate_root)
+    
+        for index in range(1, len(remapped_positionals)):
+            remapped_positionals[index] = self.remap_existing_crate_path(
+                remapped_positionals[index],crate_root)
+    
+        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(remapped_flags),positionals=tuple(remapped_positionals))
 
-        remapped_positionals = tuple(self.remap_single_argument(argument, crate_root) for argument in parsed.positionals)
+    def remap_main_source_file(self, argument: str, crate_root: Path) -> str:
+        crate_source = self.find_software_source_code(argument, crate_root)
+        if crate_source is not None:
+            return str(crate_source)
+    
+        return self.remap_existing_crate_path(argument, crate_root)
 
-        return ParsedSubmissionCommand( executable=parsed.executable, flags=tuple(remapped_flags), positionals=remapped_positionals )
+    def find_software_source_code(self, argument: str, crate_root: Path) -> Path | None:
+        rocrate = self.load_rocrate(crate_root)
+        if rocrate is None:
+            return None
+    
+        requested_name = Path(os.path.expanduser(argument)).name
+        matches: list[Path] = []
+    
+        for entity in rocrate.get_entities():
+            entity_type = entity.get("@type")
+            entity_types = {entity_type} if isinstance(entity_type, str) else set(entity_type or [])
+    
+            if "SoftwareSourceCode" not in entity_types:
+                continue
+    
+            candidate = crate_root / entity.id
+            if candidate.name == requested_name and candidate.exists():
+                matches.append(candidate)
+    
+        if len(matches) == 1:
+            return matches[0]
+    
+        return None
 
-    # DO NOT DELETE THIS FUNCTION
-    def remap_single_argument(self, arg: str, crate_root: Path) -> str:
-        had_trailing_slash = arg.endswith("/") and arg != "/"
+    def remap_flag(self, flag: ParsedFlag, crate_root: Path) -> ParsedFlag:
+        if flag.value is None:
+            return flag
 
-        expanded = os.path.expanduser(arg)
+        definition = self.resolve_flag_definition(flag.definition_name or flag.token)
+        if definition is None or definition.value_kind not in {FlagValueKind.PATH, FlagValueKind.DIRECTORY}:
+            return flag
+
+        return ParsedFlag(
+            definition_name=flag.definition_name,
+            token=flag.token,
+            value=self.remap_existing_crate_path(flag.value, crate_root),
+            raw_tokens=flag.raw_tokens,
+        )
+
+    def remap_existing_crate_path(self, argument: str, crate_root: Path) -> str:
+        had_trailing_slash = argument.endswith("/") and argument != "/"
+
+        expanded = os.path.expanduser(argument)
         path = Path(expanded)
 
-        if path.is_absolute():
-            if path.exists():
-                return arg
+        candidates: list[Path] = []
 
-            candidates = self.candidate_local_paths(path, crate_root)
-            for candidate in candidates:
-                if candidate.exists():
-                    return self._format_mapped_path(candidate, had_trailing_slash)
+        if path.is_absolute():
+            parts = list(path.parts)
+            for anchor in ("application_sources", "dataset", "datasets", "data", "src"):
+                if anchor in parts:
+                    index = parts.index(anchor)
+                    candidates.append(crate_root.joinpath(*parts[index:]))
+
+            candidates.append(crate_root / "application_sources" / path.name)
+            candidates.append(crate_root / "application_sources" / "src" / path.name)
+            candidates.append(crate_root / path.name)
         else:
-            candidates = self.candidate_relative_paths(path, crate_root)
-            for candidate in candidates:
-                if candidate.exists():
-                    return self._format_mapped_path(candidate, had_trailing_slash)
+            if path.parts:
+                candidates.append(crate_root.joinpath(*path.parts))
+
+                head = path.parts[0]
+                tail = path.parts[1:]
+                if head in {"src", "application_sources", "datasets", "dataset", "data"} and tail:
+                    candidates.append(crate_root / "application_sources" / Path(*tail))
+                    candidates.append(crate_root / "src" / Path(*tail))
+
+            candidates.append(crate_root / "application_sources" / path.name)
+            candidates.append(crate_root / "application_sources" / "src" / path.name)
+            candidates.append(crate_root / path.name)
+
+        for candidate in self.unique_paths(candidates):
+            if candidate.exists():
+                return self.format_mapped_path(candidate, had_trailing_slash)
 
         basename_matches = list(crate_root.rglob(path.name))
         if len(basename_matches) == 1 and basename_matches[0].exists():
-            return self._format_mapped_path(basename_matches[0], had_trailing_slash)
+            return self.format_mapped_path(basename_matches[0], had_trailing_slash)
 
-        return arg
+        if path.is_absolute() and path.exists():
+            return argument
 
+        return argument
 
-    def candidate_relative_paths(self, original: Path, crate_root: Path) -> list[Path]:
-        candidates: list[Path] = []
-        if original.parts:
-            candidates.append(crate_root.joinpath(*original.parts))
-
-            head = original.parts[0]
-            tail = original.parts[1:]
-            if head in {"src", "application_sources", "datasets", "dataset", "data"} and tail:
-                candidates.append(crate_root / "application_sources" / Path(*tail))
-                candidates.append(crate_root / "src" / Path(*tail))
-
-        candidates.append(crate_root / "application_sources" / original.name)
-        candidates.append(crate_root / original.name)
-
+    def unique_paths(self, paths: list[Path]) -> list[Path]:
         unique: list[Path] = []
         seen: set[str] = set()
-        for candidate in candidates:
-            key = str(candidate)
+
+        for path in paths:
+            key = str(path)
             if key not in seen:
-                unique.append(candidate)
+                unique.append(path)
                 seen.add(key)
+
         return unique
 
-
-    def candidate_local_paths(self, original: Path, crate_root: Path) -> list[Path]:
-        parts = list(original.parts)
-
-        anchors = ("application_sources","dataset","datasets","data","src")
-
-        candidates: list[Path] = []
-        for anchor in anchors:
-            if anchor in parts:
-                idx = parts.index(anchor)
-                suffix = parts[idx:]
-                candidates.append(crate_root.joinpath(*suffix))
-
-        candidates.append(crate_root / "application_sources" / "src" / original.name)
-
-        unique: list[Path] = []
-        seen: set[str] = set()
-        for candidate in candidates:
-            key = str(candidate)
-            if key not in seen:
-                unique.append(candidate)
-                seen.add(key)
-        return unique
-
-
-    def _format_mapped_path(self, candidate: Path, had_trailing_slash: bool) -> str:
+    def format_mapped_path(self, candidate: Path, had_trailing_slash: bool) -> str:
         text = str(candidate)
         if had_trailing_slash and candidate.is_dir() and not text.endswith("/"):
             return text + "/"

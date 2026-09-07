@@ -30,6 +30,7 @@ import os
 import os
 from pathlib import Path
 import re
+from time import perf_counter
 
 from rich.prompt import Confirm, Prompt
 from datetime import datetime
@@ -190,10 +191,9 @@ def run_app(argv: list[str] | None = None) -> int:
     # to a rs_log.txt in the workspace_directory/log directory (reproducibility_service_{run_id}/log/rs_log.txt).
     logger = _build_run_logger(workspace_directory)
 
-    # log the source argument provided by the user, which can be a local directory, a .zip file, or a URL.
-    # this line will add an entry to the log file with the source argument, for example:
-    # 2026-08-20 16:47:40,808 INFO source=workflow-635-1.crate.zip
-    logger.info("source=%s", args.source)
+    logger.info("run_started source=%s run_id=%s", args.source, run_id)
+    logger.info("arguments backend=%s command_override=%s extra_flags=%s provenance=%s yes=%s", args.backend, bool(args.command), args.extra_flag, args.provenance, args.yes)
+    logger.info("paths source_is_url=%s runs_root=%s shared_crate_directory=%s workspace_directory=%s", source_is_url, runs_root, shared_crate_directory, workspace_directory)
 
     #1. print the banner of the reproducibility service, which is the name of the service and a little description of it.
     # ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
@@ -219,11 +219,12 @@ def run_app(argv: list[str] | None = None) -> int:
         logger.info("final_status=not_executed")
         return 0
 
-    logger.info("backend=%s provenance_enabled=%s command=%s",plan_result.plan.backend.value,plan_result.plan.provenance_enabled,plan_result.plan.command.as_string())
+    logger.info("execution_prepared backend=%s provenance_enabled=%s command=%s working_directory=%s log_directory=%s results_directory=%s",plan_result.plan.backend.value, plan_result.plan.provenance_enabled, plan_result.plan.command.as_string(), plan_result.submission.command.working_directory, plan_result.submission.log_directory, plan_result.submission.results_directory )
 
     view.console.print(f"Running submission command: {plan_result.plan.command.as_string()}")
 
-    agent = SubprocessExecutionAgent()
+    agent = SubprocessExecutionAgent(logger=logger)
+    logger.info("execution_started")
     outcome = view.run_with_spinner("Executing workflow...", agent.submit, plan_result.submission)
     
     view.print_final_summary(outcome)
@@ -249,7 +250,8 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
         ServiceError: If an error occurs during the pipeline execution.
     """
 
-    # create a LocalFileSystem instance to handle file system operations, exists, metadata, write_text, create_directrory
+    logger.info("pipeline_started")
+    logger.info("filesystem_adapter=LocalFileSystem")
     file_system = LocalFileSystem()
 
     # calls the import_rocrate function to import the RO-Crate from the source provided by the user
@@ -262,7 +264,10 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     #     crate=crate,
     #     notes=("Crate source prepared successfully",),
     # )
+    import_started = perf_counter()
+    logger.info("crate_import_started source=%s", args.source)
     import_result = import_rocrate(args.source, workspace_directory, shared_crate_directory, file_system)
+    logger.info("crate_import_finished source_type=%s crate_location=%s extracted=%s downloaded=%s duration_seconds=%.3f", import_result.source.type.value, import_result.crate_location, bool(import_result.acquisition and import_result.acquisition.extracted), bool(import_result.acquisition and import_result.acquisition.downloaded),perf_counter() - import_started)
 
     # ╭─ 1. Crate source imported ──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
     # │ Source type   zip                                                                                                                   │
@@ -274,7 +279,9 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 
     # calls the _inspect_rocrate function to inspect the imported RO-Crate
     # the function will return an InspectCrateResult object containing the crate and its metadata
+    logger.info("crate_inspection_started metadata_path=%s", import_result.crate_location / settings.metadata_filename)
     inspect_result = _inspect_rocrate(import_result)
+    logger.info("crate_inspection_finished usable=%s workflow_metadata=%s",inspect_result.import_crate_result is not None, inspect_result.import_crate_result.workflow_metadata is not None if inspect_result.import_crate_result else False)
 
     if inspect_result.import_crate_result is None:
         logger.info("final_status=invalid_crate_metadata")
@@ -286,6 +293,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     execution_directory = workspace_directory / settings.results_dir_name
 
     original_submission_command = plan_service.discover_command(inspect_result.import_crate_result.crate_location)
+    logger.info("submission_command_discovered command=%s", original_submission_command)
 
     # ╭─ 2. Metadata inspected ───────────────────────────────────────────────────────────────────╮
     # │ ───────────────────────────── RO-Crate Inspection ──────────────────────────────          │
@@ -321,14 +329,18 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 
     view.print_inspect_result(inspect_result, original_submission_command)
 
+    logger.info("crate_verification_started")
     verify_result = verify_rocrate(inspect_result, file_system)
     workflow_metadata = inspect_result.import_crate_result.workflow_metadata
     entity_summary = (workflow_metadata.workflow_entity_summary if workflow_metadata is not None else None)
 
     view.print_verification_table(verify_result)
+    logger.info("crate_verification_finished total=%s passed=%s failed=%s",entity_summary.total if entity_summary is not None else None,entity_summary.total_success if entity_summary is not None else None,entity_summary.total_failed if entity_summary is not None else None)
 
     if entity_summary is not None and entity_summary.total_failed > 0:
-        if not view.console.input("[yellow]Some important files are missing. Do you want to continue anyway ? [y/N]: [/yellow]").lower().startswith("y"):
+        continue_after_verification = view.console.input("[yellow]Some important files are missing. Do you want to continue anyway ? [y/N]: [/yellow]").lower().startswith("y")
+        logger.info("verification_confirmation continue=%s", continue_after_verification)
+        if not continue_after_verification:
             logger.info("final_status=aborted_after_failed_verification")
             view.console.print("Aborted after failed verification.")
             return None, None
@@ -354,7 +366,9 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     environment_flags: list[str] = []
     
     if not args.yes:
+        logger.info("environment_flag_discovery_started")
         environment_flags = discover_environment_flags()
+        logger.info("environment_flags_discovered count=%s flags=%s", len(environment_flags), environment_flags)
     
         if environment_flags:
             view.console.print("\n[cyan]COMPSS_RS flags detected:[/cyan]")
@@ -362,17 +376,21 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
                 view.console.print(f"  {flag}")
     
             use_environment_flags = Confirm.ask("Do you want to use these flags?",default=False)
+            logger.info("environment_flags_confirmation use=%s", use_environment_flags)
     
             if not use_environment_flags:
                 environment_flags = []
 
+    logger.info("execution_plan_build_started backend=%s cli_extra_flags=%s environment_flags=%s",args.backend,args.extra_flag, environment_flags)
     plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag, environment_flags=tuple(environment_flags))
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
     view.console.print()
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
-    if view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y"):
+    modify_command = view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y")
+    logger.info("submission_command_edit_confirmation modify=%s", modify_command)
+    if modify_command:
         plan_result = update_plan_with_selected_flags(args=args, plan_service=plan_service, crate_root=crate_root, workspace_directory=workspace_directory,execution_directory=execution_directory,provenance_enabled=provenance_flag,current_plan=plan_result,logger=logger)
 
     view.print_execution_plan(plan_result.plan)
