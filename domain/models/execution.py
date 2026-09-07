@@ -140,6 +140,8 @@ class ExecutionBackendDetector:
         "SLURM_SUBMIT_DIR",
         "SLURM_NTASKS",
         "SLURM_JOB_NODELIST",
+        "SLURM_COMP_PLUGIN",
+        "SLURM_OVERLAP",
     )
 
     def detect(self) -> ExecutionBackend:
