@@ -107,6 +107,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--participant-org")
     parser.add_argument("--participant-orcid")
     parser.add_argument("--participant-ror")
+    parser.add_argument("--data-persistence", choices=[True, False], help="Kind of data persistence for the workflow run")
 
     # Add a flag to skip confirmation prompts, useful for non-interactive runs or automated scripts.
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
@@ -360,6 +361,10 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             else:
                 view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
+        data_persistence = Confirm.ask("Do you want to enable data persistence?", default=False)
+
+
+
         
     environment_flags: list[str] = []
     
@@ -405,6 +410,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
                 participant_organization=args.participant_org,
                 participant_orcid=args.participant_orcid,
                 participant_ror=args.participant_ror,
+                data_persistence_kind=args.data_persistence_kind,
             )
         )
         if provenance_result.provenance_config_file:

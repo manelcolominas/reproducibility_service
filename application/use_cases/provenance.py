@@ -49,6 +49,7 @@ class PrepareProvenanceRequest:
     participant_organization: str | None = None
     participant_orcid: str | None = None
     participant_ror: str | None = None
+    data_persistence_kind: DataPersistenceKind | None = None
 
     def __post_init__(self) -> None:
         if not str(self.provenance_root).strip():
@@ -88,6 +89,8 @@ class DefaultPrepareProvenanceService:
         
         if workflow_metadata.license:
             workflow_information["license"] = workflow_metadata.license
+
+        workflow_information["data_persistence"] = request.data_persistence
         
         document = {
             "COMPSs Workflow Information": workflow_information,
@@ -173,12 +176,8 @@ def source_paths(crate: ImportCrateResult) -> list[str]:
 
     return sources
 
-def participant_document(
-    participant: WorkflowParticipant,
-) -> dict[str, str]:
-    document: dict[str, str] = {
-        "name": str(participant.name),
-    }
+def participant_document(participant: WorkflowParticipant) -> dict[str, str]:
+    document: dict[str, str] = {"name": str(participant.name)}
 
     if participant.email:
         document["e-mail"] = str(participant.email)
