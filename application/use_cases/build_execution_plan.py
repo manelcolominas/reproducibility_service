@@ -17,192 +17,33 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import runtime_checkable
 import os
 from rocrate.rocrate import ROCrate
 
-from application.ports.executor import (
-    ExecutionBackendDetector,
-    ExecutionSubmission,
-)
-from domain.errors import CommandBuildError, ValidationError
-from domain.models.crate import CrateSummary
+from domain.errors import ValidationError
 from domain.models.execution import (
     ExecutionBackend,
     ExecutionContext,
     ExecutionPlan,
     RuntimeCommand,
+    ExecutionSubmission,
 )
+from domain.models.execution import ExecutionBackendDetector
 
-_COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
+from application.use_cases.flags import FLAG_DEFINITIONS, FlagValueKind, FlagDefinition, SLURM_ONLY_FLAG_BASES
 
-class FlagValueKind(str, Enum):
-    NONE = "none"
-    BOOL = "bool"
-    INT = "int"
-    STRING = "string"
-    PATH = "path"
-    DIRECTORY = "directory"
+COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
 
-@dataclass(frozen=True, slots=True)
-class FlagDefinition:
-    name: str
-    description: str
-    backend_scope: tuple[ExecutionBackend, ...]
-    value_kind: FlagValueKind = FlagValueKind.NONE
-    aliases: tuple[str, ...] = ()
-    repeatable: bool = False
-    prefer_equals: bool = False
-
-def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
-    choices: list[tuple[str, str]] = []
-
-    for flag in FLAG_DEFINITIONS:
-        if backend not in flag.backend_scope:
-            continue
-
-        display = flag.name if flag.value_kind == FlagValueKind.NONE else f"{flag.name}=<value>"
-        choices.append((display, flag.description))
-
-    return choices
-
-FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
-    # LOCAL and SLURM shared flags
-    FlagDefinition("--debug", "Enable debug mode for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d",)),
-    FlagDefinition("--pythonpath", "Path to Python modules for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--log_level", "Set the log level for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--lang", "Language for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--graph", "Enable graph generation shortcut.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--tracing", "Set generation of traces.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--monitoring", "Period between monitoring samples in (milliseconds).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--external_debugger", "Enables external debugger connection on the specified port (or 9999 if empty).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--jmx_port", "Enable JVM profiling on specified port.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--task_execution", "Task execution under COMPSs or Storage. Default: compss", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--storage_impl", "Path to an storage implementation. Shortcut to setting pypath and classpath. See Runtime/storage in your installation folder.", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--storage_conf", "Path to the storage configuration file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--project", "Path to the COMPSs project file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--resources", "Path to the COMPSs resources file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--socket", "Socket name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--summary", "Print a summary of the COMPSs execution.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE),
-    FlagDefinition("--extrae_config_file", "Path to the Extrae configuration file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--extrae_config_file_python", "Path to the Extrae configuration file for Python.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--trace_label", "Label for the generated trace.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--tracing_task_dependencies", "Enable tracing of task dependencies (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--generate_trace", "Enable tracing of task dependencies.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--delete_trace_packages", "Delete trace packages after execution (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--custom_threads", "Enable custom threads for the COMPSs runtime (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--comm", "Communication implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--conn", "Connection implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--streaming", "Enable streaming for the COMPSs runtime (type: TCP, UDP, etc.).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--streaming_master_name", "Master name for the streaming implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--streaming_master_port", "Master port for the streaming implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--scheduler", "Scheduler implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--scheduler_config_file", "Path to the scheduler configuration file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--checkpoint", "Checkpoint implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--checkpoint_params", "Parameters for the checkpoint implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--checkpoint_folder", "Folder for storing checkpoints.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--library_path", "Path to the library for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--classpath", "Path to the classpath for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--appdir", "Path to the application directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--env_script", "Path to the environment script for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--log_dir", "Path to the log directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--master_working_dir", "Path to the master working directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--uuid", "UUID for the COMPSs runtime.", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--master_name", "Master name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--master_port", "Master port for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--jvm_master_opts", "JVM options for the master process of the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--jvm_workers_opts", "JVM options for the worker processes of the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--cpu_affinity", "CPU affinity for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--gpu_affinity", "GPU affinity for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--fpga_affinity", "FPGA affinity for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--fpga_reprogram", "FPGA reprogramming command for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--io_executors", "Number of I/O executors for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--task_count", "Number of tasks for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--input_profile", "Path to the input profile for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--output_profile", "Path to the output profile for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--PyObject_serialize", "Enable or disable PyObject serialization (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--persistent_worker_c", "Enable or disable persistent worker for C tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--enable_external_adaptation", "Enable or disable external adaptation (true/false). ", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--gen_coredump", "Enable or disable core dump generation", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE),
-    FlagDefinition("--keep_workingdir", "Keep the working directory after execution.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE),
-    FlagDefinition("--python_interpreter", "Path to the Python interpreter for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--python_propagate_virtual_environment", "Enable or disable propagation of the Python virtual environment (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--python_mpi_worker", "Enable or disable MPI worker for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--python_memory_profile", "Enable or disable memory profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--python_cache_profiler", "Enable or disable cache profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--wall_clock_limit", "Set the wall clock limit for the COMPSs runtime in seconds.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--shutdown_in_node_failure", "Enable or disable shutdown in node failure (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p",)),
-    FlagDefinition("--provenance_folder", "Folder to store the generated provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z",)),
-
-    # SLURM-only
-    FlagDefinition("--heterogeneous", "Enable heterogeneous execution.", (ExecutionBackend.SLURM,), FlagValueKind.NONE),
-    FlagDefinition("--sc_cfg", "Scheduler configuration name.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--exec_time", "Execution time limit in minutes.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--job_name", "SLURM job name.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--queue", "Target SLURM queue.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--reservation", "SLURM reservation name.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--job_execution_dir", "Directory for job execution.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--pre_env_script", "Path to a script to be executed before the environment script.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--extra_submit_flag", "Extra flag to be passed to the SLURM submission command.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--storage_container_image", "Container image for the storage implementation.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--storage_cpu_affinity", "CPU affinity for the storage implementation.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--constraints", "Constraints for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--project_name", "Project name for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--qos", "Quality of Service for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--forward_cpus_per_node", "Forward CPUs per node to the SLURM job (true/false).", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--job_dependency", "Set a job dependency for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--forward_time_limit", "Forward time limit to the SLURM job (true/false).", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--storage_home", "Storage home directory for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--storage_props", "Storage properties for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--participants", "Participants for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--num_nodes", "Number of nodes for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--num_switches", "Number of switches for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--type_cfg", "Type configuration file location for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--master", "Master node type for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--workers", "Worker node types and counts for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--cpus_per_node", "CPUs per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--gpus_per_node", "GPUs per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--fpgas_per_node", "FPGAs per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--fpga_reprogram", "FPGA reprogramming command for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--max_tasks_per_node", "Maximum tasks per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--node_memory", "Node memory in MB for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--node_storage_bandwidth", "Node storage bandwidth in MB for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--network", "Network type for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--prolog", "Prolog script for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--epilog", "Epilog script for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--master_working_dir", "Master working directory for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--worker_working_dir", "Worker working directory for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--worker_in_master_cpus", "Number of worker CPUs in the master node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--worker_in_master_memory", "Amount of worker memory in the master node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--worker_port_range", "Port range for workers in the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--jvm_worker_in_master_opts", "JVM options for workers in master for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--container_image", "Container image for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--container_compss_path", "Path to COMPSs installation inside the container for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--container_opts", "Extra options for the container execution in the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--elasticity", "Maximum extra nodes for elasticity in the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--automatic_scaling", "Enable or disable automatic scaling for the SLURM job (true/false).", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--jupyter_notebook", "Path to a Jupyter notebook to be executed in the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--ipython", "Enable execution of an IPython shell for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.NONE),
-    FlagDefinition("--ear", "Enable or disable execution after recovery (true/false or path to recovery file).", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-)
-
-_LOCAL_UNSUPPORTED_FLAGS = {
-    flag.name
-    for flag in FLAG_DEFINITIONS
-    if ExecutionBackend.LOCAL not in flag.backend_scope
-}
-
+# DO NOT DELETE THIS CLASS
 class SubmissionCommandEditKind(str, Enum):
     ADD = "add"
     REMOVE = "remove"
     SET_VALUE = "set_value"
 
+# DO NOT DELETE THIS CLASS
 @dataclass(frozen=True, slots=True)
 class SubmissionCommandEdit:
     kind: SubmissionCommandEditKind
@@ -212,11 +53,7 @@ class SubmissionCommandEdit:
 FLAG_BY_NAME = {flag.name: flag for flag in FLAG_DEFINITIONS}
 FLAG_BY_ALIAS = {alias: flag.name for flag in FLAG_DEFINITIONS for alias in flag.aliases}
 
-class BuildExecutionPlanStatus(str, Enum):
-    PENDING = "pending"
-    READY = "ready"
-    FAILED = "failed"
-
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ParsedFlag:
     definition_name: str | None
@@ -224,16 +61,21 @@ class ParsedFlag:
     value: str | None = None
     raw_tokens: tuple[str, ...] = ()
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ParsedSubmissionCommand:
     executable: str
     flags: tuple[ParsedFlag, ...]
     positionals: tuple[str, ...]
 
+
+
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanRequest:
-    crate: CrateSummary
+    crate_root: Path
     workspace_directory: Path
+    execution_directory: Path
     backend: ExecutionBackend = ExecutionBackend.AUTO
     provenance_enabled: bool = False
     submission_command: str | None = None
@@ -242,69 +84,49 @@ class BuildExecutionPlanRequest:
 
 
     def __post_init__(self) -> None:
-        if self.crate is None:
-            raise ValidationError("BuildExecutionPlanRequest.crate cannot be None")
+        if self.crate_root is None:
+            raise ValidationError("BuildExecutionPlanRequest.crate_root cannot be None")
+        if not str(self.crate_root).strip():
+            raise ValidationError("BuildExecutionPlanRequest.crate_root cannot be empty")
+        if not self.crate_root.exists():
+            raise ValidationError("BuildExecutionPlanRequest.crate_root does not exist")
+        if self.workspace_directory is None:
+            raise ValidationError("BuildExecutionPlanRequest.workspace_directory cannot be None")
         if not str(self.workspace_directory).strip():
             raise ValidationError("BuildExecutionPlanRequest.workspace_directory cannot be empty")
+        if not self.workspace_directory.exists():
+            raise ValidationError("BuildExecutionPlanRequest.workspace_directory does not exist")
 
 @dataclass(frozen=True, slots=True)
 class BuildExecutionPlanResult:
-    status: BuildExecutionPlanStatus
     request: BuildExecutionPlanRequest
     backend: ExecutionBackend
     command: RuntimeCommand
     plan: ExecutionPlan
     context: ExecutionContext
     submission: ExecutionSubmission
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
 
-    @property
-    def ready(self) -> bool:
-        return self.status == BuildExecutionPlanStatus.READY
 
-
-class BuildExecutionPlanPortError(CommandBuildError):
+class BuildExecutionPlanFailure(Exception):
     pass
 
 
-class BuildExecutionPlanFailure(BuildExecutionPlanPortError):
-    pass
-
-
+# DO NOT DELETE THIS CLASS
 class DefaultBuildExecutionPlanService:
-    def __init__(
-        self,
-        backend_detector: ExecutionBackendDetector | None = None,
-        log_dir_name: str = "log",
-        results_dir_name: str = "Result",
-    ) -> None:
-        self._backend_detector = backend_detector
+    def __init__(self, backend_detector: ExecutionBackendDetector | None = None, log_dir_name: str = "log",results_dir_name: str = "Result") -> None:
+        self.backend_detector = backend_detector
         self._log_dir_name = log_dir_name
         self._results_dir_name = results_dir_name
 
+    # DO NOT DELETE THIS METHODS
     def execute(self, request: BuildExecutionPlanRequest) -> BuildExecutionPlanResult:
-        backend = self._select_backend(request)
-        context = self._build_context(request, backend)
-        command = self.build_command(
-            request=request,
-            backend=backend,
-            execution_directory=context.execution_directory,
-        )
-        plan = ExecutionPlan(
-            backend=backend,
-            command=command,
-            context=context,
-            provenance_enabled=request.provenance_enabled,
-        )
-        submission = ExecutionSubmission(
-            command=command,
-            backend=backend,
-            workspace_directory=context.workspace_directory,
-            log_directory=context.log_directory,
-            results_directory=context.results_directory,
-        )
+        backend = self.select_backend(request)
+        context = self.build_context(request, backend)
+        command = self.build_command(request=request, backend=backend, execution_directory=context.execution_directory)
+        plan = ExecutionPlan(backend=backend,command=command,context=context,provenance_enabled=request.provenance_enabled)
+        submission = ExecutionSubmission(command=command, backend=backend,workspace_directory=context.workspace_directory,log_directory=context.log_directory,results_directory=context.results_directory)
 
         warnings: list[str] = []
         notes: list[str] = []
@@ -312,97 +134,56 @@ class DefaultBuildExecutionPlanService:
         if request.provenance_enabled:
             notes.append("Provenance is enabled")
 
-        return BuildExecutionPlanResult(
-            status=BuildExecutionPlanStatus.READY,
-            request=request,
-            backend=backend,
-            command=command,
-            plan=plan,
-            context=context,
-            submission=submission,
-            warnings=tuple(warnings),
-            notes=tuple(notes),
-        )
+        return BuildExecutionPlanResult(request=request, backend=backend, command=command, plan=plan, context=context, submission=submission, warnings=tuple(warnings), notes=tuple(notes))
 
-    def _select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
-        # Respect explicit user choice first
+
+    # DO NOT DELETE THIS FUNCTION
+    def select_backend(self, request: BuildExecutionPlanRequest) -> ExecutionBackend:
         if request.backend != ExecutionBackend.AUTO:
-            return request.backend
+            if self.backend_detector is None:
+                raise BuildExecutionPlanFailure("Cannot validate the requested backend because no backend detector is configured")
     
-        # In auto mode, prioritize the runtime environment detection
-        if self._backend_detector is not None:
-            detected = self._backend_detector.detect()
-            if detected in (ExecutionBackend.LOCAL, ExecutionBackend.SLURM):
-                return detected
+            detected = self.backend_detector.detect()
     
-        # Fallback to crate command inference only if detection is unavailable
-        raw_command = request.submission_command or self._discover_command(request.crate)
-        inferred = self._infer_backend_from_command(raw_command)
-        if inferred is not None:
-            return inferred
+            if detected != request.backend:
+                raise BuildExecutionPlanFailure(f"Detected backend {detected.value} does not match requested backend {request.backend.value}")
     
-        # Safe default
+            return detected
+    
+        if self.backend_detector is not None:
+            return self.backend_detector.detect()
+    
         return ExecutionBackend.LOCAL
 
-    def _infer_backend_from_command(self, raw_command: str | None) -> ExecutionBackend | None:
-        if not raw_command:
-            return None
-    
-        parts = raw_command.strip().split()
-        if not parts:
-            return None
-    
-        executable = Path(parts[0]).name
-        if executable == "enqueue_compss":
-            return ExecutionBackend.SLURM
-        if executable == "runcompss":
-            return ExecutionBackend.LOCAL
-        return None
+    # DO NOT DELETE
+    def build_context(self,request: BuildExecutionPlanRequest,backend: ExecutionBackend) -> ExecutionContext:
+        return ExecutionContext(backend=backend,workspace_directory=request.workspace_directory,log_directory=request.workspace_directory / self._log_dir_name,results_directory=request.workspace_directory / self._results_dir_name)
 
-    def _build_context(
-        self,
-        request: BuildExecutionPlanRequest,
-        backend: ExecutionBackend,
-    ) -> ExecutionContext:
-        return ExecutionContext(
-            backend=backend,
-            workspace_directory=request.workspace_directory,
-            log_directory=request.workspace_directory / self._log_dir_name,
-            results_directory=request.workspace_directory / self._results_dir_name,
-        )
-
+    # DO NOT DELETE
     def build_command( self, request: BuildExecutionPlanRequest, backend: ExecutionBackend, execution_directory: Path | None = None ) -> RuntimeCommand:
-        raw_command = request.submission_command or self._discover_command(request.crate)
+        raw_command = request.submission_command or self.discover_command(request.crate_root)
         if not raw_command:
             raise BuildExecutionPlanFailure("Could not determine the submission command")
 
-        schema = {flag.name: flag for flag in FLAG_DEFINITIONS}
-        crate_root = request.crate.location
+        schema = {}
+        for flag in FLAG_DEFINITIONS:
+            schema[flag.name] = flag
+        crate_root = request.crate_root
 
         parsed = self.parse_submission_command(raw_command, schema)
+        parsed = self.apply_submission_edits(parsed, request.submission_edits)
+
         parsed = self.normalize_executable(parsed, backend, request.runtime_executable)
         parsed = self.strip_unsupported_for_backend(parsed, backend)
         parsed = self.remap_paths(parsed, crate_root)
-        parsed = self.strip_provenance(parsed)
+        parsed = self.strip_provenance(parsed, backend)
 
-        edits = list(request.submission_edits)
         if request.provenance_enabled:
-            has_provenance_add = any(
-                edit.kind == SubmissionCommandEditKind.ADD
-                and edit.name.split(" - ", 1)[0].split("=", 1)[0].strip() in {"--provenance", "-p"}
-                for edit in edits
-            )
-            if not has_provenance_add:
-                edits.append(
-                    SubmissionCommandEdit(
-                        kind=SubmissionCommandEditKind.ADD,
-                        name="--provenance",
-                    )
-                )
-        parsed = self.apply_edits(parsed, tuple(edits))
+            parsed = self.apply_submission_edits(parsed,(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--provenance"),))
 
         return self.serialize_submission_command(parsed, working_directory=execution_directory)
-
+        
+    # DO NOT DELETE
     def serialize_submission_command(self, parsed: ParsedSubmissionCommand, working_directory: Path | None = None) -> RuntimeCommand:
         arguments: list[str] = []
 
@@ -424,14 +205,15 @@ class DefaultBuildExecutionPlanService:
 
         arguments.extend(parsed.positionals)
 
-        return RuntimeCommand(
-            executable=parsed.executable,
-            arguments=tuple(arguments),
-            working_directory=working_directory,
-        )
+        return RuntimeCommand(executable=parsed.executable,arguments=tuple(arguments),working_directory=working_directory)
 
+    # DO NOT DELETE
     def parse_submission_command(self, raw_command: str, schema: dict[str, FlagDefinition]) -> ParsedSubmissionCommand:
-        parts = [part for part in raw_command.strip().split() if part]
+        parts = []
+        for part in raw_command.strip().split():
+            if part:
+                parts.append(part)
+
         if not parts:
             raise BuildExecutionPlanFailure("The submission command is empty")
 
@@ -455,23 +237,9 @@ class DefaultBuildExecutionPlanService:
             if definition is None:
                 if "=" in token:
                     raw_name, raw_value = token.split("=", 1)
-                    flags.append(
-                        ParsedFlag(
-                            definition_name=None,
-                            token=raw_name,
-                            value=raw_value,
-                            raw_tokens=(token,),
-                        )
-                    )
+                    flags.append(ParsedFlag(definition_name=None,token=raw_name,value=raw_value,raw_tokens=(token)))
                 else:
-                    flags.append(
-                        ParsedFlag(
-                            definition_name=None,
-                            token=token,
-                            value=None,
-                            raw_tokens=(token,),
-                        )
-                    )
+                    flags.append(ParsedFlag(definition_name=None,token=token,value=None,raw_tokens=(token)))
                 index += 1
                 continue
         
@@ -493,322 +261,275 @@ class DefaultBuildExecutionPlanService:
                 raise BuildExecutionPlanFailure(f"Flag {definition.name} does not accept a value")
         
             flags.append(
-                ParsedFlag(
-                    definition_name=definition.name,
-                    token=canonical_name,
-                    value=value,
-                    raw_tokens=tuple(raw_tokens),
-                )
-            )
+                ParsedFlag(definition_name=definition.name,token=canonical_name,value=value,raw_tokens=tuple(raw_tokens)))
             index += 1
         
         return ParsedSubmissionCommand(executable=executable, flags=tuple(flags),positionals=tuple(positionals))
 
+    # DO NOT DELETE THIS FUNCTION
     def canonical_name(self, token: str | None) -> str | None:
         if token is None:
             return None
         base = token.split("=", 1)[0].strip()
         return FLAG_BY_ALIAS.get(base, base)
 
-    def flag_matches(self, flag: ParsedFlag, target: str) -> bool:
-        token_base = flag.token.split("=", 1)[0]
-        token_canonical = FLAG_BY_ALIAS.get(token_base, token_base)
-        definition_canonical = FLAG_BY_ALIAS.get(flag.definition_name, flag.definition_name) if flag.definition_name else None
-        return token_canonical == target or definition_canonical == target
+    # DO NOT DELETE THIS FUNCTION
+    def strip_provenance(self, parsed: ParsedSubmissionCommand, backend: ExecutionBackend) -> ParsedSubmissionCommand:
+        stripped_flags = {"--provenance", "--zip_provenance"}
 
-    def normalize_name(self, name: str) -> str:
-        raw = name.split(" - ", 1)[0].strip()
-        base = raw.split("=", 1)[0]
-        return base
+        if backend != ExecutionBackend.SLURM:
+            stripped_flags.add("--pythonpath")
 
-    def apply_edits(self, parsed: ParsedSubmissionCommand, edits: tuple[SubmissionCommandEdit, ...]) -> ParsedSubmissionCommand:
-        flags = list(parsed.flags)
+        filtered = []
+        for flag in parsed.flags:
+            flag_name = self.canonical_name(flag.definition_name or flag.token)
 
-        for edit in edits:
-            target = self.canonical_name(edit.name)
-            definition = self.resolve_flag_definition(edit.name)
+            if flag_name not in stripped_flags:
+                filtered.append(flag)
 
-            if definition is None:
-                definition = next(
-                    (flag for flag in FLAG_DEFINITIONS if flag.name == target or target in flag.aliases),
-                    None,
-                )
-
-            first_idx = next(
-                (i for i, flag in enumerate(flags) if self.flag_matches(flag, target)),
-                None,
-            )
-
-            if edit.kind == SubmissionCommandEditKind.ADD:
-                if definition is not None and definition.repeatable:
-                    flags.append(self.build_flag(edit.name, edit.value))
-                    continue
-
-                if first_idx is not None:
-                    existing_token = flags[first_idx].token.split("=", 1)[0]
-                    flags[first_idx] = self.build_flag(existing_token, edit.value)
-                else:
-                    flags.append(self.build_flag(edit.name, edit.value))
-
-            elif edit.kind == SubmissionCommandEditKind.REMOVE:
-                flags = [flag for flag in flags if not self.flag_matches(flag, target)]
-
-            elif edit.kind == SubmissionCommandEditKind.SET_VALUE:
-                if first_idx is not None:
-                    existing_token = flags[first_idx].token.split("=", 1)[0]
-                    flags[first_idx] = self.build_flag(existing_token, edit.value)
-                else:
-                    flags.append(self.build_flag(edit.name, edit.value))
-
-        return ParsedSubmissionCommand(
-            executable=parsed.executable,
-            flags=tuple(flags),
-            positionals=parsed.positionals,
-        )
-
-    def strip_provenance(self, parsed: ParsedSubmissionCommand) -> ParsedSubmissionCommand:
-        filtered = [
-            flag
-            for flag in parsed.flags
-            if self.canonical_name(flag.token) not in {"--provenance", "-p"}
-            and self.canonical_name(flag.definition_name) not in {"--provenance", "-p"}
-        ]
         return ParsedSubmissionCommand(
             executable=parsed.executable,
             flags=tuple(filtered),
             positionals=parsed.positionals,
         )
-    
-    def strip_unsupported_for_backend(
-        self,
-        parsed: ParsedSubmissionCommand,
-        backend: ExecutionBackend,
-    ) -> ParsedSubmissionCommand:
+
+    # DO NOT DELETE THIS FUNCTION
+    def strip_unsupported_for_backend(self,parsed: ParsedSubmissionCommand,backend: ExecutionBackend) -> ParsedSubmissionCommand:
         if backend != ExecutionBackend.LOCAL:
             return parsed
     
         filtered_flags = [
             flag
             for flag in parsed.flags
-            if self.canonical_name(flag.token) not in _LOCAL_UNSUPPORTED_FLAGS
-            and self.canonical_name(flag.definition_name) not in _LOCAL_UNSUPPORTED_FLAGS
+            if self.canonical_name(flag.token) not in SLURM_ONLY_FLAG_BASES
+            and self.canonical_name(flag.definition_name) not in SLURM_ONLY_FLAG_BASES
         ]
-        return ParsedSubmissionCommand(
-            executable=parsed.executable,
-            flags=tuple(filtered_flags),
-            positionals=parsed.positionals,
-        )
+        return ParsedSubmissionCommand(executable=parsed.executable, flags=tuple(filtered_flags),positionals=parsed.positionals)
 
-    def normalize_executable(self,
-        parsed: ParsedSubmissionCommand,
-        backend: ExecutionBackend,
-        runtime_executable: str | None,
-    ) -> ParsedSubmissionCommand:
+    # DO NOT DELETE THIS FUNCTION
+    def normalize_executable(self,parsed: ParsedSubmissionCommand, backend: ExecutionBackend, runtime_executable: str | None) -> ParsedSubmissionCommand:
         executable = runtime_executable or ("enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss")
-        return ParsedSubmissionCommand(
-            executable=executable,
-            flags=parsed.flags,
-            positionals=parsed.positionals,
-        )
+        return ParsedSubmissionCommand(executable=executable,flags=parsed.flags,positionals=parsed.positionals)
 
+    # DO NOT DELETE THIS FUNCTION
     def remap_paths(self, parsed: ParsedSubmissionCommand, crate_root: Path) -> ParsedSubmissionCommand:
-        remapped_flags: list[ParsedFlag] = []
-        for flag in parsed.flags:
-            if flag.value is None:
-                remapped_flags.append(flag)
-            else:
-                remapped_flags.append(
-                    ParsedFlag(
-                        definition_name=flag.definition_name,
-                        token=flag.token,
-                        value=self._remap_single_argument(flag.value, crate_root),
-                        raw_tokens=flag.raw_tokens,
-                    )
-                )
+        remapped_flags = [ self.remap_flag(flag, crate_root) for flag in parsed.flags ]
+    
+        remapped_positionals = list(parsed.positionals)
+        if remapped_positionals:
+            remapped_positionals[0] = self.remap_main_source_file(remapped_positionals[0],crate_root)
+    
+        for index in range(1, len(remapped_positionals)):
+            remapped_positionals[index] = self.remap_existing_crate_path(
+                remapped_positionals[index],crate_root)
+    
+        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(remapped_flags),positionals=tuple(remapped_positionals))
 
-        remapped_positionals = tuple(
-            self._remap_single_argument(argument, crate_root)
-            for argument in parsed.positionals
+    def remap_main_source_file(self, argument: str, crate_root: Path) -> str:
+        crate_source = self.find_main_entity_source_code(crate_root)
+        if crate_source is not None:
+            return str(crate_source)
+
+        return self.remap_existing_crate_path(argument, crate_root)
+
+    def find_software_source_directory(self, crate_root: Path) -> Path | None:
+        rocrate = self.load_rocrate(crate_root)
+        if rocrate is None:
+            return None
+
+        source_files: list[Path] = []
+
+        for entity in rocrate.get_entities():
+            entity_type = entity.get("@type")
+            entity_types = {entity_type} if isinstance(entity_type, str) else set(entity_type or [])
+
+            if "SoftwareSourceCode" not in entity_types:
+                continue
+
+            candidate = crate_root / entity.id
+            if candidate.is_file():
+                source_files.append(candidate)
+
+        directories = {source_file.parent for source_file in source_files}
+
+        if len(directories) == 1:
+            return next(iter(directories))
+
+        main_source = self.find_main_entity_source_code(crate_root)
+        if main_source is not None:
+            return main_source.parent
+
+        return None
+
+
+    def remap_flag(self, flag: ParsedFlag, crate_root: Path) -> ParsedFlag:
+        if flag.value is None:
+            return flag
+
+        canonical_name = self.canonical_name(flag.definition_name or flag.token)
+
+        if canonical_name == "--pythonpath":
+            source_directory = self.find_software_source_directory(crate_root)
+            if source_directory is None:
+                return flag
+
+            return ParsedFlag(
+                definition_name=flag.definition_name,
+                token=flag.token,
+                value=self.format_mapped_path(source_directory, flag.value.endswith("/") and flag.value != "/"),
+                raw_tokens=flag.raw_tokens,
+            )
+
+        definition = self.resolve_flag_definition(canonical_name)
+        if definition is None or definition.value_kind not in {FlagValueKind.PATH, FlagValueKind.DIRECTORY}:
+            return flag
+
+        return ParsedFlag(
+            definition_name=flag.definition_name,
+            token=flag.token,
+            value=self.remap_existing_crate_path(flag.value, crate_root),
+            raw_tokens=flag.raw_tokens,
         )
-        return ParsedSubmissionCommand(
-            executable=parsed.executable,
-            flags=tuple(remapped_flags),
-            positionals=remapped_positionals,
-        )
 
+    def find_main_entity_source_code(self, crate_root: Path) -> Path | None:
+        rocrate = self.load_rocrate(crate_root)
+        if rocrate is None:
+            return None
 
-    def _remap_single_argument(self, arg: str, crate_root: Path) -> str:
-        had_trailing_slash = arg.endswith("/") and arg != "/"
+        main_entity = rocrate.root_dataset.get("mainEntity")
+        if main_entity is None:
+            return None
 
-        expanded = os.path.expanduser(arg)
+        main_entity_id = getattr(main_entity, "id", None)
+        if main_entity_id is None and isinstance(main_entity, dict):
+            main_entity_id = main_entity.get("@id")
+            candidate = crate_root / main_entity_id
+            if candidate.is_file():
+                return candidate
+
+        if not main_entity_id:
+            return None
+
+        return None
+
+    def remap_existing_crate_path(self, argument: str, crate_root: Path) -> str:
+        had_trailing_slash = argument.endswith("/") and argument != "/"
+
+        expanded = os.path.expanduser(argument)
         path = Path(expanded)
 
-        if path.is_absolute():
-            if path.exists():
-                return arg
+        candidates: list[Path] = []
 
-            candidates = self._candidate_local_paths(path, crate_root)
-            for candidate in candidates:
-                if candidate.exists():
-                    return self._format_mapped_path(candidate, had_trailing_slash)
+        if path.is_absolute():
+            parts = list(path.parts)
+            for anchor in ("application_sources", "dataset", "datasets", "data", "src"):
+                if anchor in parts:
+                    index = parts.index(anchor)
+                    candidates.append(crate_root.joinpath(*parts[index:]))
+
+            candidates.append(crate_root / "application_sources" / path.name)
+            candidates.append(crate_root / "application_sources" / "src" / path.name)
+            candidates.append(crate_root / path.name)
         else:
-            candidates = self._candidate_relative_paths(path, crate_root)
-            for candidate in candidates:
-                if candidate.exists():
-                    return self._format_mapped_path(candidate, had_trailing_slash)
+            if path.parts:
+                candidates.append(crate_root.joinpath(*path.parts))
+
+                head = path.parts[0]
+                tail = path.parts[1:]
+                if head in {"src", "application_sources", "datasets", "dataset", "data"} and tail:
+                    candidates.append(crate_root / "application_sources" / Path(*tail))
+                    candidates.append(crate_root / "src" / Path(*tail))
+
+            candidates.append(crate_root / "application_sources" / path.name)
+            candidates.append(crate_root / "application_sources" / "src" / path.name)
+            candidates.append(crate_root / path.name)
+
+        for candidate in self.unique_paths(candidates):
+            if candidate.exists():
+                return self.format_mapped_path(candidate, had_trailing_slash)
 
         basename_matches = list(crate_root.rglob(path.name))
         if len(basename_matches) == 1 and basename_matches[0].exists():
-            return self._format_mapped_path(basename_matches[0], had_trailing_slash)
+            return self.format_mapped_path(basename_matches[0], had_trailing_slash)
 
-        return arg
+        if path.is_absolute() and path.exists():
+            return argument
 
+        return argument
 
-    def _candidate_relative_paths(self, original: Path, crate_root: Path) -> list[Path]:
-        candidates: list[Path] = []
-        if original.parts:
-            candidates.append(crate_root.joinpath(*original.parts))
-
-            head = original.parts[0]
-            tail = original.parts[1:]
-            if head in {"src", "application_sources", "datasets", "dataset", "data"} and tail:
-                candidates.append(crate_root / "application_sources" / Path(*tail))
-                candidates.append(crate_root / "src" / Path(*tail))
-
-        candidates.append(crate_root / "application_sources" / original.name)
-        candidates.append(crate_root / original.name)
-
+    def unique_paths(self, paths: list[Path]) -> list[Path]:
         unique: list[Path] = []
         seen: set[str] = set()
-        for candidate in candidates:
-            key = str(candidate)
+
+        for path in paths:
+            key = str(path)
             if key not in seen:
-                unique.append(candidate)
+                unique.append(path)
                 seen.add(key)
+
         return unique
 
-
-    def _candidate_local_paths(self, original: Path, crate_root: Path) -> list[Path]:
-        parts = list(original.parts)
-
-        anchors = (
-            "application_sources",
-            "dataset",
-            "datasets",
-            "data",
-            "src",
-        )
-
-        candidates: list[Path] = []
-        for anchor in anchors:
-            if anchor in parts:
-                idx = parts.index(anchor)
-                suffix = parts[idx:]
-                candidates.append(crate_root.joinpath(*suffix))
-
-        candidates.append(crate_root / "application_sources" / "src" / original.name)
-
-        unique: list[Path] = []
-        seen: set[str] = set()
-        for candidate in candidates:
-            key = str(candidate)
-            if key not in seen:
-                unique.append(candidate)
-                seen.add(key)
-        return unique
-
-
-    def _format_mapped_path(self, candidate: Path, had_trailing_slash: bool) -> str:
+    def format_mapped_path(self, candidate: Path, had_trailing_slash: bool) -> str:
         text = str(candidate)
         if had_trailing_slash and candidate.is_dir() and not text.endswith("/"):
             return text + "/"
         return text
 
-    def _discover_command(self, crate: CrateSummary) -> str | None:
-        crate_root = crate.location
+
+    # DO NOT DELETE THIS FUNCTION
+    def discover_command(self, crate_root: Path) -> str | None:
+        # crate_root is now passed directly as an argument, no need to extract from crate
     
         for path in [crate_root / "compss_submission_command_line.txt", *sorted(crate_root.rglob("compss_submission_command_line.txt"))]:
             if path.is_file():
                 first_line = path.read_text(encoding="utf-8").splitlines()
                 if first_line:
-                    command = self._normalize_submission_command(first_line[0])
+                    command = self.normalize_submission_command(first_line[0])
                     if command:
                         return command
     
-        rocrate = self._load_rocrate(crate_root)
+        rocrate = self.load_rocrate(crate_root)
         if rocrate:
-            command = self._extract_command_from_rocrate(rocrate)
+            command = self.extract_command_from_rocrate(rocrate)
             if command:
                 return command
     
         return None
-    
-    
-    def _load_rocrate(self, crate_root: Path) -> ROCrate | None:
+
+
+    # DO NOT DELETE THIS FUNCTION
+    def load_rocrate(self, crate_root: Path) -> ROCrate | None:
         try:
             return ROCrate(crate_root)
         except Exception:
             return None
-    
-    
-    def _extract_command_from_rocrate(self, crate: ROCrate) -> str | None:
-        graph = list(crate.get_entities())
-    
-        # 1. Prefer the workflow-level entity
-        main_entity = crate.root_dataset.get("mainEntity")
-        for entity in graph:
-            if entity == main_entity:
-                command = self._normalize_submission_command(entity.get("description"))
-                if command:
-                    return command
-    
-        # 2. Then prefer the first matching CreateAction
-        for entity in graph:
-            if self._is_create_action(entity):
-                command = self._normalize_submission_command(entity.get("description"))
-                if command:
-                    return command
-    
-        # 3. Then any other usable description
-        for entity in graph:
-            command = self._normalize_submission_command(entity.get("description"))
-            if command:
-                return command
-    
+
+    # DO NOT DELETE THIS FUNCTION
+    def extract_command_from_rocrate(self, crate: ROCrate) -> str | None:
+        create_action = self.get_create_action_of_submission_command(crate)
+        if create_action:
+            command = create_action.get("description")
+            return command
         return None
 
+    # DO NOT DELETE THIS FUNCTION
+    def get_create_action_of_submission_command(self, crate: ROCrate) -> dict | None:
+        for entity in crate.get_entities():
+            raw_type = entity.get("@type")
+            if raw_type == "CreateAction":
+                entity_id = entity.id
+                if entity_id.startswith("#COMPSs_"):
+                    return entity
+        return None
 
-    def _normalize_submission_command(self, value: object) -> str | None:
-        if not isinstance(value, str):
-            return None
+    
+    # DO NOT DELETE THIS FUNCTION
+    def normalize_submission_command(self, value: object) -> str | None:
         text = value.strip()
-        for prefix in _COMMAND_PREFIXES:
+        for prefix in COMMAND_PREFIXES:
             if text == prefix or text.startswith(prefix + " "):
                 return text
         return None
-
-    def _is_create_action(self, entity: dict) -> bool:
-        raw_type = entity.get("@type") or entity.get("type")
-        if isinstance(raw_type, str):
-            return raw_type == "CreateAction"
-        if isinstance(raw_type, list):
-            return any(str(t) == "CreateAction" for t in raw_type)
-        return False
-
-    def _default_executable(self, backend: ExecutionBackend) -> str:
-        return "enqueue_compss" if backend == ExecutionBackend.SLURM else "runcompss"
-
-    def build_flag(self,token_name: str, value: str | None) -> ParsedFlag:
-        base = self.normalize_name(token_name)
-        canonical = FLAG_BY_ALIAS.get(base, base)
-        definition_name = canonical if canonical in FLAG_BY_NAME else None
-        raw_tokens = (base,) if value is None else (base, value)
-        return ParsedFlag(
-            definition_name=definition_name,
-            token=base,
-            value=value,
-            raw_tokens=raw_tokens,
-        )
 
     def resolve_flag_definition(self, name: str | None) -> FlagDefinition | None:
         if not name:
@@ -829,3 +550,38 @@ class DefaultBuildExecutionPlanService:
             return None
     
         return definition
+
+    def apply_submission_edits(self, parsed: ParsedSubmissionCommand, edits: tuple[SubmissionCommandEdit, ...]) -> ParsedSubmissionCommand:
+        flags = list(parsed.flags)
+    
+        for edit in edits:
+            canonical_name = self.canonical_name(edit.name)
+    
+            if edit.kind == SubmissionCommandEditKind.REMOVE:
+                flags = [
+                    flag
+                    for flag in flags
+                    if self.canonical_name(flag.definition_name or flag.token) != canonical_name
+                ]
+                continue
+    
+            replacement = ParsedFlag(definition_name=canonical_name if self.resolve_flag_definition(canonical_name) else None, token=canonical_name or edit.name, value=edit.value, raw_tokens=())
+    
+            matching_indexes = [
+                index
+                for index, flag in enumerate(flags)
+                if self.canonical_name(flag.definition_name or flag.token) == canonical_name
+            ]
+    
+            if matching_indexes:
+                first_index = matching_indexes[0]
+                flags[first_index] = replacement
+                flags = [
+                    flag
+                    for index, flag in enumerate(flags)
+                    if index == first_index or index not in matching_indexes
+                ]
+            else:
+                flags.append(replacement)
+    
+        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(flags),positionals=parsed.positionals)

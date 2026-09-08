@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import runtime_checkable
-
 from rocrate.rocrate import ROCrate
 
 from domain.models.crate import CrateSource
@@ -69,9 +67,6 @@ def _metadata_yaml_file_exists(root: Path) -> bool:
 
 
 def load_rocrate_if_valid(root: Path) -> ROCrate | None:
-    # if not _metadata_json_file_exists(root):
-    #     raise FileNotFoundError("ro-crate-metadata.json file does not exist")
-
     try:
         crate = ROCrate(root)
         return crate

@@ -18,8 +18,7 @@
 from __future__ import annotations
 from rocrate.rocrate import ROCrate
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 import os
@@ -29,18 +28,21 @@ import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote
+from enum import Enum
+    
 
 from application.ports.crate_source import (
     SourceAcquisitionResult,
     SourceValidationResult,
     load_rocrate_if_valid,
 )
+
 from domain.errors import FileSystemError, ValidationError
 from domain.models.crate import (
     CrateSource,
-    CrateSummary,
     WorkflowMetadata,
     CrateSourceKind,
+    WorkflowParticipant,
 )
 
 BROWSER_HEADERS = {
@@ -49,21 +51,25 @@ BROWSER_HEADERS = {
         "Accept-Language": "en-US,en;q=0.9",
     }
 
+class DataPersistenceKind(str, Enum):
+    TRUE = "true"
+    FALSE = "false"
+    UNKNOWN = "unknown"
 
 @dataclass(frozen=True, slots=True)
 class ImportCrateResult:
     source: CrateSource
     validation: SourceValidationResult
     acquisition: SourceAcquisitionResult | None
-    location: Path
-    crate: CrateSummary | None = None
+    crate_location: Path
+    workflow_metadata: WorkflowMetadata | None = None
+    data_persistence: DataPersistenceKind | None = None
     warnings: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     rocrate: ROCrate | None = None
 
 
-def _import_rocrate_simple(source_name, workspace_directory, shared_crate_directory, file_system):
+def import_rocrate(source_name, workspace_directory, shared_crate_directory, file_system):
     # take the source_name and convert it to string and remove whitespace from both ends
     raw_value = str(source_name).strip()
 
@@ -141,7 +147,7 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
     # a SourceValidationResult object is created with attributes shown above.
     # that basically stores the bool values of the source validation checks, if it exists, 
     # if it is readable, if it is a directory, if it is a file, if it is a url and a message.
-    validation = SourceValidationResult(source=source, exists=exists,readable=readable,directory=directory,file=file,url=url,message=message)
+    validation = SourceValidationResult(source=source, exists=exists, readable=readable, directory=directory, file=file, url=url, message=message)
 
     # is valid, if not we raise a FileSystemError with the message from the validation object.
     if not validation.is_valid:
@@ -149,12 +155,7 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
 
     # we create the workspace directory (reproducibility_service_{run_id}) if it does not exist,
     #  using the create_directory function from the file_system object
-
-
-    ############
-    #file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
-
-
+    # file_system.create_directory(path=workspace_directory, parents=True, exist_ok=True)
     # we get the absolute path of the source
     #source_absolute_path = Path(source.name).expanduser().resolve()
     # we get the absolute path of the crate directory
@@ -164,9 +165,7 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
     if source.type == CrateSourceKind.DIRECTORY:
         # we create the crate directory if it does not exist, using the create_directory function from
         # the file_system object
-
-        ############################333
-        #file_system.create_directory(path=shared_crate_directory, parents=True, exist_ok=True)
+        # file_system.create_directory(path=shared_crate_directory, parents=True, exist_ok=True)
 
         # we create a SourceAcquisitionResult object to store the source, the absolute path of the source,
         acquisition = SourceAcquisitionResult(source=source, source_root=destination_absolute_path)
@@ -252,16 +251,16 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
             response = urlopen(request, timeout=30)
             # read the response content
             download_bytes = response.read()
-            # we call _filename_from_http_response to determine the filename for the downloaded 
+            # we call filename_from_http_response to determine the filename for the downloaded 
             # content based on the server's response and the source name (https://workflows/635/ro_crate?version=1)
-            downloaded_filename = _filename_from_http_response(response)
+            downloaded_filename = filename_from_http_response(response)
 
         # if an exception occurs during the download, it will be caught here
         except (HTTPError, URLError, OSError) as exc:
             raise FileSystemError("Could not download crate source", details=str(exc)) from exc
 
         # determine the final directory name for the crate based on the downloaded filename
-        final_dirname = _crate_dirname_from_downloaded_filename(filename=downloaded_filename)
+        final_dirname = crate_dirname_from_downloaded_filename(filename=downloaded_filename)
         # build the final crate directory path based on the parent directory and the final directory name
         final_shared_crate_directory = shared_crate_directory.parent / final_dirname
 
@@ -296,31 +295,26 @@ def _import_rocrate_simple(source_name, workspace_directory, shared_crate_direct
 
     # we set the attribute 'rocrate' of the source variable with the loaded RO-Crate from
     # the call rocrate = load_rocrate_if_valid(crate_location)
-    
 
-    metadata = WorkflowMetadata(
-        name=(rocrate.root_dataset.get("name") if rocrate else crate_location.name) or "unnamed-workflow",
-        description=str((rocrate.root_dataset.get("description") if rocrate else "") or ""),
-        source_metadata_path=crate_location / "ro-crate-metadata.json",
-    )
+    if rocrate is not None:
+        workflow_metadata = workflow_metadata_from_rocrate(rocrate,crate_location=crate_location)
+    else:
+        raise ValueError("Failed to load workflow metadata from the RO-Crate.")
 
-    crate = CrateSummary(
-        location=crate_location,
-        metadata=metadata
-    )
-
-    return ImportCrateResult(
+    import_crate_result = ImportCrateResult(
         source=source,
         validation=validation,
         acquisition=acquisition,
-        location=crate_location,
-        crate=crate,
+        crate_location=crate_location,
+        workflow_metadata=workflow_metadata,
         notes=("Crate source prepared successfully",),
         rocrate=rocrate,
     )
 
+    return import_crate_result
 
-def _filename_from_http_response(response: requests.Response) -> str | None:
+
+def filename_from_http_response(response: requests.Response) -> str | None:
     # response.headers example:
     # "headers": {
     #     "Date": "Fri, 28 Aug 2026 14:06:01 GMT",
@@ -375,8 +369,8 @@ def _filename_from_http_response(response: requests.Response) -> str | None:
     return filename
 
     
-def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
-    # if the filename is None, we use a default name "RO-Crate"
+def crate_dirname_from_downloaded_filename(filename: str | None) -> str:
+    # if the filename is None, we use a default name "Ro-Crate"
     if filename is None:
         name = "RO-Crate"
     else:
@@ -388,6 +382,113 @@ def _crate_dirname_from_downloaded_filename(filename: str | None) -> str:
             name = name[:-4].strip()
         # if the resulting name is empty, fallback to the default name "RO-Crate"
         if not name:
-            name  = "RO-Crate"
+            name = "Ro-Crate"
     # return the final crate directory name
     return name
+
+def workflow_metadata_from_rocrate(rocrate: ROCrate, crate_location: Path ) -> WorkflowMetadata:
+    root_dataset = rocrate.root_dataset
+
+    authors = tuple(
+        get_participant_from_entity(entity, role="Author")
+        for reference in as_entity_references(root_dataset.get("author"))
+        for entity in [resolve_entity(rocrate, reference)]
+        if entity is not None
+    )
+
+    if not authors:
+        authors = tuple(
+            get_participant_from_entity(entity, role="Author")
+            for reference in as_entity_references(root_dataset.get("creator"))
+            for entity in [resolve_entity(rocrate, reference)]
+            if entity is not None
+        )
+
+    return WorkflowMetadata(
+        name=str(root_dataset.get("name")),
+        description=str(root_dataset.get("description") or ""),
+        license=license_value(root_dataset.get("license")),
+        authors=authors,
+        source_metadata_path=crate_location / "ro-crate-metadata.json"
+    )
+
+def as_entity_references(value) -> list:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+def resolve_entity(crate: ROCrate, value):
+    if value is None:
+        return None
+
+    if hasattr(value, "id"):
+        return value
+
+    if isinstance(value, dict):
+        entity_id = value.get("@id")
+        if entity_id:
+            return crate.get_entity(entity_id)
+
+    return None
+
+
+def license_value(value) -> str | None:
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        return value.strip() or None
+
+    if isinstance(value, dict):
+        identifier = value.get("@id") or value.get("url")
+        if identifier:
+            return str(identifier).strip() or None
+
+        name = value.get("name")
+        if name:
+            return str(name).strip() or None
+
+    if isinstance(value, list):
+        for item in value:
+            resolved = license_value(item)
+            if resolved:
+                return resolved
+
+    return str(value).strip() or None
+
+def get_participant_from_entity(entity,role: str) -> WorkflowParticipant:
+    identifier = str(getattr(entity, "id", None) or entity.get("@id", ""))
+
+    name = entity.get("name") or identifier or "Unknown author"
+
+    affiliation = entity.get("affiliation")
+    organization_name = None
+    organization_ror = None
+
+    if affiliation is not None:
+        organization_name = affiliation.get("name")
+        organization_identifier = str(getattr(affiliation, "id", None) or affiliation.get("@id", ""))
+
+        if organization_identifier.startswith("https://ror.org/"):
+            organization_ror = organization_identifier
+
+        if organization_name is None and organization_identifier:
+            organization_name = organization_identifier
+
+    email = entity.get("email")
+
+    if email is None:
+        contact_point = entity.get("contactPoint")
+        if contact_point is not None:
+            email = contact_point.get("email")
+
+    return WorkflowParticipant(
+        name=str(name),
+        role=role,
+        email=str(email) if email else None,
+        organization_name=(str(organization_name) if organization_name else None),
+        orcid=(identifier if identifier.startswith("https://orcid.org/") else None),
+        ror=organization_ror,
+    )

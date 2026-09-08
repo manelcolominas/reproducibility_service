@@ -30,193 +30,34 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
+from rich.live import Live
 
 import questionary
 
-from application.ports.executor import ExecutionOutcome
 from application.use_cases.inspect_crate import InspectCrateResult
 from application.use_cases.import_crate import ImportCrateResult
-from application.use_cases.prepare_provenance import PrepareProvenanceResult
-from application.use_cases.verify_inputs import VerifyInputsResult
-from domain.models.crate import CrateSummary
-from domain.models.verification import VerificationState
-from domain.models.execution import ExecutionPlan, ExecutionBackend
+from application.use_cases.provenance import PrepareProvenanceResult
+from domain.models.crate import EntityKind
+from domain.models.execution import ExecutionPlan, ExecutionBackend, ExecutionOutcome
 
 from application.use_cases.build_execution_plan import (
     SubmissionCommandEdit,
-    SubmissionCommandEditKind,
-    FlagValueKind,
-    FLAG_DEFINITIONS,
-    build_flag_options
+    SubmissionCommandEditKind
 )
 
-LOCAL_FLAG_OPTIONS = build_flag_options(ExecutionBackend.LOCAL)
-SLURM_FLAG_OPTIONS = build_flag_options(ExecutionBackend.SLURM)
-
 PROVENANCE_FLAGS = {"--provenance", "-p"}
-
-FLAG_CANONICAL_MAP = {
-"-p": "--provenance",
-"-d": "--debug",
-"-z": "--zip_provenance",
-}
 
 # Create a single console instance from Rich library to be used throughout the module for rendering output.
 console = Console()
 
-def _option_takes_value(flag_spec: str) -> bool:
-    return "=" in flag_spec
-
-def _canonical_flag_base(flag: str) -> str:
-    raw = (flag or "").split("=", 1)[0].split(" - ", 1)[0].strip()
-    return FLAG_CANONICAL_MAP.get(raw, raw)
-
-LOCAL_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in LOCAL_FLAG_OPTIONS}
-SLURM_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in SLURM_FLAG_OPTIONS}
-SLURM_ONLY_FLAG_BASES = SLURM_FLAG_BASES - LOCAL_FLAG_BASES
-VALUE_FLAG_BASES = {_canonical_flag_base(flag) for flag, _ in (LOCAL_FLAG_OPTIONS + SLURM_FLAG_OPTIONS) if _option_takes_value(flag)}
-
-def edit_submission_command(
-    backend: ExecutionBackend,
-    current_command: list[str] | None = None,
-) -> list[SubmissionCommandEdit] | None:
-    current_flags = _extract_current_flags(current_command)
-    edits: list[SubmissionCommandEdit] = []
-
-    while True:
-        action = questionary.select(
-            "What do you want to do?",
-            choices=[
-                "remove a flag",
-                "edit a flag value",
-                "add a new flag",
-                "finish",
-            ],
-        ).ask()
-
-        if action is None:
-            return None
-
-        if action == "finish":
-            break
-
-        if action == "remove a flag":
-            if not current_flags:
-                console.print("[yellow]No flags available to remove.[/yellow]")
-                continue
-            flag = questionary.select("Choose a flag to remove", choices=current_flags).ask()
-            if flag is None:
-                continue
-            edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.REMOVE,
-                    name=flag.split("=", 1)[0],
-                    value=None,
-                )
-            )
-            current_flags.remove(flag)
-
-        elif action == "edit a flag value":
-            if not current_flags:
-                console.print("[yellow]No flags available to edit.[/yellow]")
-                continue
-
-            flag = questionary.select("Choose a flag to edit", choices=current_flags).ask()
-            if flag is None:
-                continue
-
-            flag_name = _canonical_flag_base(flag)
-            definition = _resolve_flag_definition(flag_name)
-
-            if definition is None:
-                console.print(f"[red]Unknown flag: {flag_name}[/red]")
-                continue
-
-            value = ""
-            while True:
-                raw_value = Prompt.ask(f"New value for {flag_name}").strip()
-                try:
-                    value = _validate_flag_value(flag_name, raw_value)
-                    break
-                except ValueError as exc:
-                    console.print(f"[yellow]{exc}[/yellow]")
-
-            edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.SET_VALUE,
-                    name=flag_name,
-                    value=value,
-                )
-            )
-
-        elif action == "add a new flag":
-            choices = _available_flag_choices(backend, current_flags)
-            if not choices:
-                console.print("[yellow]No flags available to add.[/yellow]")
-                continue
-
-            selected = questionary.select("Choose a flag to add", choices=choices).ask()
-            if selected is None:
-                continue
-
-            flag_spec = selected.split(" - ", 1)[0]
-            flag_name = _canonical_flag_base(flag_spec)
-
-            definition = _resolve_flag_definition(flag_name)
-            if definition is None:
-                console.print(f"[red]Unknown flag: {flag_name}[/red]")
-                continue
-
-            if _canonical_flag_base(flag_name) in {_canonical_flag_base(flag) for flag in current_flags}:
-                console.print(f"[yellow]Flag already present: {flag_name}[/yellow]")
-                continue
-
-            value = None
-            if _flag_requires_value(flag_name):
-                while True:
-                    raw_value = Prompt.ask(f"Value for {flag_name}").strip()
-                    try:
-                        value = _validate_flag_value(flag_name, raw_value)
-                        break
-                    except ValueError as exc:
-                        console.print(f"[yellow]{exc}[/yellow]")
-            else:
-                value = None
-
-            edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.ADD,
-                    name=flag_name,
-                    value=value,
-                )
-            )
-
-            new_item = flag_name if value is None else f"{flag_name}={value}"
-            current_flags = [
-                f for f in current_flags
-                if _canonical_flag_base(f) != _canonical_flag_base(new_item)
-            ]
-            current_flags.append(new_item)
-
-    return edits
-
-def _available_flag_choices(backend: ExecutionBackend, current_flags: list[str]) -> list[str]:
-    available = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS
-    current_bases = {_canonical_flag_base(flag) for flag in current_flags}
-    choices: list[str] = []
-
-    for flag_spec, description in available:
-        base = _canonical_flag_base(flag_spec)
-        if base in current_bases:
-            continue
-
-        definition = _resolve_flag_definition(base)
-        if definition is not None and backend not in definition.backend_scope:
-            continue
-
-        choices.append(f"{flag_spec} - {description}")
-
-    return choices
+from application.use_cases.flags import (
+    canonical_flag_base,
+    resolve_flag_definition,
+    flag_requires_value,
+    validate_flag_value,
+    extract_current_flags,
+    available_flag_choices
+)
 
 def print_banner() -> None:
     console.print(
@@ -240,14 +81,13 @@ def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Source type", result.source.type.value)
     table.add_row("Source name", result.source.name)
-    table.add_row("RO-Crate path", str(result.location))
+    table.add_row("Ro-Crate path", str(result.crate_location))
     if result.acquisition is not None:
         table.add_row("Acquisition", result.acquisition.kind)
-    console.print(
-        Panel(table, title="1. Crate source imported", border_style="green", title_align="left")
-    )
+    console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
 
-def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None, submission_command: str | None = None) -> None:
+def print_inspect_result(result, submission_command: str | None = None) -> None:
+    crate = result.import_crate_result
     if crate is None:
         print_error("Could not extract usable metadata from the crate")
         return
@@ -259,21 +99,18 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None,
         "Submission command",
         submission_command or "[dim]not resolved yet[/dim]",
     )
-    table.add_row("Data persistence","[green]true[/green]" if crate.metadata.data_persistence.value == "true" else f"[red]{crate.metadata.data_persistence.value}[/red]")
+    table.add_row("Data persistence","[green]true[/green]" if crate.data_persistence.value == "true" else f"[red]{crate.data_persistence.value}[/red]")
 
     body = table
     if result.inspect_output:
-        body = Group(
-            Text.from_ansi(result.inspect_output.rstrip()),
-            table,
-        )
+        body = Group(Text.from_ansi(result.inspect_output.rstrip()),table)
 
     console.print(
         Panel(
             body,
             title="[bold green]2. Metadata inspected[/bold green]",
             border_style="green",
-            title_align="left",
+            title_align="left"
         )
     )
 
@@ -281,26 +118,155 @@ def print_inspect_result(result: InspectCrateResult, crate: CrateSummary | None,
         for warning in result.warnings:
             console.print(f"  [yellow]![/yellow] {warning}")
             
-def print_verification_table(result: VerifyInputsResult) -> None:
-    table = Table(title="3. Input verification", show_lines=False)
-    table.add_column("Artifact")
-    table.add_column("State")
+def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
+    table = Table(title="3. Input Verification", show_lines=False)
+    table.add_column("Entity")
+    table.add_column("Type")
+    # table.add_column("Size (bytes)")
+    table.add_column("Exists")
     table.add_column("Path")
 
-    for item in result.summary.items:
-        style = "green" if item.state == VerificationState.VERIFIED else "red"
+    for item in inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary.entities:
+        style = "green" if item.exists else "red"
+        if item.exists:
+            item_exists_row_value = "Exists"
+            style = "green"
+        elif item.type in {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}:
+            item_exists_row_value = "Missing"
+            style = "red"
+        else:
+            item_exists_row_value = "Warning"
+            style = "yellow"
+
         table.add_row(
-            item.reference.metadata_name,
-            f"[{style}]{item.state.value}[/{style}]",
-            str(item.resolved_path or ""),
+            item.name,
+            item.type.value,
+            # str(item.size_bytes),
+            f"[{style}]{item_exists_row_value}[/{style}]",
+            str(item.path or ""),
         )
 
     console.print(table)
-    summary = result.summary
+    workflow_entity_summary = inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary
     console.print(
-        f"  {summary.verified}/{summary.total} verified, "
-        f"{summary.failed} failed, {summary.warnings} warnings\n"
+        f"{workflow_entity_summary.total} checked"
+        f", {workflow_entity_summary.total_success} succeeded"
+        f", {workflow_entity_summary.total_failed} failed"
+        f", {workflow_entity_summary.total_warnings} warnings\n"
     )
+
+# DO NOT DELETE THIS FUNCTION
+def print_questionary_edit_submission_command( backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
+    current_flags = sort_flag_choices(extract_current_flags(current_command))
+
+    executable = current_command[0] if current_command else "runcompss"
+    edits: list[SubmissionCommandEdit] = []
+
+    while True:
+        action = questionary.select(
+            "What do you want to do?", choices=[ "remove a flag", "edit a flag value", "add a new flag","finish"]).ask()
+
+        if action is None:
+            return None
+
+        if action == "finish":
+            break
+
+        if action == "remove a flag":
+            if not current_flags:
+                console.print("[yellow]No flags available to remove.[/yellow]")
+                continue
+            remove_choices = [*sort_flag_choices(current_flags), "back"]
+            flag = questionary.select("Choose a flag to remove", choices=remove_choices).ask()
+            if flag is None or flag == "back":
+                continue
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE,name=flag.split("=", 1)[0],value=None))
+            current_flags.remove(flag)
+            print_edited_submission_command(executable, current_flags)
+
+        elif action == "edit a flag value":
+            if not current_flags:
+                console.print("[yellow]No flags available to edit.[/yellow]")
+                continue
+
+            edit_choices = [*sort_flag_choices(current_flags), "back"]
+            flag = questionary.select("Choose a flag to edit", choices=edit_choices).ask()
+            if flag is None or flag == "back":
+                continue
+
+            flag_name = canonical_flag_base(flag)
+            definition = resolve_flag_definition(flag_name)
+
+            if definition is None:
+                console.print(f"[red]Unknown flag: {flag_name}[/red]")
+                continue
+
+            value = ""
+            while True:
+                current_value = flag.split("=", 1)[1] if "=" in flag else ""
+                raw_value = questionary.text(f"New value for {flag_name}=", default=current_value).ask().strip()
+                try:
+                    value = validate_flag_value(flag_name, raw_value)
+                    break
+                except ValueError as exc:
+                    console.print(f"[yellow]{exc}[/yellow]")
+
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_VALUE,name=flag_name,value=value))
+            updated_flag = flag_name if value is None else f"{flag_name}={value}"
+
+            current_flags = [current_flag for current_flag in current_flags if canonical_flag_base(current_flag) != canonical_flag_base(flag)]
+            current_flags.append(updated_flag)
+            current_flags = sort_flag_choices(current_flags)
+
+            print_edited_submission_command(executable, current_flags)
+
+        elif action == "add a new flag":
+            choices = available_flag_choices(backend, current_flags)
+            if not choices:
+                console.print("[yellow]No flags available to add.[/yellow]")
+                continue
+
+            choices = sorted(choices,key=lambda choice: canonical_flag_base(choice.split(" - ", 1)[0]).casefold())
+            add_choices = [*choices, "back"]
+            selected = questionary.select("Choose a flag to add", choices=add_choices).ask()
+            if selected is None or selected == "back":
+                continue
+
+            flag_spec = selected.split(" - ", 1)[0]
+            flag_name = canonical_flag_base(flag_spec)
+
+            definition = resolve_flag_definition(flag_name)
+            if definition is None:
+                console.print(f"[red]Unknown flag: {flag_name}[/red]")
+                continue
+
+            if canonical_flag_base(flag_name) in {canonical_flag_base(flag) for flag in current_flags}:
+                console.print(f"[yellow]Flag already present: {flag_name}[/yellow]")
+                continue
+
+            value = None
+            if flag_requires_value(flag_name):
+                while True:
+                    raw_value = Prompt.ask(f"Value for {flag_name}").strip()
+                    try:
+                        value = validate_flag_value(flag_name, raw_value)
+                        break
+                    except ValueError as exc:
+                        console.print(f"[yellow]{exc}[/yellow]")
+            else:
+                value = None
+
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=flag_name,value=value))
+
+            new_item = flag_name if value is None else f"{flag_name}={value}"
+            current_flags = [
+                f for f in current_flags
+                if canonical_flag_base(f) != canonical_flag_base(new_item)
+            ]
+            current_flags.append(new_item)
+            print_edited_submission_command(executable,current_flags)
+
+    return edits
 
 def print_execution_plan(plan: ExecutionPlan) -> None:
     table = Table.grid(padding=(0, 1))
@@ -309,7 +275,7 @@ def print_execution_plan(plan: ExecutionPlan) -> None:
     table.add_row("Execution directory", str(plan.context.execution_directory))
     table.add_row("Workspace directory", str(plan.context.workspace_directory))
     table.add_row("Provenance", "enabled" if plan.provenance_enabled else "disabled")
-    console.print(Panel(table, title="4. Execution plan", border_style="green", title_align="left"))
+    console.print(Panel(table, title="4. Execution Plan", border_style="green", title_align="left"))
 
 def print_provenance_result(result: PrepareProvenanceResult) -> None:
     if result.provenance_config_file:
@@ -325,12 +291,16 @@ def print_provenance_result(result: PrepareProvenanceResult) -> None:
         for warning in result.warnings:
             console.print(f"  [yellow]![/yellow] {warning}")
 
+
 def run_with_spinner(description: str, fn, *args, **kwargs):
-    """
-    """
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
+    progress = Progress(SpinnerColumn(style="bold cyan"), TextColumn("[bold cyan]{task.description}"), console=console, auto_refresh=False)
+
+    panel = Panel(progress, title="Working", subtitle="Please wait", border_style="cyan", padding=(1, 3),expand=True)
+
+    with Live(panel, console=console, refresh_per_second=12):
         progress.add_task(description, total=None)
         return fn(*args, **kwargs)
+    
 
 def print_final_summary(outcome: ExecutionOutcome) -> None:
     status_style = "green" if outcome.succeeded else "red"
@@ -343,98 +313,42 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
     table.add_row("Stderr log", str(outcome.result.log.stderr_path))
     table.add_row("Results directory", str(outcome.submission.results_directory))
     if outcome.result.generated_ro_crate_path is not None:
-        table.add_row("Generated RO-Crate artifact at", str(outcome.result.generated_ro_crate_path))
+        table.add_row("Generated RO-Crate at", str(outcome.result.generated_ro_crate_path))
     if outcome.result.error_message:
         table.add_row("Error", outcome.result.error_message)
 
+    console.print(Panel(table, title="5. Execution Summary", border_style=status_style, title_align="left"))
+
+def print_edited_submission_command(executable: str,flags: list[str]) -> None:
+    command = " ".join([executable, *flags])
+    console.print()
+    console.print("[cyan]Edited submission command:[/cyan]")
+    console.print(f"  {command}")
+    console.print()
+
+def sort_flag_choices(flags: list[str]) -> list[str]:
+    return sorted(flags,key=lambda flag: canonical_flag_base(flag).casefold())
+
+def print_provenance_questions() -> None:
+    body = Text()
+    body.append("Provenance: ", style="bold white")
+    body.append("Enabled", style="bold green")
+
     console.print(
-        Panel(table, title="5. Execution summary", border_style=status_style, title_align="left")
+        Panel(
+            body,
+            title="[bold cyan]Provenance Questions[/bold cyan]",
+            subtitle="Collect the agent metadata for the provenance configuration",
+            border_style="cyan",
+            expand=True,
+        )
     )
 
-def _first_true(**flags: bool) -> str:
-    for name, value in flags.items():
-        if value:
-            return name
-    return "unknown"
-
-def _flag_base(flag: str) -> str:
-    return _canonical_flag_base(flag)
-
-def _resolve_flag_definition(flag_name: str):
-    base = _canonical_flag_base(flag_name)
-    for flag in FLAG_DEFINITIONS:
-        if base == flag.name or base in flag.aliases:
-            return flag
-    return None
-
-def _flag_requires_value(flag_name: str) -> bool:
-    definition = _resolve_flag_definition(flag_name)
-    if definition is None:
-        return False
-    return definition.value_kind != FlagValueKind.NONE
-
-def _validate_flag_value(flag_name: str, value: str) -> str:
-    definition = _resolve_flag_definition(flag_name)
-    if definition is None:
-        return value
-
-    if definition.value_kind == FlagValueKind.NONE:
-        raise ValueError(f"Flag {flag_name} does not accept a value")
-
-    if definition.value_kind == FlagValueKind.BOOL:
-        normalized = value.lower()
-        if normalized not in {"true", "false"}:
-            raise ValueError(f"Flag {flag_name} expects a boolean value: true/false")
-        return normalized
-
-    if definition.value_kind == FlagValueKind.INT:
-        try:
-            int(value)
-            return value
-        except ValueError as exc:
-            raise ValueError(f"Flag {flag_name} expects an integer value") from exc
-
-    return value
-
-def _extract_current_flags(current_command: list[str] | None) -> list[str]:
-    if not current_command:
-        return []
-
-    extracted: list[str] = []
-    seen_bases: set[str] = set()
-    index = 1
-
-    while index < len(current_command):
-        token = current_command[index]
-
-        if not token.startswith("-"):
-            index += 1
-            continue
-
-        if token in PROVENANCE_FLAGS:
-            index += 1
-            continue
-
-        if "=" in token:
-            flag = token
-            index += 1
-        elif (
-            _flag_base(token) in VALUE_FLAG_BASES
-            and index + 1 < len(current_command)
-            and not current_command[index + 1].startswith("-")
-        ):
-            flag = f"{token}={current_command[index + 1]}"
-            index += 2
-        else:
-            flag = token
-            index += 1
-
-        canonical_base = _canonical_flag_base(flag)
-        if canonical_base == "--provenance":
-            continue
-
-        if canonical_base not in seen_bases:
-            extracted.append(flag)
-            seen_bases.add(canonical_base)
-
-    return extracted
+def print_build_execution_plan() -> None:
+    console.print(
+        Panel(
+            Text("Build Execution Plan", style="bold magenta", justify="center"),
+            subtitle="Review and adjust the submission command before execution",
+            border_style="magenta",
+        )
+    )

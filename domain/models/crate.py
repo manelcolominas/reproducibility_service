@@ -18,12 +18,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-
-from rocrate.rocrate import ROCrate
-
 
 class CrateSourceKind(str, Enum):
     """
@@ -34,22 +31,6 @@ class CrateSourceKind(str, Enum):
     ZIP = "zip"
     URL = "url"
 
-
-class DataPersistenceKind(str, Enum):
-    TRUE = "true"
-    FALSE = "false"
-    UNKNOWN = "unknown"
-
-
-class ArtifactKind(str, Enum):
-    INPUT = "input"
-    OUTPUT = "output"
-    SOURCE = "source"
-    RESOURCE = "resource"
-    RESULT = "result"
-    OTHER = "other"
-
-
 @dataclass(frozen=True, slots=True)
 class CrateSource:
     type: CrateSourceKind
@@ -58,7 +39,6 @@ class CrateSource:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("CrateSource.name cannot be empty")
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,8 +51,8 @@ class WorkflowParticipant:
     ror: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.role.strip():
-            raise ValueError("WorkflowParticipant.role cannot be empty")
+        if not self.name.strip():
+            raise ValueError("WorkflowParticipant.name cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,13 +62,12 @@ class WorkflowMetadata:
     version: str | None = None
     authors: tuple[WorkflowParticipant, ...] = ()
     agent: WorkflowParticipant | None = None
+    workflow_entity_summary: WorkflowEntitySummary | None = None
     license: str | None = None
     crate_version: str | None = None
     compss_version: str | None = None
-    data_persistence: DataPersistenceKind = DataPersistenceKind.UNKNOWN
     source_metadata_path: Path | None = None
     generated_at: datetime | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     execution_site: str | None = None
 
     def __post_init__(self) -> None:
@@ -98,57 +77,40 @@ class WorkflowMetadata:
     def with_agent(self, agent: WorkflowParticipant | None) -> "WorkflowMetadata":
         return replace(self, agent=agent)
 
+class EntityKind(str, Enum):
+    SOFTWARE_SOURCE_CODE = "Software Source Code"
+    IMAGE_OBJECT = "Image Object"
+    INPUT_OR_OUTPUT = "Input or Output"
+    # we could support it also, some workflows has a yaml file as configuration
+    WORKERS_OUTPUT = "Workers Output"
+    WORKERS_ERROR = "Workers Error"
+    COMPSS_WORKFLOW_YAML_FILE = "COMPSs Workflow Information yaml file"
+    WORKFLOW_CONFIGURATION_YAML_FILE = "Workflow Configuration yaml file"
+    README = "README"
+    UNKNOWN = "unknown"
+    COMPSS_SUBMISSION_COMMAND_LINE_FILE = "compss_submission_command_line"
 
 @dataclass(frozen=True, slots=True)
-class WorkflowArtifact:
-    type: ArtifactKind
+class WorkflowEntity:
+    type: EntityKind
     name: str
     path: str
-    metadata_id: str | None = None
     size_bytes: int | None = None
-    accessible: bool = True
     exists: bool = True
 
     def __post_init__(self) -> None:
         if not self.name.strip():
-            raise ValueError("WorkflowArtifact.name cannot be empty")
-        if not self.path.strip():
-            raise ValueError("WorkflowArtifact.path cannot be empty")
-        if self.size_bytes is not None and self.size_bytes < 0:
-            raise ValueError("WorkflowArtifact.size_bytes cannot be negative")
-
+            raise ValueError("WorkflowEntity.name cannot be empty")
+        # if self.size_bytes is not None and self.size_bytes < 0:
+        #     raise ValueError("WorkflowEntity.size_bytes cannot be negative")
 
 @dataclass(frozen=True, slots=True)
-class CrateIndex:
-    inputs: tuple[WorkflowArtifact, ...] = ()
-    outputs: tuple[WorkflowArtifact, ...] = ()
-    sources: tuple[WorkflowArtifact, ...] = ()
-    resources: tuple[WorkflowArtifact, ...] = ()
+class WorkflowEntitySummary:
+    total: int = 0
+    total_success: int = 0
+    total_failed: int = 0
+    total_warnings: int = 0
+    entities: list[WorkflowEntity] = field(default_factory=list)
 
-    def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
-        return (*self.inputs, *self.outputs, *self.sources, *self.resources)
-
-
-@dataclass(frozen=True, slots=True)
-class CrateSummary:
-    location: Path
-    metadata: WorkflowMetadata
-    index: CrateIndex = field(default_factory=CrateIndex)
-    crate_format_version: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    rocrate: ROCrate | None = None
-
-    @property
-    def has_inputs(self) -> bool:
-        return len(self.index.inputs) > 0
-
-    @property
-    def has_outputs(self) -> bool:
-        return len(self.index.outputs) > 0
-
-    @property
-    def all_artifacts(self) -> tuple[WorkflowArtifact, ...]:
-        return self.index.all_artifacts()
-
-    def with_rocrate(self, rocrate: ROCrate | None) -> "CrateSummary":
-        return replace(self, rocrate=rocrate)
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "total", len(self.entities))

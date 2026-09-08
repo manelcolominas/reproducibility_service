@@ -22,28 +22,6 @@ from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
-class FileMetadata:
-    path: Path
-    exists: bool
-    is_file: bool
-    is_directory: bool
-    readable: bool = True
-    writable: bool = True
-    size_bytes: int | None = None
-
-    def __post_init__(self) -> None:
-        if not str(self.path).strip():
-            raise ValueError("FileMetadata.path cannot be empty")
-
-
-# @dataclass(frozen=True, slots=True)
-# class DirectoryCreateRequest:
-#     path: Path
-#     parents: bool = True
-#     exist_ok: bool = True
-
-
-@dataclass(frozen=True, slots=True)
 class FileSystemOperationResult:
     """
     Represents the result of a file system operation.

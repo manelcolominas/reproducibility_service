@@ -21,8 +21,10 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+import os
 
 
+# DO NOT DELETE THIS CLASS
 class ExecutionBackend(str, Enum):
     AUTO = "auto"
     LOCAL = "local"
@@ -30,7 +32,6 @@ class ExecutionBackend(str, Enum):
 
 
 class ExecutionStatus(str, Enum):
-    PENDING = "pending"
     READY = "ready"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
@@ -38,6 +39,7 @@ class ExecutionStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class RuntimeCommand:
     executable: str
@@ -58,6 +60,7 @@ class RuntimeCommand:
         return replace(self, arguments=self.arguments + arguments)
 
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ExecutionContext:
     backend: ExecutionBackend
@@ -82,6 +85,7 @@ class ExecutionContext:
             raise ValueError("ExecutionContext.results_directory cannot be empty")
 
 
+# DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ExecutionPlan:
     backend: ExecutionBackend
@@ -126,3 +130,48 @@ class ExecutionResult:
     @property
     def failed(self) -> bool:
         return self.status == ExecutionStatus.FAILED
+
+class ExecutionBackendDetector:
+    """Detects SLURM vs local execution."""
+
+    _SLURM_ENV_KEYS = (
+        "SLURM_JOB_ID",
+        "SLURM_CLUSTER_NAME",
+        "SLURM_SUBMIT_DIR",
+        "SLURM_NTASKS",
+        "SLURM_JOB_NODELIST",
+        "SLURM_COMP_PLUGIN",
+        "SLURM_OVERLAP",
+    )
+
+    def detect(self) -> ExecutionBackend:
+        # Only treat as SLURM when actually inside a SLURM environment
+        if any(os.getenv(key) for key in self._SLURM_ENV_KEYS):
+            return ExecutionBackend.SLURM
+        return ExecutionBackend.LOCAL
+
+# DO NOT DELETE
+@dataclass(frozen=True, slots=True)
+class ExecutionSubmission:
+    command: RuntimeCommand
+    backend: ExecutionBackend
+    workspace_directory: Path
+    log_directory: Path
+    results_directory: Path
+
+    @property
+    def execution_directory(self) -> Path:
+        return self.results_directory
+
+@dataclass(frozen=True, slots=True)
+class ExecutionOutcome:
+    result: ExecutionResult
+    submission: ExecutionSubmission
+
+    @property
+    def succeeded(self) -> bool:
+        return self.result.succeeded
+
+    @property
+    def failed(self) -> bool:
+        return self.result.failed
