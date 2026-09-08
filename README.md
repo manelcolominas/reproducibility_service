@@ -29,13 +29,17 @@ For example:
 compss_reproducibility_service workflow-635-1.crate.zip \
   --backend=slurm \
   --provenance \
-  --participant-name=John Doe \
-  --participant-email=john.doe@example.com \
-  --participant-org=Example Org= \
-  --participant-orcid=0000-0001-2345-6789 \
-  --participant-ror=https://ror.org/123456789 \
-  --extra_flag=--lang=python,
-  --extra_flag=--workers=4
+  --agent_name="John Doe" \
+  or
+  --agent_name "John Doe"
+  --agent_email=john.doe@example.com \
+  --agent_org="Barcelona Supercomputing Center" \
+  --agent_orcid=https://0000-0001-2345-6789 \
+  --agent_ror=https://ror.org/123456789 \
+  --extra_flag=--lang=python \
+  --extra_flag=--workers=4 \
+  --data_persistence \
+  -- command="runcompss/enqueue_compss --log_level=info --lang=python --provenance"
 ```
 
 ### CLI options
@@ -48,23 +52,50 @@ compss_reproducibility_service workflow-635-1.crate.zip \
 | `--command` |Optional| Override the COMPSs submission command discovered from the crate metadata |
 | `--extra-flag` |Optional| Extra runtime flag to append to the submission command (repeatable) |
 | `-p`, `--provenance` |Optional| Enable provenance and write `ro-crate-info.yaml` |
-| `--participant-name` |Optional| Participant name to record in the generated provenance |
-| `--participant-email` |Optional| Participant email |
-| `--participant-org` |Optional| Participant organization |
-| `--participant-orcid` |Optional| Participant ORCID |
-| `--participant-ror` |Optional| Participant ROR |
+| `--agent_name` |Optional| Participant name to record in the generated provenance |
+| `--agent_email` |Optional| Participant email |
+| `--agent_org` |Optional| Participant organization |
+| `--agent_orcid` |Optional| Participant ORCID |
+| `--agent_ror` |Optional| Participant ROR |
 | `-y`, `--yes` |Optional| Skip confirmation prompts (non-interactive mode) |
+|`-data_persistence`|Optional| Enables the data_persistence|
+
+## Environment Variables
+
+The service can read additional COMPSs flags from environment variables named
+`COMPSS_RS_<number>`. The numeric suffix determines the order in which the
+flags are applied. Environment-variable flags are applied after the flags from
+the original submission command, so a matching environment-variable flag
+overrides the original value.
+
+```bash
+export COMPSS_RS_1="--lang=python"
+export COMPSS_RS_2="--log_level=info"
+export COMPSS_RS_3="--workers=4"
+
+Command-line flags supplied with `--extra_flag` and environment variables are
+combined before the execution plan is built.
+```
 
 ## What the Service Does
 
 Each run walks through the same pipeline:
 
 1. **Import** — the crate source is resolved (downloaded if it's a URL, extracted if it's a `.zip`, used in place if it's already a directory) and loaded as an RO-Crate.
-2. **Inspect** — the crate's `ro-crate-metadata.json` is parsed into a structured summary: name, description, authors, license, main entity, prior execution details, and the original submission command line.
-3. **Verify** — every input referenced in the metadata is checked against the filesystem (existence, size) and the results are shown in a status table.
-4. **Plan** — a `runcompss`/`enqueue_compss` submission command is built for the selected backend (`local` or `slurm`), honoring `--command`, `--extra-flag`, and any interactive edits.
-5. **Provenance** *(optional)* — if `-p/--provenance` is set, participant details are collected and `ro-crate-info.yaml` is written alongside the results.
-6. **Execute** — the resolved command is submitted, and a final success/failure summary is printed and logged.
+2. **Inspect** — the crate's `ro-crate-metadata.json` is parsed into a structured summary: name, description authors, license, main entity, prior execution details, and the original submission command line.
+
+3. **Verify** — check the files referenced by the crate metadata.
+
+4. **Collect environment flags** — discover variables matching
+   `COMPSS_RS_<number>`, sort them numerically, and optionally add their values
+   to the submission command.
+
+5. **Plan** — build the backend-specific COMPSs command, apply command-line and
+   environment flags, remap crate paths, and remove unsupported flags.
+
+6. **Provenance** *(optional)* — prepare `ro-crate-info.yaml`.
+
+7. **Execute** — submit the final command and stream its output.
 
 ### Features
 
@@ -104,4 +135,4 @@ presentation/
 3. 
 ---
 
-I hope you find this service helpful!
+I hope you find this service helpful !

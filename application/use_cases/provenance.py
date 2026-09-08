@@ -44,11 +44,11 @@ class PrepareProvenanceRequest:
     crate: ImportCrateResult
     filesystem: WritableFileSystem
     provenance_root: Path
-    participant_name: str | None = None
-    participant_email: str | None = None
-    participant_organization: str | None = None
-    participant_orcid: str | None = None
-    participant_ror: str | None = None
+    agent_name: str | None = None
+    agent_email: str | None = None
+    agent_organization: str | None = None
+    agent_orcid: str | None = None
+    agent_ror: str | None = None
     data_persistence: DataPersistenceKind | None = None
 
     def __post_init__(self) -> None:
@@ -120,15 +120,15 @@ class DefaultPrepareProvenanceService:
 def build_agent(request: PrepareProvenanceRequest, authors: tuple[WorkflowParticipant, ...] ) -> WorkflowParticipant:
     first_author_name = authors[0].name if authors else None
 
-    name = first_non_empty(request.participant_name, first_author_name) or "Unknown participant"
+    name = first_non_empty(request.agent_name, first_author_name) or "Unknown participant"
 
     return WorkflowParticipant(
         name=name,
         role="Agent",
-        email=first_non_empty(request.participant_email),
-        organization_name=first_non_empty(request.participant_organization),
-        orcid=first_non_empty(request.participant_orcid),
-        ror=first_non_empty(request.participant_ror),
+        email=first_non_empty(request.agent_email),
+        organization_name=first_non_empty(request.agent_organization),
+        orcid=first_non_empty(request.agent_orcid),
+        ror=first_non_empty(request.agent_ror),
     )
 
 
