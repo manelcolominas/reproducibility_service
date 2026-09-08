@@ -300,6 +300,14 @@ def run_with_spinner(description: str, fn, *args, **kwargs):
     with Live(panel, console=console, refresh_per_second=12):
         progress.add_task(description, total=None)
         return fn(*args, **kwargs)
+
+def run_streaming(description: str, fn, submission):
+    console.print(Panel(description, border_style="cyan"))
+
+    def _on_output(data: bytes) -> None:
+        console.print(Text.from_ansi(data.decode("utf-8", errors="replace")), end="")
+
+    return fn(submission, on_output=_on_output)
     
 
 def print_final_summary(outcome: ExecutionOutcome) -> None:

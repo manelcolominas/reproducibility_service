@@ -228,8 +228,10 @@ def run_app(argv: list[str] | None = None) -> int:
 
     agent = SubprocessExecutionAgent(logger=logger)
     logger.info("execution_started")
-    outcome = view.run_with_spinner("Executing workflow...", agent.submit, plan_result.submission)
-    
+    outcome = view.run_streaming("Executing workflow...", agent.submit, plan_result.submission)
+    view.console.print()
+    view.console.print()
+
     view.print_final_summary(outcome)
 
     logger.info("final_status=%s return_code=%s","succeeded" if outcome.succeeded else "failed",outcome.result.return_code)
@@ -279,6 +281,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     # ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
     
     view.print_import_result(import_result)
+    view.console.print()
 
     # calls the inspect_rocrate function to inspect the imported RO-Crate
     # the function will return an InspectCrateResult object containing the crate and its metadata
@@ -331,6 +334,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     # ╰───────────────────────────────────────────────────────────────────────────────────────────╯
 
     view.print_inspect_result(inspect_result, original_submission_command)
+    view.console.print()
 
     logger.info("crate_verification_started")
     verify_result = verify_rocrate(inspect_result, file_system)
@@ -352,14 +356,16 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     provenance_flag = args.provenance
     if not args.yes and not provenance_flag:
         provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
+        view.console.print()
 
     if provenance_flag:
         view.print_provenance_questions()
         view.console.print()
-    if provenance_flag and not args.participant_name:
-        wants_name = view.console.input("[yellow]Do you want to provide your name ? [y/N]: [/yellow]").lower().startswith("y")
-        if wants_name:
-            typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
+    if provenance_flag:
+        if not args.participant_name:
+            wants_name = view.console.input("[yellow]Do you want to provide your name ? [y/N]: [/yellow]").lower().startswith("y")
+            if wants_name:
+                typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
             if typed_name:
                 args.participant_name = typed_name
             else:
@@ -401,6 +407,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     view.console.print()
         
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
+    view.console.print()
 
     modify_command = view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y")
     view.console.print()
