@@ -119,7 +119,7 @@ def print_inspect_result(result, submission_command: str | None = None) -> None:
             console.print(f"  [yellow]![/yellow] {warning}")
             
 def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
-    table = Table(title="3. Input verification", show_lines=False)
+    table = Table(title="3. Input Verification", show_lines=False)
     table.add_column("Entity")
     table.add_column("Type")
     # table.add_column("Size (bytes)")
@@ -275,7 +275,7 @@ def print_execution_plan(plan: ExecutionPlan) -> None:
     table.add_row("Execution directory", str(plan.context.execution_directory))
     table.add_row("Workspace directory", str(plan.context.workspace_directory))
     table.add_row("Provenance", "enabled" if plan.provenance_enabled else "disabled")
-    console.print(Panel(table, title="4. Execution plan", border_style="green", title_align="left"))
+    console.print(Panel(table, title="4. Execution Plan", border_style="green", title_align="left"))
 
 def print_provenance_result(result: PrepareProvenanceResult) -> None:
     if result.provenance_config_file:
@@ -290,13 +290,6 @@ def print_provenance_result(result: PrepareProvenanceResult) -> None:
     elif result.warnings:
         for warning in result.warnings:
             console.print(f"  [yellow]![/yellow] {warning}")
-
-# def run_with_spinner(description: str, fn, *args, **kwargs):
-#     """
-#     """
-#     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
-#         progress.add_task(description, total=None)
-#         return fn(*args, **kwargs)
 
 
 def run_with_spinner(description: str, fn, *args, **kwargs):
@@ -324,7 +317,7 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
     if outcome.result.error_message:
         table.add_row("Error", outcome.result.error_message)
 
-    console.print(Panel(table, title="5. Execution summary", border_style=status_style, title_align="left"))
+    console.print(Panel(table, title="5. Execution Summary", border_style=status_style, title_align="left"))
 
 def print_edited_submission_command(executable: str,flags: list[str]) -> None:
     command = " ".join([executable, *flags])
@@ -335,3 +328,27 @@ def print_edited_submission_command(executable: str,flags: list[str]) -> None:
 
 def sort_flag_choices(flags: list[str]) -> list[str]:
     return sorted(flags,key=lambda flag: canonical_flag_base(flag).casefold())
+
+def print_provenance_questions() -> None:
+    body = Text()
+    body.append("Provenance: ", style="bold white")
+    body.append("Enabled", style="bold green")
+
+    console.print(
+        Panel(
+            body,
+            title="[bold cyan]Provenance Questions[/bold cyan]",
+            subtitle="Collect the agent metadata for the provenance configuration",
+            border_style="cyan",
+            expand=True,
+        )
+    )
+
+def print_build_execution_plan() -> None:
+    console.print(
+        Panel(
+            Text("Build Execution Plan", style="bold magenta", justify="center"),
+            subtitle="Review and adjust the submission command before execution",
+            border_style="magenta",
+        )
+    )

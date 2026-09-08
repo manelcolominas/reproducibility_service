@@ -108,24 +108,13 @@ class DefaultPrepareProvenanceService:
         }
 
         output_file = Path(request.provenance_root) / "ro-crate-info.yaml"
-        content = yaml.safe_dump(
-            document,
-            allow_unicode=False,
-            default_flow_style=False,
-            sort_keys=False,
-        )
+        content = yaml.safe_dump(document,allow_unicode=False,default_flow_style=False,sort_keys=False)
 
         write_result = request.filesystem.write_text(output_file, content)
         if not write_result.succeeded:
-            raise FileSystemError(
-                "Could not write provenance configuration",
-                details=write_result.message or str(output_file),
-            )
+            raise FileSystemError("Could not write provenance configuration",details=write_result.message or str(output_file))
 
-        return PrepareProvenanceResult(
-            provenance_config_file=output_file,
-            notes=("Provenance configuration prepared",),
-        )
+        return PrepareProvenanceResult(provenance_config_file=output_file,notes=("Provenance configuration prepared",),)
 
 
 def build_agent(request: PrepareProvenanceRequest, authors: tuple[WorkflowParticipant, ...] ) -> WorkflowParticipant:

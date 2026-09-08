@@ -348,10 +348,14 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             view.console.print("Aborted after failed verification.")
             return None, None
 
+    
     provenance_flag = args.provenance
     if not args.yes and not provenance_flag:
         provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
 
+    if provenance_flag:
+        view.print_provenance_questions()
+        view.console.print()
     if provenance_flag and not args.participant_name:
         wants_name = view.console.input("[yellow]Do you want to provide your name ? [y/N]: [/yellow]").lower().startswith("y")
         if wants_name:
@@ -393,9 +397,13 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
     view.console.print()
+    view.print_build_execution_plan()
+    view.console.print()
+        
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
 
     modify_command = view.console.input("[yellow]Do you want to modify the submission command ? [y/N]: [/yellow]").lower().startswith("y")
+    view.console.print()
     logger.info("submission_command_edit_confirmation modify=%s", modify_command)
     if modify_command:
         plan_result = update_plan_with_selected_flags(args=args, plan_service=plan_service, crate_root=crate_root, workspace_directory=workspace_directory,execution_directory=execution_directory,provenance_enabled=provenance_flag,current_plan=plan_result,logger=logger)
