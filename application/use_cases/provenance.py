@@ -72,7 +72,7 @@ class DefaultPrepareProvenanceService:
                 "Cannot prepare provenance without workflow metadata"
             )
 
-        agent = build_agent(request)
+        agent = build_agent(request, workflow_metadata.authors)
         sources = source_paths(request.crate)
 
         if not sources:
@@ -119,11 +119,10 @@ class DefaultPrepareProvenanceService:
         )
 
 
-def build_agent(request: PrepareProvenanceRequest) -> WorkflowParticipant:
-    name = first_non_empty(request.participant_name)
+def build_agent(request: PrepareProvenanceRequest, authors: tuple[WorkflowParticipant, ...] ) -> WorkflowParticipant:
+    first_author_name = authors[0].name if authors else None
 
-    if not name:
-        name = "Unknown participant"
+    name = first_non_empty(request.participant_name, first_author_name) or "Unknown participant"
 
     return WorkflowParticipant(
         name=name,
