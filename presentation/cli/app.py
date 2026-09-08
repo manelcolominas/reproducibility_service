@@ -383,21 +383,20 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
         
     environment_flags: list[str] = []
     
-    if not args.yes:
-        logger.info("environment_flag_discovery_started")
-        environment_flags = discover_environment_flags()
-        logger.info("environment_flags_discovered count=%s flags=%s", len(environment_flags), environment_flags)
-    
-        if environment_flags:
-            view.console.print("\n[cyan]COMPSS_RS flags detected:[/cyan]")
-            for flag in environment_flags:
-                view.console.print(f"  {flag}")
-    
-            use_environment_flags = Confirm.ask("Do you want to use these flags?",default=False)
-            logger.info("environment_flags_confirmation use=%s", use_environment_flags)
-    
-            if not use_environment_flags:
-                environment_flags = []
+    logger.info("environment_flag_discovery_started")
+    environment_flags = discover_environment_flags()
+    logger.info("environment_flags_discovered count=%s flags=%s", len(environment_flags), environment_flags)
+
+    if environment_flags:
+        view.console.print("\n[cyan]COMPSS_RS flags detected:[/cyan]")
+        for flag in environment_flags:
+            view.console.print(f"  {flag}")
+
+        use_environment_flags = Confirm.ask("Do you want to use these flags?",default=False)
+        logger.info("environment_flags_confirmation use=%s", use_environment_flags)
+
+        if not use_environment_flags:
+            environment_flags = []
 
     logger.info("execution_plan_build_started backend=%s cli_extra_flags=%s environment_flags=%s",args.backend,args.extra_flag, environment_flags)
     plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag, environment_flags=tuple(environment_flags))
