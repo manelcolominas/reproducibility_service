@@ -372,7 +372,7 @@ def filename_from_http_response(response: requests.Response) -> str | None:
 def crate_dirname_from_downloaded_filename(filename: str | None) -> str:
     # if the filename is None, we use a default name "Ro-Crate"
     if filename is None:
-        name = "Ro-Crate"
+        name = "RO-Crate"
     else:
         # strip any leading and trailing whitespace from the filename
         name = filename.strip()
@@ -380,7 +380,7 @@ def crate_dirname_from_downloaded_filename(filename: str | None) -> str:
         if name.lower().endswith(".zip"):
             # remove the ".zip" extension
             name = name[:-4].strip()
-        # if the resulting name is empty, fallback to the default name "Ro-Crate"
+        # if the resulting name is empty, fallback to the default name "RO-Crate"
         if not name:
             name = "Ro-Crate"
     # return the final crate directory name
