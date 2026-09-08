@@ -26,7 +26,7 @@ class InspectCrateResult:
     notes: tuple[str, ...] = ()
     inspect_output: str | None = None
 
-def _inspect_rocrate(import_crate_result: ImportCrateResult) -> InspectCrateResult:
+def inspect_rocrate(import_crate_result: ImportCrateResult) -> InspectCrateResult:
     warnings: list[str] = []
     inspect_output: str | None = None
 

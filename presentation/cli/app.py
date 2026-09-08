@@ -46,12 +46,13 @@ from application.use_cases.build_execution_plan import (
 )
 
 from application.use_cases.inspect_crate import (
-    _inspect_rocrate
+    inspect_rocrate
 )
-# from application.use_cases.prepare_provenance import (
-#     DefaultPrepareProvenanceService,
-#     PrepareProvenanceRequest,
-# )
+
+from application.use_cases.provenance import (
+    DefaultPrepareProvenanceService,
+    PrepareProvenanceRequest,
+)
 
 from config.settings import AppSettings, build_default_settings
 from domain.errors import ServiceError
@@ -277,10 +278,10 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     
     view.print_import_result(import_result)
 
-    # calls the _inspect_rocrate function to inspect the imported RO-Crate
+    # calls the inspect_rocrate function to inspect the imported RO-Crate
     # the function will return an InspectCrateResult object containing the crate and its metadata
     logger.info("crate_inspection_started metadata_path=%s", import_result.crate_location / settings.metadata_filename)
-    inspect_result = _inspect_rocrate(import_result)
+    inspect_result = inspect_rocrate(import_result)
     logger.info("crate_inspection_finished usable=%s workflow_metadata=%s",inspect_result.import_crate_result is not None, inspect_result.import_crate_result.workflow_metadata is not None if inspect_result.import_crate_result else False)
 
     if inspect_result.import_crate_result is None:
@@ -346,21 +347,18 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             return None, None
 
 
-    provenance_flag = False
-    # provenance_flag = args.provenance
-    # if not args.yes and not provenance_flag:
-    #     provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
+    provenance_flag = args.provenance
+    if not args.yes and not provenance_flag:
+        provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
 
-    # if provenance_flag and not args.yes:
-    #     wants_name = view.console.input(
-    #         "[yellow]Do you want to provide your name ? [y/N]: [/yellow]"
-    #     ).lower().startswith("y")
-    #     if wants_name:
-    #         typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
-    #         if typed_name:
-    #             args.participant_name = typed_name
-    #         else:
-    #             view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
+    if provenance_flag and not args.participant_name:
+        wants_name = view.console.input("[yellow]Do you want to provide your name ? [y/N]: [/yellow]").lower().startswith("y")
+        if wants_name:
+            typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
+            if typed_name:
+                args.participant_name = typed_name
+            else:
+                view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
         
     environment_flags: list[str] = []
@@ -395,22 +393,23 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 
     view.print_execution_plan(plan_result.plan)
 
-    # if provenance_flag:
-    #     provenance_service = DefaultPrepareProvenanceService(file_system=file_system)
-    #     provenance_result = provenance_service.execute(
-    #         PrepareProvenanceRequest(
-    #             crate=crate,
-    #             provenance_root=plan_result.context.results_directory,
-    #             participant_name=args.participant_name,
-    #             participant_email=args.participant_email,
-    #             participant_organization=args.participant_org,
-    #             participant_orcid=args.participant_orcid,
-    #             participant_ror=args.participant_ror,
-    #         )
-    #     )
-    #     if provenance_result.provenance_config_file:
-    #         logger.info("provenance_metadata=%s", provenance_result.provenance_config_file)
-    #     view.print_provenance_result(provenance_result)
+    if provenance_flag:
+        provenance_service = DefaultPrepareProvenanceService()
+        provenance_result = provenance_service.execute(
+            PrepareProvenanceRequest(
+                crate=inspect_result.import_crate_result,
+                filesystem=file_system,
+                provenance_root=plan_result.context.results_directory,
+                participant_name=args.participant_name,
+                participant_email=args.participant_email,
+                participant_organization=args.participant_org,
+                participant_orcid=args.participant_orcid,
+                participant_ror=args.participant_ror,
+            )
+        )
+        if provenance_result.provenance_config_file:
+            logger.info("provenance_metadata=%s", provenance_result.provenance_config_file)
+        view.print_provenance_result(provenance_result)
 
     return crate_root, plan_result
 

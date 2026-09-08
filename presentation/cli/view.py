@@ -36,7 +36,7 @@ import questionary
 
 from application.use_cases.inspect_crate import InspectCrateResult
 from application.use_cases.import_crate import ImportCrateResult
-from application.use_cases.prepare_provenance import PrepareProvenanceResult
+from application.use_cases.provenance import PrepareProvenanceResult
 from domain.models.crate import EntityKind
 from domain.models.execution import ExecutionPlan, ExecutionBackend, ExecutionOutcome
 

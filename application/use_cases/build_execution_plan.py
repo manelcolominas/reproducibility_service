@@ -178,6 +178,9 @@ class DefaultBuildExecutionPlanService:
         parsed = self.remap_paths(parsed, crate_root)
         parsed = self.strip_provenance(parsed, backend)
 
+        if request.provenance_enabled:
+            parsed = self.apply_submission_edits(parsed,(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--provenance"),))
+
         return self.serialize_submission_command(parsed, working_directory=execution_directory)
         
     # DO NOT DELETE

@@ -21,13 +21,11 @@
         //"COMPSs_RO-Crate_20260810_112548",
         // matmul_files_mn5
         "COMPSs_RO-Crate_20260804_112127",
-
-        "--backend=local",
-        "--run-id=635",
-        "--participant-name=Manel Colominas",
+        "--provenance",
+        //"--participant-name=Manel Colominas",
         "-y", 
         //"--extra-flag=--lang=java",
-        "--extra-flag=--workers=4"
+        //"--extra-flag=--workers=4"
       ]
     }
   ]
