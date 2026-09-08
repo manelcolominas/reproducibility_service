@@ -281,6 +281,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     # ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
     
     view.print_import_result(import_result)
+    view.console.print()
 
     # calls the inspect_rocrate function to inspect the imported RO-Crate
     # the function will return an InspectCrateResult object containing the crate and its metadata
@@ -333,6 +334,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     # ╰───────────────────────────────────────────────────────────────────────────────────────────╯
 
     view.print_inspect_result(inspect_result, original_submission_command)
+    view.console.print()
 
     logger.info("crate_verification_started")
     verify_result = verify_rocrate(inspect_result, file_system)
