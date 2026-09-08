@@ -103,11 +103,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     # Add a flag to enable provenance. This flag is optional and can be used to enable provenance tracking for the workflow run.
     parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
-    parser.add_argument("--participant_name", default=None)
-    parser.add_argument("--participant_email")
-    parser.add_argument("--participant_org")
-    parser.add_argument("--participant_orcid")
-    parser.add_argument("--participant_ror")
+    parser.add_argument("--agent_name", default=None)
+    parser.add_argument("--agent_email")
+    parser.add_argument("--agent_org")
+    parser.add_argument("--agent_orcid")
+    parser.add_argument("--agent_ror")
     parser.add_argument("--data_persistence", action="store_true", help="Enable data persistence for this reproduction")
     
     # Add a flag to skip confirmation prompts, useful for non-interactive runs or automated scripts.
@@ -128,9 +128,9 @@ def run_app(argv: list[str] | None = None) -> int:
     # ['workflow-635-1.crate.zip', '--backend', 'slurm', '--provenance', '--participant-name', 'John Doe', '--participant-email', 'john.doe@example.com', '--participant-org', 'Example Org', '--participant-orcid', '0000-0001-2345-6789', '--participant-ror', 'https://ror.org/123456789']
 
     # parse_args(argv) will then parse these arguments and return a Namespace object with the following attributes:
-    # Namespace(source='workflow-635-1.crate.zip', backend='slurm', command=None, extra_flag=[], provenance=True, participant_name='John Doe', participant_email='john.doe@example.com', participant_org='Example Org', participant_orcid='0000-0001-2345-6789', participant_ror='https://ror.org/123456789', yes=False)
+    # Namespace(source='workflow-635-1.crate.zip', backend='slurm', command=None, extra_flag=[], provenance=True, agent_name='John Doe', agent_email='john.doe@example.com', agent_organization='Example Org', agent_orcid='0000-0001-2345-6789', agent_ror='https://ror.org/123456789', yes=False)
     # The values can then be accessed in the code using attributes such as:
-    # `args.source`, `args.backend`, `args.command`, `args.participant_name`, `args.participant_email`, `args.participant_org`, `args.participant_orcid`, `args.participant_ror`, `args.yes`, etc.
+    # `args.source`, `args.backend`, `args.command`, `args.agent_name`, `args.agent_email`, `args.agent_org`, `args.agent_orcid`, `args.agent_ror`, `args.data_persistence`, `args.yes`, etc.
     args = build_arg_parser().parse_args(argv)
 
     # Build an AppSettings object with the default settings for the application, which includes
@@ -242,7 +242,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     Runs the pipeline of the reproducibility service.
 
     Args:
-        args: A Namespace object containing the command-line arguments. args = Namespace(source='workflow-635-1.crate.zip', backend='slurm', command=None, extra_flag=[], provenance=True, participant_name='John Doe', participant_email='john.doe@example.com', participant_org='Example Org', participant_orcid='0000-0001-2345-6789', participant_ror='https://ror.org/123456789', yes=False)
+        args: A Namespace object containing the command-line arguments. args = Namespace(source='workflow-635-1.crate.zip', backend='slurm', command=None, extra_flag=[], provenance=True, agent_name='John Doe', agent_email='john.doe@example.com', agent_organization='Example Org', agent_orcid='0000-0001-2345-6789', agent_ror='https://ror.org/123456789', yes=False)
         settings: An AppSettings object containing the application settings. settings = AppSettings(service_root=PosixPath('/opt/COMPSs/Tools'), runs_root=PosixPath('/opt/COMPSs/Tools'), original_crate_dir_name='', log_dir_name='log', results_dir_name='Results', submission_filename='compss_submission_command_line.txt', metadata_filename='ro-crate-metadata.json', default_backend='auto', enable_provenance_by_default=False)
         workspace_directory: The workspace directory path. (/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/reproducibility_service_{run_id})
         shared_crate_directory: The shared crate directory path. (/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate)
@@ -362,12 +362,12 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
         view.print_provenance_questions()
         view.console.print()
     if provenance_flag:
-        if not args.participant_name:
+        if not args.agent_name:
             wants_name = view.console.input("[yellow]Do you want to provide your name ? [y/N]: [/yellow]").lower().startswith("y")
             if wants_name:
                 typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
             if typed_name:
-                args.participant_name = typed_name
+                args.agent_name = typed_name
             else:
                 view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
@@ -425,11 +425,11 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
                 crate=inspect_result.import_crate_result,
                 filesystem=file_system,
                 provenance_root=plan_result.context.results_directory,
-                participant_name=args.participant_name,
-                participant_email=args.participant_email,
-                participant_organization=args.participant_org,
-                participant_orcid=args.participant_orcid,
-                participant_ror=args.participant_ror,
+                agent_name=args.agent_name,
+                agent_email=args.agent_email,
+                agent_organization=args.agent_org,
+                agent_orcid=args.agent_orcid,
+                agent_ror=args.agent_ror,
                 data_persistence= data_persistence,
             )
         )
