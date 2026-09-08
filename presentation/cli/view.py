@@ -320,7 +320,7 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
     table.add_row("Stderr log", str(outcome.result.log.stderr_path))
     table.add_row("Results directory", str(outcome.submission.results_directory))
     if outcome.result.generated_ro_crate_path is not None:
-        table.add_row("Generated RO-Crate artifact at", str(outcome.result.generated_ro_crate_path))
+        table.add_row("Generated RO-Crate at", str(outcome.result.generated_ro_crate_path))
     if outcome.result.error_message:
         table.add_row("Error", outcome.result.error_message)
 

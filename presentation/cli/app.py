@@ -63,6 +63,7 @@ from infrastructure.adapters import (
 )
 
 from application.use_cases.import_crate import (
+    DataPersistenceKind,
     import_rocrate,
 )
 
@@ -107,8 +108,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--participant-org")
     parser.add_argument("--participant-orcid")
     parser.add_argument("--participant-ror")
-    parser.add_argument("--data-persistence", choices=[True, False], help="Kind of data persistence for the workflow run")
-
+    parser.add_argument("--data-persistence", action="store_true", help="Enable data persistence for this reproduction")
+    
     # Add a flag to skip confirmation prompts, useful for non-interactive runs or automated scripts.
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     return parser
@@ -347,7 +348,6 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             view.console.print("Aborted after failed verification.")
             return None, None
 
-
     provenance_flag = args.provenance
     if not args.yes and not provenance_flag:
         provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction ? [y/N]: [/yellow]").lower().startswith("y")
@@ -361,9 +361,13 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             else:
                 view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
-        data_persistence = Confirm.ask("Do you want to enable data persistence?", default=False)
+        if provenance_flag and not args.data_persistence:
+            data_persistence_enabled = view.console.input("[yellow]Do you want to enable data persistence? [y/N]: [/yellow]").lower().startswith("y")
 
-
+        if data_persistence_enabled:
+            data_persistence = DataPersistenceKind.TRUE
+        else:
+            data_persistence = DataPersistenceKind.FALSE
 
         
     environment_flags: list[str] = []
@@ -410,7 +414,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
                 participant_organization=args.participant_org,
                 participant_orcid=args.participant_orcid,
                 participant_ror=args.participant_ror,
-                data_persistence_kind=args.data_persistence_kind,
+                data_persistence= data_persistence,
             )
         )
         if provenance_result.provenance_config_file:
