@@ -228,8 +228,10 @@ def run_app(argv: list[str] | None = None) -> int:
 
     agent = SubprocessExecutionAgent(logger=logger)
     logger.info("execution_started")
-    outcome = view.run_with_spinner("Executing workflow...", agent.submit, plan_result.submission)
-    
+    outcome = view.run_streaming("Executing workflow...", agent.submit, plan_result.submission)
+    view.console.print()
+    view.console.print()
+
     view.print_final_summary(outcome)
 
     logger.info("final_status=%s return_code=%s","succeeded" if outcome.succeeded else "failed",outcome.result.return_code)
