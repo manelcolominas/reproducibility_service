@@ -99,16 +99,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--command", help="Override the COMPSs submission command line")
 
     # Add a flag to allow the user to specify extra runtime flags for the COMPSs submission command. This flag is optional and can be repeated multiple times to add multiple flags.
-    parser.add_argument("--extra-flag", action="append", default=[], help="Extra runtime flag (repeatable)")
+    parser.add_argument("--extra_flag", action="append", default=[], help="Extra runtime flag (repeatable)")
 
     # Add a flag to enable provenance. This flag is optional and can be used to enable provenance tracking for the workflow run.
     parser.add_argument("--provenance", "-p", action="store_true", help="Enable provenance and write ro-crate-info.yaml")
-    parser.add_argument("--participant-name", default=None)
-    parser.add_argument("--participant-email")
-    parser.add_argument("--participant-org")
-    parser.add_argument("--participant-orcid")
-    parser.add_argument("--participant-ror")
-    parser.add_argument("--data-persistence", action="store_true", help="Enable data persistence for this reproduction")
+    parser.add_argument("--participant_name", default=None)
+    parser.add_argument("--participant_email")
+    parser.add_argument("--participant_org")
+    parser.add_argument("--participant_orcid")
+    parser.add_argument("--participant_ror")
+    parser.add_argument("--data_persistence", action="store_true", help="Enable data persistence for this reproduction")
     
     # Add a flag to skip confirmation prompts, useful for non-interactive runs or automated scripts.
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
@@ -371,6 +371,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             else:
                 view.console.print("[yellow]Empty agent name provided, author's name will be used by default.[/yellow]")
 
+        data_persistence_enabled = False
         if provenance_flag and not args.data_persistence:
             data_persistence_enabled = view.console.input("[yellow]Do you want to enable data persistence? [y/N]: [/yellow]").lower().startswith("y")
 

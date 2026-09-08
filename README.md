@@ -29,13 +29,16 @@ For example:
 compss_reproducibility_service workflow-635-1.crate.zip \
   --backend=slurm \
   --provenance \
-  --participant-name=John Doe \
-  --participant-email=john.doe@example.com \
-  --participant-org=Example Org= \
-  --participant-orcid=0000-0001-2345-6789 \
-  --participant-ror=https://ror.org/123456789 \
+  --participant_name="John Doe" \
+  or
+  --partipant_name "John Doe"
+  --participant_email=john.doe@example.com \
+  --participant_org="Barcelona Supercomputing Center" \
+  --participant_orcid=https://0000-0001-2345-6789 \
+  --participant_ror=https://ror.org/123456789 \
   --extra_flag=--lang=python,
   --extra_flag=--workers=4
+  --data_persistence
 ```
 
 ### CLI options
