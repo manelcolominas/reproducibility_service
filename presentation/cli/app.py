@@ -388,6 +388,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 
     
     environment_variables = discover_environment_flags()
+    environment_flags: list[str] = []
     if environment_variables:
         answer = view.console.input("[yellow]Do you want to use the environment variables? [y/N]: [/yellow]").lower().startswith("y")
         view.console.print()
@@ -395,10 +396,10 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             environment_flags = view.select_environment_flags(environment_variables)
             logger.info("environment_flags_selected count=%s flags=%s",len(environment_flags), environment_flags)
 
+
     logger.info("environment_flags_discovered count=%s names=%s",len(environment_variables),[name for name, _ in environment_variables])
 
     logger.info("execution_plan_build_started backend=%s cli_extra_flags=%s environment_flags=%s",args.backend,args.extra_flag, environment_flags)
-
 
     plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag, environment_flags=tuple(environment_flags))
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)

@@ -361,15 +361,37 @@ def print_build_execution_plan_banner() -> None:
         )
     )
 
-def select_environment_flags(environment_flags: list[tuple[str, str]],) -> list[str]:
+
+def select_environment_flags(environment_flags: list[tuple[str, str]]) -> list[str]:
     if not environment_flags:
         return []
 
+    finish_value = "finish"
+
     choices = [
-        questionary.Choice(title=f"{name}={value}", value=value,checked=True)
+        questionary.Choice(
+            title=f"{name}={value}",
+            value=value,
+            checked=False,
+        )
         for name, value in environment_flags
     ]
 
+    choices.append(
+        questionary.Choice(
+            title="Finish",
+            value=finish_value,
+            checked=False,
+        )
+    )
+
     selected_flags = questionary.checkbox("Which environment variables do you want to use?",choices=choices).ask()
 
-    return selected_flags or []
+    if not selected_flags or finish_value in selected_flags:
+        return []
+
+    return [
+        flag
+        for flag in selected_flags
+        if flag != finish_value
+    ]
