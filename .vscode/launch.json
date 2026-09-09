@@ -11,11 +11,13 @@
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_local",
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_mn5",
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/386",
-      "cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/804",
+      //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/804",
+      "cwd":"/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/690",
       "console": "integratedTerminal",
       "args": [
         //"https://workflowhub.org/workflows/635/ro_crate?version=1"
-        "https://workflowhub.org/workflows/386/ro_crate?version=2",
+        //"https://workflowhub.org/workflows/386/ro_crate?version=2",
+        "workflow-690-1.crate",
         //"workflow-635-1.crate",
         //"workflow-635-1.crate.zip"
         //"/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635/workflow-635-1.crate"
@@ -30,7 +32,7 @@
         //"-y", 
         //"--extra_flag=--lang=java",
         //"--extra_flag=--workers=4"
-        //"--data_persistence"
+        "--data_persistence"
       ]
     }
   ]

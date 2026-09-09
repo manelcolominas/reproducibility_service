@@ -62,8 +62,9 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--classpath", "Path to the classpath for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--appdir", "Path to the application directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--env_script", "Path to the environment script for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--log_dir", "Path to the log directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--master_working_dir", "Path to the master working directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--log_dir", "Path to the log directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True,aliases=("--base_log_dir",)),
+    # FlagDefinition("--base_log_dir", "Path to the log directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
+    FlagDefinition("--master_working_dir", "Path to the master working directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True, aliases=("--specific_log_dir",)),
     FlagDefinition("--uuid", "UUID for the COMPSs runtime.", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--master_name", "Master name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--master_port", "Master port for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
@@ -161,6 +162,8 @@ def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
 # Canonical flags names for provenance
 CANONICAL_PROVENANCE_FLAGS = {"--provenance", "--zip_provenance"}
 VALUE_FLAG_BASES = {flag.name for flag in FLAG_DEFINITIONS if flag.value_kind != FlagValueKind.NONE}
+# Flags whose value is optional even though they are not FlagValueKind.NONE
+OPTIONAL_VALUE_FLAG_BASES = {"--provenance"}
 
 FLAG_CANONICAL_MAP = {
     alias: flag.name
@@ -254,7 +257,19 @@ def extract_current_flags(current_command: list[str] | None) -> list[str]:
         if "=" in token:
             flag = token
             index += 1
-        elif (_flag_base(token) in VALUE_FLAG_BASES and index + 1 < len(current_command) and not current_command[index + 1].startswith("-")):
+        elif (
+            canonical_flag_base(token) in OPTIONAL_VALUE_FLAG_BASES
+            and index + 1 < len(current_command)
+            and not current_command[index + 1].startswith("-")
+            and current_command[index + 1].lower().endswith((".yaml", ".yml"))
+        ):
+            flag = f"{token}={current_command[index + 1]}"
+            index += 2
+        elif (
+            _flag_base(token) in VALUE_FLAG_BASES
+            and index + 1 < len(current_command)
+            and not current_command[index + 1].startswith("-")
+        ):
             flag = f"{token}={current_command[index + 1]}"
             index += 2
         else:
@@ -270,6 +285,48 @@ def extract_current_flags(current_command: list[str] | None) -> list[str]:
             seen_bases.add(canonical_base)
 
     return extracted
+
+def extract_current_positionals(current_command: list[str] | None) -> list[str]:
+    if not current_command:
+        return []
+
+    positionals: list[str] = []
+    index = 1
+
+    while index < len(current_command):
+        token = current_command[index]
+
+        if not token.startswith("-"):
+            positionals.append(token)
+            index += 1
+            continue
+
+        if "=" in token:
+            index += 1
+            continue
+
+        base = _flag_base(token)
+
+        if (
+            base in OPTIONAL_VALUE_FLAG_BASES
+            and index + 1 < len(current_command)
+            and not current_command[index + 1].startswith("-")
+            and current_command[index + 1].lower().endswith((".yaml", ".yml"))
+        ):
+            index += 2
+            continue
+
+        if (
+            base in VALUE_FLAG_BASES
+            and index + 1 < len(current_command)
+            and not current_command[index + 1].startswith("-")
+        ):
+            index += 2
+            continue
+
+        index += 1
+
+    return positionals
 
 def available_flag_choices(backend: ExecutionBackend, current_flags: list[str]) -> list[str]:
     available = LOCAL_FLAG_OPTIONS if backend == ExecutionBackend.LOCAL else SLURM_FLAG_OPTIONS

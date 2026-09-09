@@ -33,7 +33,7 @@ from domain.models.execution import (
 )
 from domain.models.execution import ExecutionBackendDetector
 
-from application.use_cases.flags import FLAG_DEFINITIONS, FlagValueKind, FlagDefinition, SLURM_ONLY_FLAG_BASES
+from application.use_cases.flags import FLAG_DEFINITIONS, FlagValueKind, FlagDefinition, SLURM_ONLY_FLAG_BASES, OPTIONAL_VALUE_FLAG_BASES
 
 COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
 
@@ -42,6 +42,9 @@ class SubmissionCommandEditKind(str, Enum):
     ADD = "add"
     REMOVE = "remove"
     SET_VALUE = "set_value"
+    SET_POSITIONAL = "set_positional"
+    ADD_POSITIONAL = "add_positional"
+    REMOVE_POSITIONAL = "remove_positional"
 
 # DO NOT DELETE THIS CLASS
 @dataclass(frozen=True, slots=True)
@@ -49,6 +52,7 @@ class SubmissionCommandEdit:
     kind: SubmissionCommandEditKind
     name: str
     value: str | None = None
+    position: int | None = None
 
 FLAG_BY_NAME = {flag.name: flag for flag in FLAG_DEFINITIONS}
 FLAG_BY_ALIAS = {alias: flag.name for flag in FLAG_DEFINITIONS for alias in flag.aliases}
@@ -257,17 +261,27 @@ class DefaultBuildExecutionPlanService:
                 _, value = token.split("=", 1)
             else:
                 if definition.value_kind != FlagValueKind.NONE:
-                    if index + 1 >= len(parts) or parts[index + 1].startswith("-"):
+                    has_value = (
+                        index + 1 < len(parts)
+                        and not parts[index + 1].startswith("-")
+                        and (
+                            definition.name not in OPTIONAL_VALUE_FLAG_BASES
+                            or parts[index + 1].lower().endswith((".yaml", ".yml"))
+                        )
+                    )
+            
+                    if not has_value and definition.name not in OPTIONAL_VALUE_FLAG_BASES:
                         raise BuildExecutionPlanFailure(f"Flag {definition.name} requires a value")
-                    value = parts[index + 1]
-                    raw_tokens.append(parts[index + 1])
-                    index += 1
-        
+            
+                    if has_value:
+                        value = parts[index + 1]
+                        raw_tokens.append(parts[index + 1])
+                        index += 1
+                                
             if definition.value_kind == FlagValueKind.NONE and value is not None:
                 raise BuildExecutionPlanFailure(f"Flag {definition.name} does not accept a value")
         
-            flags.append(
-                ParsedFlag(definition_name=definition.name,token=canonical_name,value=value,raw_tokens=tuple(raw_tokens)))
+            flags.append(ParsedFlag(definition_name=definition.name,token=canonical_name,value=value,raw_tokens=tuple(raw_tokens)))
             index += 1
         
         return ParsedSubmissionCommand(executable=executable, flags=tuple(flags),positionals=tuple(positionals))
@@ -559,8 +573,43 @@ class DefaultBuildExecutionPlanService:
 
     def apply_submission_edits(self, parsed: ParsedSubmissionCommand, edits: tuple[SubmissionCommandEdit, ...]) -> ParsedSubmissionCommand:
         flags = list(parsed.flags)
-    
+
+        positionals = list(parsed.positionals)
+                
         for edit in edits:
+            if edit.kind == SubmissionCommandEditKind.ADD_POSITIONAL:
+                if edit.value is None:
+                    raise BuildExecutionPlanFailure("A positional argument value is required")
+        
+                positionals.append(edit.value)
+                continue
+        
+            if edit.kind == SubmissionCommandEditKind.REMOVE_POSITIONAL:
+                if edit.position is None:
+                    raise BuildExecutionPlanFailure("A positional argument index is required")
+        
+                if edit.position < 0 or edit.position >= len(positionals):
+                    raise BuildExecutionPlanFailure(f"Invalid positional argument index: {edit.position}")
+        
+                positionals.pop(edit.position)
+                continue
+        
+            if edit.kind == SubmissionCommandEditKind.SET_POSITIONAL:
+                if edit.position is None or edit.value is None:
+                    raise BuildExecutionPlanFailure("A positional argument edit requires an index and a value")
+        
+                if edit.position < 0 or edit.position >= len(positionals):
+                    raise BuildExecutionPlanFailure(f"Invalid positional argument index: {edit.position}")
+        
+                positionals[edit.position] = edit.value
+                continue
+                
+            # Lògica existent per REMOVE / ADD / SET_VALUE de flags.
+        
+            canonical_name = self.canonical_name(edit.name)
+        
+            # codi actual de REMOVE / ADD / SET_VALUE...
+
             canonical_name = self.canonical_name(edit.name)
     
             if edit.kind == SubmissionCommandEditKind.REMOVE:
@@ -590,4 +639,4 @@ class DefaultBuildExecutionPlanService:
             else:
                 flags.append(replacement)
     
-        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(flags),positionals=parsed.positionals)
+        return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(flags),positionals=tuple(positionals))

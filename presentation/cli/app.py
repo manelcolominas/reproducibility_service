@@ -455,15 +455,13 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
 
     try:
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))
+
     except BuildExecutionPlanFailure as exc:
         if args.yes or args.command:
             raise
 
         reason = str(exc).strip() or "unknown error"
-        manual_command = Prompt.ask(
-            "[yellow]Could not use the submission command from the crate "
-            f"({reason}). Enter one manually (e.g. 'runcompss/enqueue_compss main.py')[/yellow]"
-        )
+        manual_command = Prompt.ask("[yellow]Could not use the submission command from the crate "f"({reason}). Enter one manually (e.g. 'runcompss/enqueue_compss main.py')[/yellow]")
 
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=manual_command,submission_edits=merged_edits))
 
@@ -507,7 +505,7 @@ def update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crat
     normalized_edits: list[SubmissionCommandEdit] = []
     for edit in raw_edits:
         kind_value = edit.kind.value if hasattr(edit.kind, "value") else str(edit.kind)
-        normalized_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind(kind_value),name=edit.name,value=edit.value))
+        normalized_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind(kind_value),name=edit.name,value=edit.value,position=edit.position))
 
     args.command = current_plan.plan.command.as_string()
     args.extra_flag = []

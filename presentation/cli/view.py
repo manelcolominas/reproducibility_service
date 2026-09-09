@@ -52,6 +52,7 @@ console = Console()
 
 from application.use_cases.flags import (
     canonical_flag_base,
+    extract_current_positionals,
     resolve_flag_definition,
     flag_requires_value,
     validate_flag_value,
@@ -158,13 +159,14 @@ def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
 # DO NOT DELETE THIS FUNCTION
 def print_questionary_edit_submission_command( backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
     current_flags = sort_flag_choices(extract_current_flags(current_command))
+    current_positionals = extract_current_positionals(current_command)
 
     executable = current_command[0] if current_command else "runcompss"
     edits: list[SubmissionCommandEdit] = []
 
     while True:
         action = questionary.select(
-            "What do you want to do?", choices=[ "remove a flag", "edit a flag value", "add a new flag","finish"]).ask()
+            "What do you want to do?", choices=[ "remove a flag", "edit a flag value","add a new flag", "edit a positional argument", "add a positional argument", "remove a positional argument","finish"]).ask()
 
         if action is None:
             return None
@@ -182,7 +184,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 continue
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE,name=flag.split("=", 1)[0],value=None))
             current_flags.remove(flag)
-            print_edited_submission_command(executable, current_flags)
+            print_edited_submission_command(executable, current_flags, current_positionals)
 
         elif action == "edit a flag value":
             if not current_flags:
@@ -218,7 +220,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
             current_flags.append(updated_flag)
             current_flags = sort_flag_choices(current_flags)
 
-            print_edited_submission_command(executable, current_flags)
+            print_edited_submission_command(executable, current_flags, current_positionals)
 
         elif action == "add a new flag":
             choices = available_flag_choices(backend, current_flags)
@@ -264,7 +266,89 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 if canonical_flag_base(f) != canonical_flag_base(new_item)
             ]
             current_flags.append(new_item)
-            print_edited_submission_command(executable,current_flags)
+            print_edited_submission_command(executable,current_flags, current_positionals)
+
+        elif action == "edit a positional argument":
+            if not current_positionals:
+                console.print("[yellow]No positional arguments available to edit.[/yellow]")
+                continue
+
+            positional_choices = [
+                questionary.Choice(title=f"{index + 1}. {value}",value=index)
+                for index, value in enumerate(current_positionals)
+            ]
+
+            positional_choices.append(questionary.Choice(title="back", value=None))
+
+            position = questionary.select("Choose a positional argument to edit",choices=positional_choices).ask()
+
+            if position is None:
+                continue
+
+            new_value = questionary.text(f"New value for positional argument {position + 1}",default=current_positionals[position]).ask()
+
+            if new_value is None:
+                continue
+
+            new_value = new_value.strip()
+            if not new_value:
+                console.print(
+                    "[yellow]A positional argument cannot be empty.[/yellow]"
+                )
+                continue
+
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_POSITIONAL,value=new_value,position=position)
+            )
+            current_positionals[position] = new_value
+            print_edited_submission_command(executable,current_flags,current_positionals)
+
+        elif action == "add a positional argument":
+            new_value = questionary.text(
+                "Value for the new positional argument"
+            ).ask()
+
+            if new_value is None:
+                continue
+
+            new_value = new_value.strip()
+            if not new_value:
+                console.print(
+                    "[yellow]A positional argument cannot be empty.[/yellow]"
+                )
+                continue
+
+            edits.append(
+                SubmissionCommandEdit(
+                    kind=SubmissionCommandEditKind.ADD_POSITIONAL,
+                    value=new_value,
+                )
+            )
+            current_positionals.append(new_value)
+            print_edited_submission_command(
+                executable,
+                current_flags,
+                current_positionals,
+            )
+
+        elif action == "remove a positional argument":
+            if not current_positionals:
+                console.print("[yellow]No positional arguments available to remove.[/yellow]")
+                continue
+
+            positional_choices = [
+                questionary.Choice(title=f"{index + 1}. {value}",value=index)
+                for index, value in enumerate(current_positionals)
+            ]
+            positional_choices.append(questionary.Choice(title="back", value=None))
+
+            position = questionary.select("Choose a positional argument to remove",choices=positional_choices).ask()
+
+            if position is None:
+                continue
+
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE_POSITIONAL,position=position))
+            current_positionals.pop(position)
+            print_edited_submission_command(executable,current_flags,current_positionals)
 
     return edits
 
@@ -327,8 +411,8 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
 
     console.print(Panel(table, title="5. Execution Summary", border_style=status_style, title_align="left"))
 
-def print_edited_submission_command(executable: str,flags: list[str]) -> None:
-    command = " ".join([executable, *flags])
+def print_edited_submission_command(executable: str,flags: list[str],positionals: list[str]) -> None:
+    command = " ".join([executable, *flags, *positionals])
     console.print()
     console.print("[cyan]Edited submission command:[/cyan]")
     console.print(f"  {command}")
