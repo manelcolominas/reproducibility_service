@@ -89,7 +89,7 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--python_cache_profiler", "Enable or disable cache profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
     FlagDefinition("--wall_clock_limit", "Set the wall clock limit for the COMPSs runtime in seconds.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--shutdown_in_node_failure", "Enable or disable shutdown in node failure (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-p",)),
+    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, aliases=("-p",), prefer_equals=True),
     FlagDefinition("--provenance_folder", "Folder to store the generated provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z",)),
 

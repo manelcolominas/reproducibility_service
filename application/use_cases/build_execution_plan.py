@@ -282,14 +282,14 @@ class DefaultBuildExecutionPlanService:
     # DO NOT DELETE THIS FUNCTION
     def strip_provenance(self, parsed: ParsedSubmissionCommand, backend: ExecutionBackend) -> ParsedSubmissionCommand:
         stripped_flags = {"--provenance", "--zip_provenance"}
-
+    
         filtered = []
         for flag in parsed.flags:
-            flag_name = self.canonical_name(flag.definition_name or flag.token)
-
+            raw_name = flag.definition_name or flag.token
+            flag_name = self.canonical_name(raw_name).split("=", 1)[0]
             if flag_name not in stripped_flags:
                 filtered.append(flag)
-
+    
         return ParsedSubmissionCommand(
             executable=parsed.executable,
             flags=tuple(filtered),

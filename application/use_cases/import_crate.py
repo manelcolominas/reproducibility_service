@@ -198,8 +198,6 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
         #       ├── ro-crate-metadata.json
         #       └── ro-crate-preview.html
 
-        # therefore, we extract it in the parent directory of the crate directory
-        archive_file.extractall(shared_crate_directory.parent)
         # we get a structure like this :
         # parent_directory
         #       └── RO-Crate
@@ -221,11 +219,23 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
         #           ├── ro-crate-metadata.json
         #           └── ro-crate-preview.html
 
+        # some archives wrap everything in a single top-level folder, others store the crate files flatly at the archive root
+        top_level_names = {name.split("/", 1)[0] for name in archive_file.namelist() if name.strip("/")}
+        if len(top_level_names) == 1:
+            # therefore, we extract it in the parent directory of the crate directory
+            archive_file.extractall(shared_crate_directory.parent)
+            source_root = shared_crate_directory.parent / next(iter(top_level_names))
+        else:
+            # no single wrapping folder in the archive, so we extract directly into the crate directory
+            file_system.create_directory(path=destination_absolute_path, parents=True, exist_ok=True)
+            archive_file.extractall(destination_absolute_path)
+            source_root = destination_absolute_path
+
         # we create a SourceAcquisitionResult object where we store the source that it is a CrateSource Object, wich it is : 
         #  CrateSource(type=CrateSourceKind.ZIP, name=str(source_relative_path))
         #  the absolute path of the source root,
         #  whether the source was extracted or not.
-        acquisition = SourceAcquisitionResult(source=source, source_root=destination_absolute_path, extracted=True)
+        acquisition = SourceAcquisitionResult(source=source, source_root=source_root, extracted=True)
 
     else:
         # we create a Request object to download the crate source from the given URL

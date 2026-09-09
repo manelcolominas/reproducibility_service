@@ -10,7 +10,8 @@
     <option name="SDK_HOME" value="" />
     <!-- <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop/bsc-wdc/codi_compss/proves/635" /> -->
     <!-- <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop/bsc-wdc/codi_compss/proves/matmul_files_local" /> -->
-    <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop/bsc-wdc/codi_compss/proves/matmul_files_mn5" />
+    <!-- <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop/bsc-wdc/codi_compss/proves/matmul_files_mn5" /> -->
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop/bsc-wdc/codi_compss/proves/386" />
     <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
@@ -19,13 +20,14 @@
     <option name="RUN_TOOL" value="" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/reproducibility_service.py" />
     <!-- <option name="PARAMETERS" value="https://workflowhub.org/workflows/635/ro_crate?version=1" /> -->
+    <option name="PARAMETERS" value="https://workflowhub.org/workflows/386/ro_crate?version=2" />
     <!-- <option name="PARAMETERS" value="workflow-635-1.crate" /> -->
     <!-- <option name="PARAMETERS" value="workflow-635-1.crate.zip" /> -->
     <!-- matmul_files_local -->
     <!-- <option name="PARAMETERS" value="COMPSs_RO-Crate_20260810_112548" /> -->
     <!-- matmul_files_mn5 -->
     <!-- <option name="PARAMETERS" value="COMPSs_RO-Crate_20260804_112127" /> -->
-    <option name="PARAMETERS" value="COMPSs_RO-Crate_20260804_112127 --backend=local --run-id=635 --participant-name=Manel -y --extra-flag=--lang=python --extra-flag=--workers=4" />
+    <!-- <option name="PARAMETERS" value="COMPSs_RO-Crate_20260804_112127 --backend=local --run-id=635 -y --extra_flag=--lang=python --extra_flag=--workers=4" /> -->
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
