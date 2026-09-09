@@ -307,20 +307,14 @@ def extract_current_positionals(current_command: list[str] | None) -> list[str]:
 
         base = _flag_base(token)
 
-        if (
-            base in OPTIONAL_VALUE_FLAG_BASES
-            and index + 1 < len(current_command)
-            and not current_command[index + 1].startswith("-")
-            and current_command[index + 1].lower().endswith((".yaml", ".yml"))
-        ):
-            index += 2
+        if base in OPTIONAL_VALUE_FLAG_BASES:
+            if (index + 1 < len(current_command) and not current_command[index + 1].startswith("-") and current_command[index + 1].lower().endswith((".yaml", ".yml"))):
+                index += 2
+            else:
+                index += 1
             continue
 
-        if (
-            base in VALUE_FLAG_BASES
-            and index + 1 < len(current_command)
-            and not current_command[index + 1].startswith("-")
-        ):
+        if (base in VALUE_FLAG_BASES and index + 1 < len(current_command) and not current_command[index + 1].startswith("-")):
             index += 2
             continue
 

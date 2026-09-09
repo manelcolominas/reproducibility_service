@@ -498,7 +498,7 @@ def build_run_logger(workspace_directory: Path) -> logging.Logger:
     return logger
 
 def update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, current_plan, logger: logging.Logger ):
-    raw_edits = view.print_questionary_edit_submission_command(current_plan.plan.backend,current_plan.plan.command.as_list())
+    raw_edits = view.print_questionary_edit_submission_command(current_plan.plan.backend,current_plan.plan.command.as_list(),provenance_enabled=current_plan.plan.provenance_enabled)
     if raw_edits is None:
         return current_plan
 

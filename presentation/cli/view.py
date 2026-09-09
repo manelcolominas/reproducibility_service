@@ -157,7 +157,7 @@ def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     )
 
 # DO NOT DELETE THIS FUNCTION
-def print_questionary_edit_submission_command( backend: ExecutionBackend, current_command: list[str] | None = None) -> list[SubmissionCommandEdit] | None:
+def print_questionary_edit_submission_command( backend: ExecutionBackend, current_command: list[str] | None = None, provenance_enabled: bool = False) -> list[SubmissionCommandEdit] | None:
     current_flags = sort_flag_choices(extract_current_flags(current_command))
     current_positionals = extract_current_positionals(current_command)
 
@@ -184,7 +184,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 continue
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE,name=flag.split("=", 1)[0],value=None))
             current_flags.remove(flag)
-            print_edited_submission_command(executable, current_flags, current_positionals)
+            print_edited_submission_command(executable, current_flags, current_positionals, provenance_enabled)
 
         elif action == "edit a flag value":
             if not current_flags:
@@ -220,7 +220,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
             current_flags.append(updated_flag)
             current_flags = sort_flag_choices(current_flags)
 
-            print_edited_submission_command(executable, current_flags, current_positionals)
+            print_edited_submission_command(executable, current_flags, current_positionals, provenance_enabled)
 
         elif action == "add a new flag":
             choices = available_flag_choices(backend, current_flags)
@@ -266,7 +266,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 if canonical_flag_base(f) != canonical_flag_base(new_item)
             ]
             current_flags.append(new_item)
-            print_edited_submission_command(executable,current_flags, current_positionals)
+            print_edited_submission_command(executable,current_flags, current_positionals, provenance_enabled)
 
         elif action == "edit a positional argument":
             if not current_positionals:
@@ -300,7 +300,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_POSITIONAL,value=new_value,position=position)
             )
             current_positionals[position] = new_value
-            print_edited_submission_command(executable,current_flags,current_positionals)
+            print_edited_submission_command(executable,current_flags,current_positionals, provenance_enabled)
 
         elif action == "add a positional argument":
             new_value = questionary.text(
@@ -324,11 +324,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 )
             )
             current_positionals.append(new_value)
-            print_edited_submission_command(
-                executable,
-                current_flags,
-                current_positionals,
-            )
+            print_edited_submission_command(executable,current_flags,current_positionals,provenance_enabled)
 
         elif action == "remove a positional argument":
             if not current_positionals:
@@ -348,7 +344,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
 
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE_POSITIONAL,position=position))
             current_positionals.pop(position)
-            print_edited_submission_command(executable,current_flags,current_positionals)
+            print_edited_submission_command(executable,current_flags,current_positionals, provenance_enabled)
 
     return edits
 
@@ -411,8 +407,19 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
 
     console.print(Panel(table, title="5. Execution Summary", border_style=status_style, title_align="left"))
 
-def print_edited_submission_command(executable: str,flags: list[str],positionals: list[str]) -> None:
-    command = " ".join([executable, *flags, *positionals])
+def print_edited_submission_command(
+    executable: str,
+    flags: list[str],
+    positionals: list[str],
+    provenance_enabled: bool = False,
+) -> None:
+    display_flags = list(flags)
+
+    if provenance_enabled and "--provenance" not in display_flags:
+        display_flags.append("--provenance")
+
+    command = " ".join([executable, *display_flags, *positionals])
+
     console.print()
     console.print("[cyan]Edited submission command:[/cyan]")
     console.print(f"  {command}")
