@@ -192,7 +192,7 @@ def run_app(argv: list[str] | None = None) -> int:
 
     # build a logger for the reproducibility service run, which will log messages
     # to a rs_log.txt in the workspace_directory/log directory (reproducibility_service_{run_id}/log/rs_log.txt).
-    logger = _build_run_logger(workspace_directory)
+    logger = build_run_logger(workspace_directory)
 
     logger.info("run_started source=%s run_id=%s", args.source, run_id)
     logger.info("arguments backend=%s command_override=%s extra_flags=%s provenance=%s yes=%s", args.backend, bool(args.command), args.extra_flag, args.provenance, args.yes)
@@ -467,7 +467,7 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
 
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=manual_command,submission_edits=merged_edits))
 
-def _build_run_logger(workspace_directory: Path) -> logging.Logger:
+def build_run_logger(workspace_directory: Path) -> logging.Logger:
     # create the path for the log directory
     log_dir = workspace_directory / "log"
 
