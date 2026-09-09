@@ -173,9 +173,15 @@ class DefaultBuildExecutionPlanService:
         parsed = self.parse_submission_command(raw_command, schema)
         parsed = self.apply_submission_edits(parsed, request.submission_edits)
 
+        user_specified_flags = {
+            self.canonical_name(edit.name)
+            for edit in request.submission_edits
+            if edit.kind in (SubmissionCommandEditKind.ADD, SubmissionCommandEditKind.SET_VALUE)
+        }
+
         parsed = self.normalize_executable(parsed, backend, request.runtime_executable)
         parsed = self.strip_unsupported_for_backend(parsed, backend)
-        parsed = self.remap_paths(parsed, crate_root)
+        parsed = self.remap_paths(parsed, crate_root, skip_flags=user_specified_flags)
         parsed = self.strip_provenance(parsed, backend)
 
         if request.provenance_enabled:
@@ -277,9 +283,6 @@ class DefaultBuildExecutionPlanService:
     def strip_provenance(self, parsed: ParsedSubmissionCommand, backend: ExecutionBackend) -> ParsedSubmissionCommand:
         stripped_flags = {"--provenance", "--zip_provenance"}
 
-        if backend != ExecutionBackend.SLURM:
-            stripped_flags.add("--pythonpath")
-
         filtered = []
         for flag in parsed.flags:
             flag_name = self.canonical_name(flag.definition_name or flag.token)
@@ -312,8 +315,8 @@ class DefaultBuildExecutionPlanService:
         return ParsedSubmissionCommand(executable=executable,flags=parsed.flags,positionals=parsed.positionals)
 
     # DO NOT DELETE THIS FUNCTION
-    def remap_paths(self, parsed: ParsedSubmissionCommand, crate_root: Path) -> ParsedSubmissionCommand:
-        remapped_flags = [ self.remap_flag(flag, crate_root) for flag in parsed.flags ]
+    def remap_paths(self, parsed: ParsedSubmissionCommand, crate_root: Path, skip_flags: frozenset[str] = frozenset()) -> ParsedSubmissionCommand:
+        remapped_flags = [ self.remap_flag(flag, crate_root, skip_flags) for flag in parsed.flags ]
     
         remapped_positionals = list(parsed.positionals)
         if remapped_positionals:
@@ -362,11 +365,14 @@ class DefaultBuildExecutionPlanService:
         return None
 
 
-    def remap_flag(self, flag: ParsedFlag, crate_root: Path) -> ParsedFlag:
+    def remap_flag(self, flag: ParsedFlag, crate_root: Path, skip_flags: frozenset[str] = frozenset()) -> ParsedFlag:
         if flag.value is None:
             return flag
 
         canonical_name = self.canonical_name(flag.definition_name or flag.token)
+
+        if canonical_name in skip_flags:
+            return flag
 
         if canonical_name == "--pythonpath":
             source_directory = self.find_software_source_directory(crate_root)
@@ -403,13 +409,13 @@ class DefaultBuildExecutionPlanService:
         main_entity_id = getattr(main_entity, "id", None)
         if main_entity_id is None and isinstance(main_entity, dict):
             main_entity_id = main_entity.get("@id")
-            candidate = crate_root / main_entity_id
-            if candidate.is_file():
-                return candidate
 
         if not main_entity_id:
             return None
-
+        candidate = crate_root / main_entity_id
+        if candidate.is_file():
+            return candidate
+        
         return None
 
     def remap_existing_crate_path(self, argument: str, crate_root: Path) -> str:
