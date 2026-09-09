@@ -304,10 +304,10 @@ def run_with_spinner(description: str, fn, *args, **kwargs):
 def run_streaming(description: str, fn, submission):
     console.print(Panel(description, border_style="cyan"))
 
-    def _on_output(data: bytes) -> None:
+    def on_output(data: bytes) -> None:
         console.print(Text.from_ansi(data.decode("utf-8", errors="replace")), end="")
 
-    return fn(submission, on_output=_on_output)
+    return fn(submission, on_output=on_output)
     
 
 def print_final_summary(outcome: ExecutionOutcome) -> None:
@@ -337,7 +337,7 @@ def print_edited_submission_command(executable: str,flags: list[str]) -> None:
 def sort_flag_choices(flags: list[str]) -> list[str]:
     return sorted(flags,key=lambda flag: canonical_flag_base(flag).casefold())
 
-def print_provenance_questions() -> None:
+def print_provenance_questions_banner() -> None:
     body = Text()
     body.append("Provenance: ", style="bold white")
     body.append("Enabled", style="bold green")
@@ -352,7 +352,7 @@ def print_provenance_questions() -> None:
         )
     )
 
-def print_build_execution_plan() -> None:
+def print_build_execution_plan_banner() -> None:
     console.print(
         Panel(
             Text("Build Execution Plan", style="bold magenta", justify="center"),
@@ -360,3 +360,16 @@ def print_build_execution_plan() -> None:
             border_style="magenta",
         )
     )
+
+def select_environment_flags(environment_flags: list[tuple[str, str]],) -> list[str]:
+    if not environment_flags:
+        return []
+
+    choices = [
+        questionary.Choice(title=f"{name}={value}", value=value,checked=True)
+        for name, value in environment_flags
+    ]
+
+    selected_flags = questionary.checkbox("Which environment variables do you want to use?",choices=choices).ask()
+
+    return selected_flags or []

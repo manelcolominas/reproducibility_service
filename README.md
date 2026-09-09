@@ -63,15 +63,15 @@ compss_reproducibility_service workflow-635-1.crate.zip \
 ## Environment Variables
 
 The service can read additional COMPSs flags from environment variables named
-`COMPSS_RS_<number>`. The numeric suffix determines the order in which the
-flags are applied. Environment-variable flags are applied after the flags from
+`COMPSS_RS_`. Environment-variable flags are applied after the flags from
 the original submission command, so a matching environment-variable flag
 overrides the original value.
 
 ```bash
 export COMPSS_RS_1="--lang=python"
-export COMPSS_RS_2="--log_level=info"
+export COMPSS_RS_LOG_LEVEL="--log_level=info"
 export COMPSS_RS_3="--workers=4"
+export COMPSS_RS_PYTHONPATH="--pythonpath"
 
 Command-line flags supplied with `--extra_flag` and environment variables are
 combined before the execution plan is built.

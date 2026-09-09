@@ -73,7 +73,7 @@ from application.use_cases.inspect_crate import (
 
 from presentation.cli import view
 
-COMPSS_RS_FLAG_PATTERN = re.compile(r"^COMPSS_RS_(\d+)$")
+COMPSS_RS_FLAG_PATTERN = re.compile(r"^COMPSS_RS_(.+)$")
 
 def build_arg_parser() -> argparse.ArgumentParser:
     # creates and configures the command-line argument parser for the reproducibility service,
@@ -359,7 +359,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
         view.console.print()
 
     if provenance_flag:
-        view.print_provenance_questions()
+        view.print_provenance_questions_banner()
         view.console.print()
     if provenance_flag:
         if not args.agent_name:
@@ -374,37 +374,35 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
         data_persistence_enabled = False
         if provenance_flag and not args.data_persistence:
             data_persistence_enabled = view.console.input("[yellow]Do you want to enable data persistence? [y/N]: [/yellow]").lower().startswith("y")
+            view.console.print()
 
         if data_persistence_enabled:
             data_persistence = DataPersistenceKind.TRUE
         else:
             data_persistence = DataPersistenceKind.FALSE
 
-        
-    environment_flags: list[str] = []
+
+    view.console.print()
+    view.print_build_execution_plan_banner()
+    view.console.print()
+
     
-    logger.info("environment_flag_discovery_started")
-    environment_flags = discover_environment_flags()
-    logger.info("environment_flags_discovered count=%s flags=%s", len(environment_flags), environment_flags)
+    environment_variables = discover_environment_flags()
+    if environment_variables:
+        answer = view.console.input("[yellow]Do you want to use the environment variables? [y/N]: [/yellow]").lower().startswith("y")
+        view.console.print()
+        if answer:
+            environment_flags = view.select_environment_flags(environment_variables)
+            logger.info("environment_flags_selected count=%s flags=%s",len(environment_flags), environment_flags)
 
-    if environment_flags:
-        view.console.print("\n[cyan]COMPSS_RS flags detected:[/cyan]")
-        for flag in environment_flags:
-            view.console.print(f"  {flag}")
-
-        use_environment_flags = Confirm.ask("Do you want to use these flags?",default=False)
-        logger.info("environment_flags_confirmation use=%s", use_environment_flags)
-
-        if not use_environment_flags:
-            environment_flags = []
+    logger.info("environment_flags_discovered count=%s names=%s",len(environment_variables),[name for name, _ in environment_variables])
 
     logger.info("execution_plan_build_started backend=%s cli_extra_flags=%s environment_flags=%s",args.backend,args.extra_flag, environment_flags)
+
+
     plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag, environment_flags=tuple(environment_flags))
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
-    view.console.print()
-    view.print_build_execution_plan()
-    view.console.print()
         
     view.console.print(f"Current submission command: {plan_result.plan.command.as_string()}")
     view.console.print()
@@ -520,8 +518,8 @@ def update_plan_with_selected_flags(args: argparse.Namespace, plan_service, crat
     return plan_result
 
 
-def discover_environment_flags() -> list[str]:
-    discovered: list[tuple[int, str, str]] = []
+def discover_environment_flags() -> list[tuple[str, str]]:
+    discovered: list[tuple[str, str]] = []
 
     for name, value in os.environ.items():
         match = COMPSS_RS_FLAG_PATTERN.fullmatch(name)
@@ -532,10 +530,9 @@ def discover_environment_flags() -> list[str]:
         if not value:
             continue
 
-        discovered.append((int(match.group(1)), name, value))
+        discovered.append((name, value))
 
-    discovered.sort(key=lambda item: item[0])
-    return [value for _, _, value in discovered]
+    return sorted(discovered)
 
 
 def build_flag_edits( raw_flags: tuple[str, ...] | list[str]) -> list[SubmissionCommandEdit]:
