@@ -280,7 +280,9 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
 
             positional_choices.append(questionary.Choice(title="back", value=None))
 
-            position = questionary.select("Choose a positional argument to edit",choices=positional_choices).ask()
+            selected_position = questionary.select("Choose a positional argument to edit",choices=positional_choices).ask()
+
+            position = positional_index(selected_position, len(current_positionals))
 
             if position is None:
                 continue
@@ -297,8 +299,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 )
                 continue
 
-            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_POSITIONAL,value=new_value,position=position)
-            )
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_POSITIONAL,name="",value=new_value,position=position))
             current_positionals[position] = new_value
             print_edited_submission_command(executable,current_flags,current_positionals, provenance_enabled)
 
@@ -337,12 +338,14 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
             ]
             positional_choices.append(questionary.Choice(title="back", value=None))
 
-            position = questionary.select("Choose a positional argument to remove",choices=positional_choices).ask()
+            selected_position = questionary.select("Choose a positional argument to remove",choices=positional_choices).ask()
+
+            position = positional_index(selected_position,len(current_positionals))
 
             if position is None:
                 continue
 
-            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE_POSITIONAL,position=position))
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.REMOVE_POSITIONAL,name="",position=position))
             current_positionals.pop(position)
             print_edited_submission_command(executable,current_flags,current_positionals, provenance_enabled)
 
@@ -486,3 +489,28 @@ def select_environment_flags(environment_flags: list[tuple[str, str]]) -> list[s
         for flag in selected_flags
         if flag != finish_value
     ]
+
+def positional_index(selection: object, count: int) -> int | None:
+    if selection is None:
+        return None
+
+    if isinstance(selection, int):
+        position = selection
+    elif isinstance(selection, str):
+        raw_selection = selection.strip()
+
+        try:
+            position = int(raw_selection)
+        except ValueError:
+            # Supports a rendered choice such as "1. 72000".
+            prefix, separator, _ = raw_selection.partition(".")
+            if not separator or not prefix.strip().isdigit():
+                return None
+            position = int(prefix.strip()) - 1
+    else:
+        return None
+
+    if position < 0 or position >= count:
+        return None
+
+    return position

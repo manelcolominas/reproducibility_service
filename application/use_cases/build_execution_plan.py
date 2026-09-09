@@ -50,7 +50,7 @@ class SubmissionCommandEditKind(str, Enum):
 @dataclass(frozen=True, slots=True)
 class SubmissionCommandEdit:
     kind: SubmissionCommandEditKind
-    name: str
+    name: str = ""
     value: str | None = None
     position: int | None = None
 
