@@ -449,17 +449,23 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = (), environment_flags: tuple[str, ...] = ()):
     raw_command = args.command or plan_service.discover_command(crate_root)
     backend = ExecutionBackend(args.backend)
-    
-    qos_edit = ()
-    
-    if backend == ExecutionBackend.SLURM:
-        has_qos = raw_command and any( token == "--qos" or token.startswith("--qos=") for token in raw_command.split() )
-    
-        if not has_qos:
-            qos = Prompt.ask("Which QoS do you want to use?")
-            qos_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--qos",value=qos.strip()),)
 
-    backend = ExecutionBackend(args.backend)
+    effective_backend = plan_service.select_backend(BuildExecutionPlanRequest(crate_root=crate_root, workspace_directory=workspace_directory, execution_directory=execution_directory, backend=backend))
+    
+    qos_edit: tuple[SubmissionCommandEdit, ...] = ()
+
+    original_has_qos = bool(raw_command and any(token == "--qos" or token.startswith("--qos=") for token in raw_command.split()))
+
+    edit_has_qos = any( edit.name == "--qos" and edit.kind in {SubmissionCommandEditKind.ADD, SubmissionCommandEditKind.SET_VALUE } for edit in submission_edits)
+
+    if effective_backend == ExecutionBackend.SLURM:
+        if not original_has_qos and not edit_has_qos:
+            qos = Prompt.ask("[yellow]Which QoS/queue do you want to use?[/yellow]").strip()
+
+            while not qos:
+                qos = Prompt.ask("[yellow]The QoS cannot be empty. Which QoS/queue do you want to use?[/yellow]").strip()
+
+            qos_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--qos",value=qos),)
 
     cli_extra_edits = build_flag_edits(args.extra_flag)
     environment_edits = build_flag_edits(environment_flags)
@@ -471,7 +477,7 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
         else:
             cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag.strip(),value=None))
 
-    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + tuple(qos_edit)
+    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + qos_edit
 
     try:
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))
@@ -588,9 +594,24 @@ def ensure_slurm_project_name(args: argparse.Namespace, plan_service: DefaultBui
         project_name = Prompt.ask("[yellow]Write the SLURM project name (--project_name):[/yellow]").strip()
 
     logger.info("slurm_project_name_added project_name=%s", project_name)
-
-    return build_plan(args,plan_service,crate_root,workspace_directory,execution_directory,provenance_enabled,submission_edits=(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--project_name",value=project_name),))
-
+    
+    args.command = plan_result.plan.command.as_string()
+    
+    return build_plan(
+        args,
+        plan_service,
+        crate_root,
+        workspace_directory,
+        execution_directory,
+        provenance_enabled,
+        submission_edits=(
+            SubmissionCommandEdit(
+                kind=SubmissionCommandEditKind.ADD,
+                name="--project_name",
+                value=project_name,
+            ),
+        ),
+    )
 
 def main() -> None:
     raise SystemExit(run_app(None))
