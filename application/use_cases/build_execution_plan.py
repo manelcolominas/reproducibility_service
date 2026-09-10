@@ -175,6 +175,7 @@ class DefaultBuildExecutionPlanService:
         crate_root = request.crate_root
 
         parsed = self.parse_submission_command(raw_command, schema)
+        parsed = self.normalize_qos(parsed)
         parsed = self.apply_submission_edits(parsed, request.submission_edits)
 
         user_specified_flags = {
