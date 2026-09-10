@@ -55,7 +55,7 @@ from application.use_cases.provenance import (
 )
 
 from config.settings import AppSettings, build_default_settings
-from domain.errors import ServiceError
+from domain.errors import ServiceError, ValidationError
 from domain.models.execution import  ( ExecutionBackend, ExecutionBackendDetector )
 from infrastructure.adapters import (
     LocalFileSystem,
@@ -407,6 +407,9 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     logger.info("execution_plan_build_started backend=%s cli_extra_flags=%s environment_flags=%s",args.backend,args.extra_flag, environment_flags)
 
     plan_result = build_plan(args, plan_service,crate_root, workspace_directory,execution_directory, provenance_flag, environment_flags=tuple(environment_flags))
+
+    plan_result = ensure_slurm_project_name(args=args, plan_service=plan_service, crate_root=crate_root, workspace_directory=workspace_directory, execution_directory=execution_directory, provenance_enabled=provenance_flag, plan_result=plan_result, logger=logger)
+
     logger.info("resolved_command=%s backend=%s provenance_enabled=%s",plan_result.plan.command.as_string(),plan_result.plan.backend.value,provenance_flag)
 
         
@@ -555,6 +558,26 @@ def build_flag_edits( raw_flags: tuple[str, ...] | list[str]) -> list[Submission
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag,value=None))
 
     return edits
+
+def ensure_slurm_project_name(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, plan_result, logger: logging.Logger) :
+    if plan_result.plan.backend != ExecutionBackend.SLURM:
+        return plan_result
+
+    command_items = plan_result.plan.command.as_list()
+    has_project_name = any(item == "--project_name" or item.startswith("--project_name=") for item in command_items[1:])
+
+    if has_project_name:
+        return plan_result
+
+    project_name = Prompt.ask("[yellow]Write the SLURM project name (--project_name):[/yellow]").strip()
+
+    while not project_name:
+        view.console.print("[red]The SLURM project name cannot be empty.[/red]")
+        project_name = Prompt.ask("[yellow]Write the SLURM project name (--project_name):[/yellow]").strip()
+
+    logger.info("slurm_project_name_added project_name=%s", project_name)
+
+    return build_plan(args,plan_service,crate_root,workspace_directory,execution_directory,provenance_enabled,submission_edits=(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--project_name",value=project_name),))
 
 
 def main() -> None:
