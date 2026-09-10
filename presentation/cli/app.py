@@ -447,6 +447,18 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 
 
 def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = (), environment_flags: tuple[str, ...] = ()):
+    raw_command = args.command or plan_service.discover_command(crate_root)
+    backend = ExecutionBackend(args.backend)
+    
+    qos_edit = ()
+    
+    if backend == ExecutionBackend.SLURM:
+        has_qos = raw_command and any( token == "--qos" or token.startswith("--qos=") for token in raw_command.split() )
+    
+        if not has_qos:
+            qos = Prompt.ask("Which QoS do you want to use?")
+            qos_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--qos",value=qos.strip()),)
+
     backend = ExecutionBackend(args.backend)
 
     cli_extra_edits = build_flag_edits(args.extra_flag)
@@ -459,7 +471,7 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
         else:
             cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag.strip(),value=None))
 
-    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits)
+    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + tuple(qos_edit)
 
     try:
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))

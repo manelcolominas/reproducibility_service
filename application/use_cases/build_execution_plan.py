@@ -175,7 +175,7 @@ class DefaultBuildExecutionPlanService:
         crate_root = request.crate_root
 
         parsed = self.parse_submission_command(raw_command, schema)
-        parsed = self.normalize_qos(parsed)
+        parsed = self.normalize_qos(parsed, backend)
         parsed = self.apply_submission_edits(parsed, request.submission_edits)
 
         user_specified_flags = {
@@ -641,11 +641,33 @@ class DefaultBuildExecutionPlanService:
     
         return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(flags),positionals=tuple(positionals))
 
-    def normalize_qos(self, parsed: ParsedSubmissionCommand) -> ParsedSubmissionCommand:
+    def normalize_qos(
+        self,
+        parsed: ParsedSubmissionCommand,
+        backend: ExecutionBackend,
+    ) -> ParsedSubmissionCommand:
+        if backend != ExecutionBackend.SLURM:
+            return parsed
+
         normalized_flags = tuple(
             ParsedFlag(
                 definition_name=flag.definition_name,
                 token=flag.token,
-                value="gp_debug" if (self.canonical_name(flag.definition_name or flag.token) == "--qos" and flag.value == "debug") else flag.value, raw_tokens=flag.raw_tokens ) for flag in parsed.flags)
-    
-        return ParsedSubmissionCommand(executable=parsed.executable,flags=normalized_flags, positionals=parsed.positionals)
+                value=(
+                    "gp_debug"
+                    if (
+                        self.canonical_name(flag.definition_name or flag.token) == "--qos"
+                        and flag.value == "debug"
+                    )
+                    else flag.value
+                ),
+                raw_tokens=flag.raw_tokens,
+            )
+            for flag in parsed.flags
+        )
+
+        return ParsedSubmissionCommand(
+            executable=parsed.executable,
+            flags=normalized_flags,
+            positionals=parsed.positionals,
+        )
