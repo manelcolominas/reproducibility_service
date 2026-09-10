@@ -378,7 +378,6 @@ class DefaultBuildExecutionPlanService:
 
         return None
 
-
     def remap_flag(self, flag: ParsedFlag, crate_root: Path, skip_flags: frozenset[str] = frozenset()) -> ParsedFlag:
         if flag.value is None:
             return flag
@@ -640,3 +639,12 @@ class DefaultBuildExecutionPlanService:
                 flags.append(replacement)
     
         return ParsedSubmissionCommand(executable=parsed.executable,flags=tuple(flags),positionals=tuple(positionals))
+
+    def normalize_qos(self, parsed: ParsedSubmissionCommand) -> ParsedSubmissionCommand:
+        normalized_flags = tuple(
+            ParsedFlag(
+                definition_name=flag.definition_name,
+                token=flag.token,
+                value="gp_debug" if (self.canonical_name(flag.definition_name or flag.token) == "--qos" and flag.value == "debug") else flag.value, raw_tokens=flag.raw_tokens ) for flag in parsed.flags)
+    
+        return ParsedSubmissionCommand(executable=parsed.executable,flags=normalized_flags, positionals=parsed.positionals)
