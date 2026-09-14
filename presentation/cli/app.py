@@ -338,7 +338,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
 
     logger.info("crate_verification_started")
     verify_result = verify_rocrate(inspect_result, file_system)
-    workflow_metadata = inspect_result.import_crate_result.workflow_metadata
+    workflow_metadata = verify_result.import_crate_result.workflow_metadata
     entity_summary = (workflow_metadata.workflow_entity_summary if workflow_metadata is not None else None)
 
     view.print_verification_table(verify_result)
@@ -355,6 +355,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     
     provenance_flag = args.provenance
     if not args.yes and not provenance_flag:
+        view.console.print()
         provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction? [y/N]: [/yellow]").strip().lower().startswith("y")
         view.console.print()
 
