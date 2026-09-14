@@ -25,13 +25,10 @@ from typing import Protocol
 
 import yaml
 
-from application.ports.file_system import FileSystemOperationResult
-from application.use_cases.import_crate import (
-    DataPersistenceKind,
-    ImportCrateResult,
-)
-from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import WorkflowParticipant
+from infraestructure.filesystem import FileSystemOperationResult
+from models.errors import FileSystemError, ValidationError
+from models.crate import WorkflowParticipant
+from services.import_crate import DataPersistenceKind, ImportCrateResult
 
 
 class WritableFileSystem(Protocol):

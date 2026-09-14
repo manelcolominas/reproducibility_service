@@ -22,6 +22,68 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
+from dataclasses import dataclass
+from pathlib import Path
+from rocrate.rocrate import ROCrate
+
+@dataclass(frozen=True, slots=True)
+class SourceAcquisitionResult:
+    """
+    The SourceAcquisitionResult is an object whose main objective is to store how
+    the crate source was obtained, whether it was downloaded, extracted, or was already on
+    the disk.
+    """
+
+    source: CrateSource
+    source_root: Path
+    extracted: bool = False
+    downloaded: bool = False
+
+    @property
+    def kind(self) -> str:
+        if self.downloaded:
+            return "downloaded"
+        if self.extracted:
+            return "extracted"
+        return "already in disk"
+
+    def __post_init__(self) -> None:
+        # Validate that the source_root is not empty.
+        if not str(self.source_root).strip():
+            raise ValueError("SourceAcquisitionResult.source_root cannot be empty")
+        # Validate that the source_root exists on the filesystem.
+        if not self.source_root.exists():
+            raise ValueError("SourceAcquisitionResult.source_root does not exist")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceValidationResult:
+    """
+    A class made to store the result of validating a CrateSource. 
+    It saves the attributes that indicate if the source exists, if
+    it is readable, if it is a directory, if it is a file, if it is
+    a URL, and a message describing the validation result.
+    """
+    source: CrateSource
+    exists: bool
+    readable: bool
+    directory: bool
+    file: bool
+    url: bool
+    message: str = ""
+
+    @property
+    def is_valid(self) -> bool:
+        return self.exists and self.readable and (self.directory or self.file or self.url)
+
+    def load_rocrate_if_valid(self, root: Path) -> ROCrate | None:
+        try:
+            crate = ROCrate(root)
+            return crate
+        except Exception:
+            raise ValueError("Failed to load RO-Crate from the specified root")
+
+
 class CrateSourceKind(str, Enum):
     """
         Represents the kind of source from which a crate 
@@ -30,6 +92,7 @@ class CrateSourceKind(str, Enum):
     DIRECTORY = "directory"
     ZIP = "zip"
     URL = "url"
+
 
 @dataclass(frozen=True, slots=True)
 class CrateSource:
@@ -77,18 +140,19 @@ class WorkflowMetadata:
     def with_agent(self, agent: WorkflowParticipant | None) -> "WorkflowMetadata":
         return replace(self, agent=agent)
 
+
 class EntityKind(str, Enum):
     SOFTWARE_SOURCE_CODE = "Software Source Code"
     IMAGE_OBJECT = "Image Object"
     INPUT_OR_OUTPUT = "Input or Output"
-    # we could support it also, some workflows has a yaml file as configuration
     WORKERS_OUTPUT = "Workers Output"
     WORKERS_ERROR = "Workers Error"
     COMPSS_WORKFLOW_YAML_FILE = "COMPSs Workflow Information yaml file"
     WORKFLOW_CONFIGURATION_YAML_FILE = "Workflow Configuration yaml file"
     README = "README"
     UNKNOWN = "unknown"
-    COMPSS_SUBMISSION_COMMAND_LINE_FILE = "compss_submission_command_line"
+    COMPSS_SUBMISSION_COMMAND_LINE_FILE = "compss_submission_command_line_file"
+
 
 @dataclass(frozen=True, slots=True)
 class WorkflowEntity:
@@ -101,8 +165,7 @@ class WorkflowEntity:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("WorkflowEntity.name cannot be empty")
-        # if self.size_bytes is not None and self.size_bytes < 0:
-        #     raise ValueError("WorkflowEntity.size_bytes cannot be negative")
+
 
 @dataclass(frozen=True, slots=True)
 class WorkflowEntitySummary:

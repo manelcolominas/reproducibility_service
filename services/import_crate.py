@@ -31,14 +31,13 @@ from urllib.parse import unquote
 from enum import Enum
     
 
-from application.ports.crate_source import (
+from models.crate import (
     SourceAcquisitionResult,
     SourceValidationResult,
-    load_rocrate_if_valid,
 )
 
-from domain.errors import FileSystemError, ValidationError
-from domain.models.crate import (
+from models.errors import FileSystemError, ValidationError
+from models.crate import (
     CrateSource,
     WorkflowMetadata,
     CrateSourceKind,
@@ -298,13 +297,13 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
 
     # load the RO-Crate
     # will return RO-Crate object if valid, otherwise None
-    rocrate = load_rocrate_if_valid(crate_location)
+    rocrate = validation.load_rocrate_if_valid(crate_location)
 
     # source is a CrateSource object something like this:
     # source = CrateSource(type=CrateSourceKind.DIRECTORY, name=str(source_relative_path))
 
     # we set the attribute 'rocrate' of the source variable with the loaded RO-Crate from
-    # the call rocrate = load_rocrate_if_valid(crate_location)
+    # the call rocrate = validation.load_rocrate_if_valid(crate_location)
 
     if rocrate is not None:
         workflow_metadata = workflow_metadata_from_rocrate(rocrate,crate_location=crate_location)

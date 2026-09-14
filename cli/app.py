@@ -37,7 +37,7 @@ from datetime import datetime
 
 
 
-from application.use_cases.build_execution_plan import (
+from services.build_execution_plan import (
     BuildExecutionPlanFailure,
     BuildExecutionPlanRequest,
     DefaultBuildExecutionPlanService,
@@ -45,33 +45,33 @@ from application.use_cases.build_execution_plan import (
     SubmissionCommandEdit,
 )
 
-from application.use_cases.inspect_crate import (
+from services.inspect_crate import (
     inspect_rocrate
 )
 
-from application.use_cases.provenance import (
+from services.provenance.provenance import (
     DefaultPrepareProvenanceService,
     PrepareProvenanceRequest,
 )
 
 from config.settings import AppSettings, build_default_settings
-from domain.errors import ServiceError, ValidationError
-from domain.models.execution import  ( ExecutionBackend, ExecutionBackendDetector )
-from infrastructure.adapters import (
-    LocalFileSystem,
-    SubprocessExecutionAgent,
-)
+from models.errors import ServiceError
+from models.execution import  ( ExecutionBackend, ExecutionBackendDetector )
+from infraestructure.filesystem import (
+    LocalFileSystem
+    )
+from infraestructure.executor import SubprocessExecutionAgent
 
-from application.use_cases.import_crate import (
+from services.import_crate import (
     DataPersistenceKind,
     import_rocrate,
 )
 
-from application.use_cases.inspect_crate import (
+from services.inspect_crate import (
     verify_rocrate,
 )
 
-from presentation.cli import view
+from cli import view
 
 COMPSS_RS_FLAG_PATTERN = re.compile(r"^COMPSS_RS_(.+)$")
 

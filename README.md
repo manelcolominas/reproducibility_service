@@ -110,20 +110,6 @@ Each run walks through the same pipeline:
 The service follows a hexagonal (ports & adapters) layout, keeping business rules independent of I/O and the CLI:
 
 ```
-domain/
-  models/        # Crate, execution, verification value objects (framework-free)
-  errors.py      # ServiceError hierarchy (ValidationError, FileSystemError, ExecutionError, ...)
-application/
-  ports/         # Protocols the use cases depend on (file system, executor, metadata parser)
-  use_cases/     # import_crate, inspect_crate, verify_inputs, build_execution_plan, prepare_provenance
-infrastructure/
-  adapters.py    # Concrete implementations: LocalFileSystem, subprocess execution, metadata parsing/normalization
-config/
-  settings.py    # AppSettings — workspace/log/results directory naming, default backend, filenames
-presentation/
-  cli/
-    app.py       # Orchestration only: wires adapters into use cases and drives the pipeline
-    view.py      # Rich/questionary rendering — no business logic
 ```
 
 `app.py` never contains business logic itself — it only builds requests for the use cases in `application/use_cases`, and hands the results to `view.py` for rendering.

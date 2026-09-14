@@ -5,13 +5,13 @@ from enum import Enum
 
 import yaml
 from pathlib import Path
-from application.use_cases.import_crate import ImportCrateResult
+from services.import_crate import ImportCrateResult
 
-from domain.models.crate import EntityKind
-from infrastructure.adapters import LocalFileSystem
-from infrastructure.pycompss_inspect import LocalPyCompssMetadataInspector
-from application.use_cases.import_crate import ImportCrateResult, DataPersistenceKind
-from domain.models.crate import WorkflowEntity, WorkflowEntitySummary
+from models.crate import EntityKind
+from infraestructure.filesystem import LocalFileSystem
+from infraestructure.pycompss_inspect import LocalPyCompssMetadataInspector
+from services.import_crate import ImportCrateResult, DataPersistenceKind
+from models.crate import WorkflowEntity, WorkflowEntitySummary
 
 class InspectCrateStatus(str, Enum):
     SUCCEEDED = "succeeded"

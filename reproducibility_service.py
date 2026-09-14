@@ -15,7 +15,7 @@
 #  limitations under the License.
 #
 
-from presentation.cli.app import run_app
+from cli.app import run_app
 
 if __name__ == "__main__":
     raise SystemExit(run_app(None))

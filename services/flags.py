@@ -1,7 +1,7 @@
 from enum import Enum
 from dataclasses import dataclass
 
-from application.use_cases.build_execution_plan import ExecutionBackend
+from services.build_execution_plan import ExecutionBackend
 
 # DO NOT DELETE THIS CLASS
 class FlagValueKind(str, Enum):

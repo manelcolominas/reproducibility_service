@@ -36,13 +36,13 @@ from pathlib import Path
 
 import questionary
 
-from application.use_cases.inspect_crate import InspectCrateResult
-from application.use_cases.import_crate import ImportCrateResult
-from application.use_cases.provenance import PrepareProvenanceResult
-from domain.models.crate import EntityKind
-from domain.models.execution import ExecutionPlan, ExecutionBackend, ExecutionOutcome
+from services.inspect_crate import InspectCrateResult
+from services.import_crate import ImportCrateResult
+from services.provenance.provenance import PrepareProvenanceResult
+from models.crate import EntityKind
+from models.execution import ExecutionPlan, ExecutionBackend, ExecutionOutcome
 
-from application.use_cases.build_execution_plan import (
+from services.build_execution_plan import (
     SubmissionCommandEdit,
     SubmissionCommandEditKind
 )
@@ -52,7 +52,7 @@ PROVENANCE_FLAGS = {"--provenance", "-p"}
 # Create a single console instance from Rich library to be used throughout the module for rendering output.
 console = Console()
 
-from application.use_cases.flags import (
+from services.flags import (
     canonical_flag_base,
     extract_current_positionals,
     resolve_flag_definition,

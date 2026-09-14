@@ -23,17 +23,17 @@ from pathlib import Path
 import os
 from rocrate.rocrate import ROCrate
 
-from domain.errors import ValidationError
-from domain.models.execution import (
+from models.errors import ValidationError
+from models.execution import (
     ExecutionBackend,
     ExecutionContext,
     ExecutionPlan,
     RuntimeCommand,
     ExecutionSubmission,
+    ExecutionBackendDetector
 )
-from domain.models.execution import ExecutionBackendDetector
 
-from application.use_cases.flags import FLAG_DEFINITIONS, FlagValueKind, FlagDefinition, SLURM_ONLY_FLAG_BASES, OPTIONAL_VALUE_FLAG_BASES
+from services.flags import FLAG_DEFINITIONS, FlagValueKind, FlagDefinition, SLURM_ONLY_FLAG_BASES, OPTIONAL_VALUE_FLAG_BASES
 
 COMMAND_PREFIXES = ("runcompss", "enqueue_compss")
 
