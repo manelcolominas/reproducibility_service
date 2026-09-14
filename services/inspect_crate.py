@@ -8,8 +8,8 @@ from pathlib import Path
 from services.import_crate import ImportCrateResult
 
 from models.crate import EntityKind
-from infraestructure.filesystem import LocalFileSystem
-from infraestructure.pycompss_inspect import LocalPyCompssMetadataInspector
+from infrastructure.filesystem import LocalFileSystem
+from infrastructure.pycompss_inspect import LocalPyCompssMetadataInspector
 from services.import_crate import ImportCrateResult, DataPersistenceKind
 from models.crate import WorkflowEntity, WorkflowEntitySummary
 

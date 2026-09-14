@@ -35,6 +35,10 @@ from time import perf_counter
 from rich.prompt import Prompt
 from datetime import datetime
 
+from services.flags import (
+    extract_current_flags,
+    canonical_flag_base
+)
 
 
 from services.build_execution_plan import (
@@ -57,10 +61,10 @@ from services.provenance.provenance import (
 from config.settings import AppSettings, build_default_settings
 from models.errors import ServiceError
 from models.execution import  ( ExecutionBackend, ExecutionBackendDetector )
-from infraestructure.filesystem import (
+from infrastructure.filesystem import (
     LocalFileSystem
     )
-from infraestructure.executor import SubprocessExecutionAgent
+from infrastructure.executor import SubprocessExecutionAgent
 
 from services.import_crate import (
     DataPersistenceKind,
@@ -478,7 +482,26 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
         else:
             cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag.strip(),value=None))
 
-    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + qos_edit
+
+    log_level_edit: tuple[SubmissionCommandEdit, ...] = ()
+    
+    original_has_log_level = current_log_level_value(raw_command)
+    original_has_log_level = bool(original_has_log_level) and original_has_log_level.lower() != "off"
+    
+    edit_has_log_level = any(
+        edit.name == "--log_level" and edit.kind in {SubmissionCommandEditKind.ADD, SubmissionCommandEditKind.SET_VALUE}
+        for edit in submission_edits
+    )
+    
+    if not original_has_log_level and not edit_has_log_level:
+        log_level = Prompt.ask(
+            "[yellow]Which log level do you want to use?[/yellow]",
+            choices=["off", "info", "debug", "trace"],
+            default="off",
+        )
+        log_level_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD, name="--log_level", value=log_level),)
+
+    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + qos_edit + log_level_edit
 
     try:
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))
@@ -491,6 +514,15 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
         manual_command = Prompt.ask("[yellow]Could not use the submission command from the crate "f"({reason}). Enter one manually (e.g. 'runcompss/enqueue_compss main.py')[/yellow]")
 
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=manual_command,submission_edits=merged_edits))
+
+
+def current_log_level_value(raw_command: str | None) -> str | None:
+    if not raw_command:
+        return None
+    for flag in extract_current_flags(raw_command.split()):
+        if canonical_flag_base(flag) == "--log_level" and "=" in flag:
+            return flag.split("=", 1)[1]
+    return None
 
 def build_run_logger(workspace_directory: Path) -> logging.Logger:
     # create the path for the log directory

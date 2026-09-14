@@ -25,7 +25,7 @@ from typing import Protocol
 
 import yaml
 
-from infraestructure.filesystem import FileSystemOperationResult
+from infrastructure.filesystem import FileSystemOperationResult
 from models.errors import FileSystemError, ValidationError
 from models.crate import WorkflowParticipant
 from services.import_crate import DataPersistenceKind, ImportCrateResult
