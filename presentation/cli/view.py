@@ -23,6 +23,7 @@ view stays trivially testable/replaceable.
 """
 
 from __future__ import annotations
+from collections import defaultdict
 
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -31,6 +32,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 from rich.live import Live
+from pathlib import Path
 
 import questionary
 
@@ -119,42 +121,98 @@ def print_inspect_result(result, submission_command: str | None = None) -> None:
         for warning in result.warnings:
             console.print(f"  [yellow]![/yellow] {warning}")
             
+
 def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     table = Table(title="3. Input Verification", show_lines=False)
     table.add_column("Entity")
     table.add_column("Type")
-    # table.add_column("Size (bytes)")
-    table.add_column("Exists")
+    table.add_column("Status")
     table.add_column("Path")
 
-    for item in inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary.entities:
-        style = "green" if item.exists else "red"
-        if item.exists:
-            item_exists_row_value = "Exists"
-            style = "green"
-        elif item.type in {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}:
-            item_exists_row_value = "Missing"
-            style = "red"
+    crate_location = inspect_crate_result.import_crate_result.crate_location
+    crate_name = crate_location.name
+
+    summary = (
+        inspect_crate_result
+        .import_crate_result
+        .workflow_metadata
+        .workflow_entity_summary
+    )
+
+    for row in verification_rows(summary.entities):
+        if isinstance(row, dict):
+            displayed_path = ", ".join(
+                f"{crate_name}/{path}"
+                for path in row["path"].split(", ")
+            )
+
+            table.add_row(
+                row["name"],
+                row["type"],
+                "[green]Exists[/green]",
+                displayed_path,
+            )
+            continue
+
+        if row.exists:
+            status = "[green]Exists[/green]"
+        elif row.type in {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}:
+            status = "[red]Missing[/red]"
         else:
-            item_exists_row_value = "Warning"
-            style = "yellow"
+            status = "[yellow]Warning[/yellow]"
 
         table.add_row(
-            item.name,
-            item.type.value,
-            # str(item.size_bytes),
-            f"[{style}]{item_exists_row_value}[/{style}]",
-            str(item.path or ""),
+            row.name,
+            row.type.value,
+            status,
+            f"{crate_name}/{row.name}",
         )
 
     console.print(table)
-    workflow_entity_summary = inspect_crate_result.import_crate_result.workflow_metadata.workflow_entity_summary
     console.print(
-        f"{workflow_entity_summary.total} checked"
-        f", {workflow_entity_summary.total_success} succeeded"
-        f", {workflow_entity_summary.total_failed} failed"
-        f", {workflow_entity_summary.total_warnings} warnings\n"
+        f"{summary.total} checked"
+        f", {summary.total_success} succeeded"
+        f", {summary.total_failed} failed"
+        f", {summary.total_warnings} warnings\n"
     )
+
+
+def verification_rows(entities):
+    grouped = defaultdict(list)
+    individual = []
+
+    for entity in entities:
+        if not entity.exists:
+            individual.append(entity)
+            continue
+
+        parent = Path(entity.name).parent.as_posix()
+        key = (parent, entity.type)
+        grouped[key].append(entity)
+
+    rows = []
+
+    for (parent, entity_type), items in grouped.items():
+        if len(items) == 1:
+            rows.extend(items)
+            continue
+
+        examples = ", ".join(item.name for item in items[:3])
+        if len(items) > 3:
+            examples += ", ..."
+
+        rows.append(
+            {
+                "name": f"{parent}/ ({len(items)} files)",
+                "type": entity_type.value,
+                "exists": "Exists",
+                "path": examples,
+                "count": len(items),
+            }
+        )
+
+    rows.extend(individual)
+    return rows
 
 # DO NOT DELETE THIS FUNCTION
 def print_questionary_edit_submission_command( backend: ExecutionBackend, current_command: list[str] | None = None, provenance_enabled: bool = False) -> list[SubmissionCommandEdit] | None:
@@ -351,6 +409,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
 
     return edits
 
+
 def print_execution_plan(plan: ExecutionPlan) -> None:
     table = Table.grid(padding=(0, 1))
     table.add_row("Backend", plan.backend.value)
@@ -359,6 +418,7 @@ def print_execution_plan(plan: ExecutionPlan) -> None:
     table.add_row("Workspace directory", str(plan.context.workspace_directory))
     table.add_row("Provenance", "enabled" if plan.provenance_enabled else "disabled")
     console.print(Panel(table, title="4. Execution Plan", border_style="green", title_align="left"))
+
 
 def print_provenance_result(result: PrepareProvenanceResult) -> None:
     if result.provenance_config_file:
@@ -392,7 +452,6 @@ def run_streaming(description: str, fn, submission):
 
     return fn(submission, on_output=on_output)
     
-
 def print_final_summary(outcome: ExecutionOutcome) -> None:
     status_style = "green" if outcome.succeeded else "red"
     status_text = "SUCCEEDED" if outcome.succeeded else "FAILED"
@@ -410,12 +469,7 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
 
     console.print(Panel(table, title="5. Execution Summary", border_style=status_style, title_align="left"))
 
-def print_edited_submission_command(
-    executable: str,
-    flags: list[str],
-    positionals: list[str],
-    provenance_enabled: bool = False,
-) -> None:
+def print_edited_submission_command(executable: str, flags: list[str], positionals: list[str], provenance_enabled: bool = False) -> None:
     display_flags = list(flags)
 
     if provenance_enabled and "--provenance" not in display_flags:
@@ -454,7 +508,6 @@ def print_build_execution_plan_banner() -> None:
             border_style="magenta",
         )
     )
-
 
 def select_environment_flags(environment_flags: list[tuple[str, str]]) -> list[str]:
     if not environment_flags:
