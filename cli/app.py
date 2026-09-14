@@ -393,8 +393,9 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
         if args.data_persistence:
             # Explicit CLI option has highest priority.
             data_persistence = DataPersistenceKind.TRUE
+
         elif not args.yes:
-            wants_data_persistence = view.console.input("[yellow]Do you want to enable data persistence? [y/N]: [/yellow]").strip().lower().startswith("y")
+            wants_data_persistence = view.console.input("[yellow]Do you want to enable data persistence ? [y/N]: [/yellow]").strip().lower().startswith("y")
             view.console.print()
 
             data_persistence = (DataPersistenceKind.TRUE if wants_data_persistence else DataPersistenceKind.FALSE)
@@ -520,9 +521,7 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
         return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))
 
     except BuildExecutionPlanFailure as exc:
-        if args.yes or args.command:
-            raise
-
+        
         reason = str(exc).strip() or "unknown error"
         manual_command = Prompt.ask("[yellow]Could not use the submission command from the crate "f"({reason}). Enter one manually (e.g. 'runcompss/enqueue_compss main.py')[/yellow]")
 
