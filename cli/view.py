@@ -124,9 +124,11 @@ def print_inspect_result(result, submission_command: str | None = None) -> None:
 
 def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     table = Table(title="3. Input Verification", show_lines=False)
+
     table.add_column("Entity")
     table.add_column("Type")
     table.add_column("Status")
+    table.add_column("Bytes", justify="right")
     table.add_column("Path")
 
     crate_location = inspect_crate_result.import_crate_result.crate_location
@@ -139,36 +141,41 @@ def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
         .workflow_entity_summary
     )
 
+    problem_entities = []
+
     for row in verification_rows(summary.entities):
         if isinstance(row, dict):
-            displayed_path = ", ".join(
-                f"{crate_name}/{path}"
-                for path in row["path"].split(", ")
-            )
-
             table.add_row(
                 row["name"],
                 row["type"],
-                "[green]Exists[/green]",
-                displayed_path,
+                "[green]Verified[/green]",
+                "Matches",
+                ", ".join(
+                    f"{crate_name}/{path}"
+                    for path in row["path"].split(", ")
+                ),
             )
             continue
 
-        if row.exists:
-            status = "[green]Exists[/green]"
-        elif row.type in {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}:
-            status = "[red]Missing[/red]"
-        else:
-            status = "[yellow]Warning[/yellow]"
+        status = verification_status(row)
+        bytes_display = verification_bytes(row)
 
         table.add_row(
             row.name,
             row.type.value,
             status,
+            bytes_display,
             f"{crate_name}/{row.name}",
         )
 
+        if row.size_matches is not True or not row.exists:
+            problem_entities.append(row)
+
     console.print(table)
+
+    if problem_entities:
+        print_problem_files_table(problem_entities, crate_name)
+
     console.print(
         f"{summary.total} checked"
         f", {summary.total_success} succeeded"
@@ -177,12 +184,74 @@ def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     )
 
 
+def verification_status(entity) -> str:
+    if not entity.exists:
+        if entity.type in {
+            EntityKind.SOFTWARE_SOURCE_CODE,
+            EntityKind.INPUT_OR_OUTPUT,
+        }:
+            return "[red]Missing[/red]"
+        return "[yellow]Warning[/yellow]"
+
+    if entity.size_matches is False:
+        return "[red]Size mismatch[/red]"
+
+    if entity.size_matches is None:
+        return "[yellow]Size unavailable[/yellow]"
+
+    return "[green]Verified[/green]"
+
+
+def verification_bytes(entity) -> str:
+    actual = (
+        str(entity.size_bytes)
+        if entity.size_bytes is not None
+        else "-"
+    )
+    declared = (
+        str(entity.declared_size_bytes)
+        if entity.declared_size_bytes is not None
+        else "-"
+    )
+
+    if entity.size_matches is True:
+        return "Matches"
+
+    return f"{actual} / {declared} B"
+
+
+def print_problem_files_table(
+    entities,
+    crate_name: str,
+) -> None:
+    console.print()
+    console.print("[bold red]Files with problems[/bold red]")
+
+    table = Table(show_lines=False)
+    table.add_column("Entity")
+    table.add_column("Type")
+    table.add_column("Problem")
+    table.add_column("Bytes", justify="right")
+    table.add_column("Path")
+
+    for entity in entities:
+        table.add_row(
+            entity.name,
+            entity.type.value,
+            verification_status(entity),
+            verification_bytes(entity),
+            f"{crate_name}/{entity.name}",
+        )
+
+    console.print(table)
+
+
 def verification_rows(entities):
     grouped = defaultdict(list)
     individual = []
 
     for entity in entities:
-        if not entity.exists:
+        if not entity.exists or entity.size_matches is not True:
             individual.append(entity)
             continue
 
@@ -205,7 +274,6 @@ def verification_rows(entities):
             {
                 "name": f"{parent}/ ({len(items)} files)",
                 "type": entity_type.value,
-                "exists": "Exists",
                 "path": examples,
                 "count": len(items),
             }
@@ -213,6 +281,7 @@ def verification_rows(entities):
 
     rows.extend(individual)
     return rows
+
 
 # DO NOT DELETE THIS FUNCTION
 def print_questionary_edit_submission_command( backend: ExecutionBackend, current_command: list[str] | None = None, provenance_enabled: bool = False) -> list[SubmissionCommandEdit] | None:

@@ -3,6 +3,18 @@ from dataclasses import dataclass
 
 from models.execution import ExecutionBackend
 
+import re
+
+AFFINITY_MAP_PATTERN = re.compile(
+    r"^\d+(?:-\d+)?(?:/\d+(?:-\d+)?)*(?:,\d+(?:-\d+)?(?:/\d+(?:-\d+)?)*)*$"
+)
+
+AFFINITY_SPECIAL_VALUES = {
+    "--cpu_affinity": {"disabled", "automatic", "dlb"},
+    "--gpu_affinity": {"disabled", "automatic"},
+    "--fpga_affinity": {"disabled", "automatic"},
+}
+
 # DO NOT DELETE THIS CLASS
 class FlagValueKind(str, Enum):
     NONE = "none"
@@ -21,19 +33,20 @@ class FlagDefinition:
     value_kind: FlagValueKind = FlagValueKind.NONE
     aliases: tuple[str, ...] = ()
     repeatable: bool = False
+    optional_value: bool = False
     prefer_equals: bool = False
-    #choices:
+    choices: tuple[str, ...] = ()
 
 FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     # LOCAL and SLURM shared flags
     FlagDefinition("--debug", "Enable debug mode for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), aliases=("-d",)),
     FlagDefinition("--pythonpath", "Path to Python modules for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--log_level", "Set the log level for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--lang", "Language for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--graph", "Enable graph generation shortcut.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--tracing", "Set generation of traces.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--monitoring", "Period between monitoring samples in (milliseconds).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--external_debugger", "Enables external debugger connection on the specified port (or 9999 if empty).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
+    FlagDefinition("--log_level", "Set the log level for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("off", "info", "api", "debug", "trace")),
+    FlagDefinition("--lang", "Language for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("python", "java", "c", "r")),
+    FlagDefinition("--graph", "Enable graph generation shortcut.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True, optional_value=True, choices=("true", "false")),
+    FlagDefinition("--tracing", "Set generation of traces.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, optional_value=True, prefer_equals=True),
+    FlagDefinition("--monitoring", "Period between monitoring samples in (milliseconds).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, optional_value=True, prefer_equals=True),
+    FlagDefinition("--external_debugger", "Enables external debugger connection on the specified port (or 9999 if empty).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, optional_value=True, prefer_equals=True),
     FlagDefinition("--jmx_port", "Enable JVM profiling on specified port.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--task_execution", "Task execution under COMPSs or Storage. Default: compss", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--storage_impl", "Path to an storage implementation. Shortcut to setting pypath and classpath. See Runtime/storage in your installation folder.", (ExecutionBackend.LOCAL,), FlagValueKind.STRING, prefer_equals=True),
@@ -45,18 +58,18 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--extrae_config_file", "Path to the Extrae configuration file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--extrae_config_file_python", "Path to the Extrae configuration file for Python.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--trace_label", "Label for the generated trace.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--tracing_task_dependencies", "Enable tracing of task dependencies (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--generate_trace", "Enable tracing of task dependencies.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--delete_trace_packages", "Delete trace packages after execution (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--custom_threads", "Enable custom threads for the COMPSs runtime (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--comm", "Communication implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--conn", "Connection implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--streaming", "Enable streaming for the COMPSs runtime (type: TCP, UDP, etc.).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--tracing_task_dependencies", "Enable tracing of task dependencies (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True, choices=("true", "false")),
+    FlagDefinition("--generate_trace", "Enable tracing of task dependencies.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True, choices=("true", "false")),
+    FlagDefinition("--delete_trace_packages", "Delete trace packages after execution (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True, choices=("true", "false")),
+    FlagDefinition("--custom_threads", "Enable custom threads for the COMPSs runtime (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True, choices=("true", "false")),
+    FlagDefinition("--comm", "Communication implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("es.bsc.compss.nio.master.NIOAdaptor", "es.bsc.compss.gat.master.GATAdaptor")),
+    FlagDefinition("--conn", "Connection implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("es.bsc.compss.connectors.DefaultSSHConnector","es.bsc.compss.connectors.DefaultNoSSHConnector")),
+    FlagDefinition("--streaming", "Enable streaming for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("FILES","OBJECTS","PSCOS","ALL","NONE")),
     FlagDefinition("--streaming_master_name", "Master name for the streaming implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--streaming_master_port", "Master port for the streaming implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--scheduler", "Scheduler implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--scheduler", "Scheduler implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("es.bsc.compss.components.impl.TaskScheduler","es.bsc.compss.components.impl.TaskScheduler","es.bsc.compss.scheduler.orderstrict.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.locality.LocalityTS","es.bsc.compss.scheduler.lookahead.successors.constraintsfifo.ConstraintsFifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.constraintsfifo.ConstraintsFifoTS","es.bsc.compss.scheduler.lookahead.successors.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.successors.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.successors.locality.LocalityTS","es.bsc.compss.scheduler.lookahead.mt.successors.locality.LocalityTS","es.bsc.compss.scheduler.predefined.PredefinedTS")),
     FlagDefinition("--scheduler_config_file", "Path to the scheduler configuration file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
-    FlagDefinition("--checkpoint", "Checkpoint implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--checkpoint", "Checkpoint implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("es.bsc.compss.checkpoint.policies.CheckpointPolicyInstantiatedGroup","es.bsc.compss.checkpoint.policies.CheckpointPolicyPeriodicTime","es.bsc.compss.checkpoint.policies.CheckpointPolicyFinishedTasks","es.bsc.compss.checkpoint.policies.NoCheckpoint")),
     FlagDefinition("--checkpoint_params", "Parameters for the checkpoint implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--checkpoint_folder", "Folder for storing checkpoints.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--library_path", "Path to the library for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
@@ -64,7 +77,6 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--appdir", "Path to the application directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--env_script", "Path to the environment script for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--log_dir", "Path to the log directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True,aliases=("--base_log_dir",)),
-    # FlagDefinition("--base_log_dir", "Path to the log directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--master_working_dir", "Path to the master working directory for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True, aliases=("--specific_log_dir",)),
     FlagDefinition("--uuid", "UUID for the COMPSs runtime.", (ExecutionBackend.LOCAL,), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--master_name", "Master name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
@@ -87,11 +99,12 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--python_interpreter", "Path to the Python interpreter for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--python_propagate_virtual_environment", "Enable or disable propagation of the Python virtual environment (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
     FlagDefinition("--python_mpi_worker", "Enable or disable MPI worker for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--python_memory_profile", "Enable or disable memory profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--python_cache_profiler", "Enable or disable cache profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
+    FlagDefinition("--python_memory_profile", "Enable memory profiling for Python tasks.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE,),
+    FlagDefinition("--python_worker_cache","Python worker CPU and GPU cache.",(ExecutionBackend.LOCAL, ExecutionBackend.SLURM),FlagValueKind.STRING,prefer_equals=True,),
+    FlagDefinition("--python_cache_profiler", "Enable or disable cache profiling for Python tasks (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True, choices=("true", "false")),
     FlagDefinition("--wall_clock_limit", "Set the wall clock limit for the COMPSs runtime in seconds.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--shutdown_in_node_failure", "Enable or disable shutdown in node failure (true/false).", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.BOOL, prefer_equals=True),
-    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, aliases=("-p",), prefer_equals=True),
+    FlagDefinition("--provenance", "Generate COMPSs workflow provenance data in RO-Crate format using a YAML configuration file. Automatically activates --graph.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, aliases=("-p",), optional_value=True, prefer_equals=True),
     FlagDefinition("--provenance_folder", "Folder to store the generated provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--zip_provenance", "Generate a ZIP file containing the provenance data in RO-Crate format.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.NONE, aliases=("-z",)),
 
@@ -124,14 +137,12 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--cpus_per_node", "CPUs per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--gpus_per_node", "GPUs per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--fpgas_per_node", "FPGAs per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--fpga_reprogram", "FPGA reprogramming command for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--max_tasks_per_node", "Maximum tasks per node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--node_memory", "Node memory in MB for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--node_storage_bandwidth", "Node storage bandwidth in MB for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--network", "Network type for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--prolog", "Prolog script for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--epilog", "Epilog script for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--master_working_dir", "Master working directory for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--worker_working_dir", "Worker working directory for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--worker_in_master_cpus", "Number of worker CPUs in the master node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
     FlagDefinition("--worker_in_master_memory", "Amount of worker memory in the master node for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.INT, prefer_equals=True),
@@ -164,7 +175,11 @@ def build_flag_options(backend: ExecutionBackend) -> list[tuple[str, str]]:
 CANONICAL_PROVENANCE_FLAGS = {"--provenance", "--zip_provenance"}
 VALUE_FLAG_BASES = {flag.name for flag in FLAG_DEFINITIONS if flag.value_kind != FlagValueKind.NONE}
 # Flags whose value is optional even though they are not FlagValueKind.NONE
-OPTIONAL_VALUE_FLAG_BASES = {"--provenance"}
+OPTIONAL_VALUE_FLAG_BASES = {
+    flag.name
+    for flag in FLAG_DEFINITIONS
+    if flag.optional_value
+}
 
 FLAG_CANONICAL_MAP = {
     alias: flag.name
@@ -209,7 +224,11 @@ def flag_requires_value(flag_name: str) -> bool:
     definition = resolve_flag_definition(flag_name)
     if definition is None:
         return False
-    return definition.value_kind != FlagValueKind.NONE
+
+    return (
+        definition.value_kind != FlagValueKind.NONE
+        and not definition.optional_value
+    )
 
 # DO NOT DELETE THIS FUNCTION
 def validate_flag_value(flag_name: str, value: str) -> str:
@@ -219,6 +238,8 @@ def validate_flag_value(flag_name: str, value: str) -> str:
 
     if definition.value_kind == FlagValueKind.NONE:
         raise ValueError(f"Flag {flag_name} does not accept a value")
+
+    value = value.strip()
 
     if definition.value_kind == FlagValueKind.BOOL:
         normalized = value.lower()
@@ -233,7 +254,32 @@ def validate_flag_value(flag_name: str, value: str) -> str:
         except ValueError as exc:
             raise ValueError(f"Flag {flag_name} expects an integer value") from exc
 
+    if definition.name in AFFINITY_SPECIAL_VALUES:
+        normalized = value.lower()
+
+        if normalized in AFFINITY_SPECIAL_VALUES[definition.name]:
+            return normalized
+
+        if AFFINITY_MAP_PATTERN.fullmatch(value):
+            return value
+
+        special_values = ", ".join(sorted(AFFINITY_SPECIAL_VALUES[definition.name]))
+        raise ValueError(f"Flag {flag_name} expects one of: {special_values}, or a user-defined affinity map")
+
+    if definition.choices:
+        choices_by_normalized_value = {str(choice).lower(): str(choice)for choice in definition.choices}
+
+        normalized = value.lower()
+
+        if normalized not in choices_by_normalized_value:
+            choices = ", ".join(str(choice) for choice in definition.choices)
+            raise ValueError(f"Flag {flag_name} expects one of: {choices}")
+
+        # Return the canonical spelling from the choices tuple.
+        return choices_by_normalized_value[normalized]
+
     return value
+
 
 # DO NOT DELETE THIS FUNCTION
 def extract_current_flags(current_command: list[str] | None) -> list[str]:

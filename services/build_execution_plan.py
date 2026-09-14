@@ -266,12 +266,15 @@ class DefaultBuildExecutionPlanService:
                         index + 1 < len(parts)
                         and not parts[index + 1].startswith("-")
                         and (
-                            definition.name not in OPTIONAL_VALUE_FLAG_BASES
-                            or parts[index + 1].lower().endswith((".yaml", ".yml"))
+                            not definition.optional_value
+                            or (
+                                definition.name == "--provenance"
+                                and parts[index + 1].lower().endswith((".yaml", ".yml"))
+                            )
                         )
                     )
             
-                    if not has_value and definition.name not in OPTIONAL_VALUE_FLAG_BASES:
+                    if not has_value and not definition.optional_value:
                         raise BuildExecutionPlanFailure(f"Flag {definition.name} requires a value")
             
                     if has_value:

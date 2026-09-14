@@ -160,6 +160,8 @@ class WorkflowEntity:
     name: str
     path: str
     size_bytes: int | None = None
+    declared_size_bytes: int | None = None
+    size_matches: bool | None = None
     exists: bool = True
 
     def __post_init__(self) -> None:

@@ -7,11 +7,11 @@ import yaml
 from pathlib import Path
 from services.import_crate import ImportCrateResult
 
-from models.crate import EntityKind
 from infrastructure.filesystem import LocalFileSystem
 from infrastructure.pycompss_inspect import LocalPyCompssMetadataInspector
 from services.import_crate import ImportCrateResult, DataPersistenceKind
-from models.crate import WorkflowEntity, WorkflowEntitySummary
+from models.crate import EntityKind, WorkflowEntity, WorkflowEntitySummary
+from typing import Any
 
 class InspectCrateStatus(str, Enum):
     SUCCEEDED = "succeeded"
@@ -39,7 +39,7 @@ def inspect_rocrate(import_crate_result: ImportCrateResult) -> InspectCrateResul
 
     updated_crate = replace(
         import_crate_result,
-        data_persistence=_infer_data_persistence(import_crate_result),
+        data_persistence=infer_data_persistence(import_crate_result),
     )
 
     return InspectCrateResult(
@@ -50,32 +50,25 @@ def inspect_rocrate(import_crate_result: ImportCrateResult) -> InspectCrateResul
         inspect_output=inspect_output,
     )
 
-def get_workflow_entities(import_crate_result: ImportCrateResult) -> str | None:
+def get_workflow_entities(import_crate_result: ImportCrateResult) -> list[Any] | None:
     if import_crate_result.rocrate is None:
         return None
     
     has_part = import_crate_result.rocrate.root_dataset.get("hasPart", [])
     return has_part
 
-def _infer_data_persistence(import_crate_result: ImportCrateResult) -> DataPersistenceKind:
+def infer_data_persistence(import_crate_result: ImportCrateResult,) -> DataPersistenceKind:
     if import_crate_result.rocrate is None:
         return DataPersistenceKind.UNKNOWN
 
-    has_part = get_workflow_entities(import_crate_result)
+    has_part = get_workflow_entities(import_crate_result) or []
 
-    candidate_ids: list[str] = []
-    for item in has_part:
-        entity_id = item.id
-        candidate_ids.append(entity_id)
+    has_dataset_refs = any(
+        str(item.id).startswith("dataset/")
+        for item in has_part
+    )
 
-    has_dataset_refs = any(item.startswith("dataset/") for item in candidate_ids)
-
-    if has_dataset_refs:
-        data_persistence = DataPersistenceKind.TRUE
-    else:
-        data_persistence = DataPersistenceKind.FALSE
-
-    return data_persistence
+    return (DataPersistenceKind.TRUE if has_dataset_refs else DataPersistenceKind.FALSE)
 
 def verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalFileSystem) -> InspectCrateResult:
 
@@ -95,30 +88,56 @@ def verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalF
         total_warnings = 0
         
         for item in has_part:
-            entity_kind = check_type_of_entity(item, inspect_crate_result.import_crate_result.crate_location)
-            entity_path = inspect_crate_result.import_crate_result.crate_location / item.id
+            total += 1
+
+            entity_kind = check_type_of_entity(item, import_crate_result.crate_location)
             entity_name = item.id
-        
+            entity_path = import_crate_result.crate_location / entity_name
+            declared_size_bytes = item.get("contentSize")
+
             try:
                 exists = file_system.exists(entity_path)
-                entity_size = file_system.get_size(entity_path)
-            except Exception:
+                entity_size = (file_system.get_size(entity_path) if exists else None )
+            except OSError:
                 exists = False
                 entity_size = None
-        
-            total += 1
-            if exists:
-                total_success += 1
-                if entity_size is None:
-                    total_warnings += 1
-            elif entity_kind in required_missing:
-                total_failed += 1
+
+            if (exists and entity_size is not None and declared_size_bytes is not None):
+                size_matches = entity_size == declared_size_bytes
             else:
+                size_matches = None
+
+            if not exists:
+                size_matches = False
+
+                if entity_kind in required_missing:
+                    total_failed += 1
+                else:
+                    total_warnings += 1
+
+            elif declared_size_bytes is None:
                 total_warnings += 1
 
-            entity = WorkflowEntity(type=entity_kind, name=entity_name, path=entity_path,exists=exists,size_bytes=entity_size)
+            elif entity_size is None:
+                total_warnings += 1
 
-            entities.append(entity)
+            elif size_matches:
+                total_success += 1
+
+            else:
+                total_failed += 1
+
+            entities.append(
+                WorkflowEntity(
+                    type=entity_kind,
+                    name=entity_name,
+                    path=str(entity_path),
+                    exists=exists,
+                    size_bytes=entity_size,
+                    declared_size_bytes=declared_size_bytes,
+                    size_matches=size_matches,
+                )
+            )
         
         entity_summary = WorkflowEntitySummary(total=total,total_success=total_success,total_failed=total_failed,total_warnings=total_warnings,entities=entities)
 
