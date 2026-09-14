@@ -122,7 +122,9 @@ def print_inspect_result(result, submission_command: str | None = None) -> None:
             console.print(f"  [yellow]![/yellow] {warning}")
             
 
-def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
+def print_verification_table(
+    inspect_crate_result: InspectCrateResult,
+) -> None:
     table = Table(title="3. Input Verification", show_lines=False)
 
     table.add_column("Entity")
@@ -141,35 +143,41 @@ def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
         .workflow_entity_summary
     )
 
-    problem_entities = []
+    problem_entities = [
+        entity
+        for entity in summary.entities
+        if not entity.exists or entity.size_matches is not True
+    ]
 
-    for row in verification_rows(summary.entities):
+    verified_entities = [
+        entity
+        for entity in summary.entities
+        if entity.exists and entity.size_matches is True
+    ]
+
+    for row in verification_rows(verified_entities):
         if isinstance(row, dict):
+            displayed_path = ", ".join(
+                f"{crate_name}/{path}"
+                for path in row["path"].split(", ")
+            )
+
             table.add_row(
                 row["name"],
                 row["type"],
                 "[green]Verified[/green]",
                 "Matches",
-                ", ".join(
-                    f"{crate_name}/{path}"
-                    for path in row["path"].split(", ")
-                ),
+                displayed_path,
             )
             continue
-
-        status = verification_status(row)
-        bytes_display = verification_bytes(row)
 
         table.add_row(
             row.name,
             row.type.value,
-            status,
-            bytes_display,
+            "[green]Verified[/green]",
+            "Matches",
             f"{crate_name}/{row.name}",
         )
-
-        if row.size_matches is not True or not row.exists:
-            problem_entities.append(row)
 
     console.print(table)
 

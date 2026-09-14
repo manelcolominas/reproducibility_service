@@ -36,6 +36,7 @@ import questionary
 from rich.prompt import Prompt
 from datetime import datetime
 
+from models.crate import EntityKind
 from services.flags import (
     extract_current_flags,
     canonical_flag_base
@@ -65,6 +66,7 @@ from models.execution import  ( ExecutionBackend, ExecutionBackendDetector )
 from infrastructure.filesystem import (
     LocalFileSystem
     )
+
 from infrastructure.executor import SubprocessExecutionAgent
 
 from services.import_crate import (
@@ -349,8 +351,13 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     view.print_verification_table(verify_result)
     logger.info("crate_verification_finished total=%s passed=%s failed=%s",entity_summary.total if entity_summary is not None else None,entity_summary.total_success if entity_summary is not None else None,entity_summary.total_failed if entity_summary is not None else None)
 
-    if entity_summary is not None and entity_summary.total_failed > 0:
-        continue_after_verification = view.console.input("[yellow]Some important files are missing. Do you want to continue anyway ? [y/N]: [/yellow]").lower().startswith("y")
+    important_entity_types = {EntityKind.SOFTWARE_SOURCE_CODE, EntityKind.INPUT_OR_OUTPUT}
+
+    has_important_problems = (entity_summary is not None and any(entity.type in important_entity_types and (not entity.exists or entity.size_matches is False) for entity in entity_summary.entities))
+
+    if has_important_problems:
+        continue_after_verification = view.console.input("[yellow]Some important files are missing or have invalid sizes. Do you want to continue anyway ? [y/N]: [/yellow]").lower().startswith("y")
+
         logger.info("verification_confirmation continue=%s", continue_after_verification)
         if not continue_after_verification:
             logger.info("final_status=aborted_after_failed_verification")
