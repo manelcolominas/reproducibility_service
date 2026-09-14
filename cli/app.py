@@ -32,6 +32,7 @@ from pathlib import Path
 import re
 from time import perf_counter
 
+import questionary
 from rich.prompt import Prompt
 from datetime import datetime
 
@@ -494,12 +495,17 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
     )
     
     if not original_has_log_level and not edit_has_log_level:
-        log_level = Prompt.ask(
+        log_level = questionary.select(
             "[yellow]Which log level do you want to use?[/yellow]",
-            choices=["off", "info", "debug", "trace"],
-            default="off",
-        )
-        log_level_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD, name="--log_level", value=log_level),)
+            choices=["info", "api","debug", "trace"],
+            default="info",
+        ).ask()
+        view.console.print()
+
+    if log_level is None:
+        log_level = "info"
+
+    log_level_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD, name="--log_level", value=log_level),)
 
     merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + qos_edit + log_level_edit
 
