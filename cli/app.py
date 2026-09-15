@@ -375,7 +375,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     # overrides it through the CLI or an interactive answer.
     data_persistence = (inspect_result.import_crate_result.data_persistence or DataPersistenceKind.FALSE)
 
-    if provenance_flag:
+    if provenance_flag or args.yes:
         view.print_provenance_questions_banner()
         view.console.print()
 
@@ -390,7 +390,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
                 else:
                     view.console.print("[yellow]Empty agent name provided, the crate author will be used by default.[/yellow]")
 
-        if args.data_persistence:
+        if args.data_persistence or args.yes:
             # Explicit CLI option has highest priority.
             data_persistence = DataPersistenceKind.TRUE
 
