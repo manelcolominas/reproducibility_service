@@ -493,28 +493,34 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
 
 
     log_level_edit: tuple[SubmissionCommandEdit, ...] = ()
-    
-    original_has_log_level = current_log_level_value(raw_command)
-    original_has_log_level = bool(original_has_log_level) and original_has_log_level.lower() != "off"
-    
+
+    original_log_level = current_log_level_value(raw_command)
+    original_has_log_level = (
+        original_log_level is not None
+        and original_log_level.lower() != "off"
+    )
+
     edit_has_log_level = any(
-        edit.name == "--log_level" and edit.kind in {SubmissionCommandEditKind.ADD, SubmissionCommandEditKind.SET_VALUE}
+        edit.name == "--log_level"
+        and edit.kind in {
+            SubmissionCommandEditKind.ADD,
+            SubmissionCommandEditKind.SET_VALUE,
+        }
         for edit in submission_edits
     )
-    
+
     if not original_has_log_level and not edit_has_log_level:
         log_level = questionary.select(
-            "[yellow]Which log level do you want to use?[/yellow]",
-            choices=["info", "api","debug", "trace"],
+            "Which log level do you want to use?",
+            choices=["info", "api", "debug", "trace"],
             default="info",
-        ).ask()
+        ).ask() or "info"
+
         view.console.print()
 
-    if log_level is None:
-        log_level = "info"
+        log_level_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--log_level",value=log_level,),)
 
-    log_level_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD, name="--log_level", value=log_level),)
-
+    
     merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + qos_edit + log_level_edit
 
     try:
