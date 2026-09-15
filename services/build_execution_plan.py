@@ -233,10 +233,17 @@ class DefaultBuildExecutionPlanService:
         positionals: list[str] = []
         
         index = 1
+        application_arguments_started = False
         while index < len(parts):
             token = parts[index]
+
+            if application_arguments_started:
+                positionals.append(token)
+                index += 1
+                continue
         
             if not token.startswith("-"):
+                application_arguments_started = True
                 positionals.append(token)
                 index += 1
                 continue
