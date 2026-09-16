@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum
 
+from questionary import form
 import yaml
 from pathlib import Path
 from services.import_crate import ImportCrateResult
@@ -12,6 +13,9 @@ from infrastructure.pycompss_inspect import LocalPyCompssMetadataInspector
 from services.import_crate import ImportCrateResult, DataPersistenceKind
 from models.crate import EntityKind, WorkflowEntity, WorkflowEntitySummary
 from typing import Any
+from urllib.parse import urlparse, unquote
+import subprocess
+import shlex
 
 class InspectCrateStatus(str, Enum):
     SUCCEEDED = "succeeded"
@@ -64,15 +68,128 @@ def infer_data_persistence(import_crate_result: ImportCrateResult,) -> DataPersi
     has_part = get_workflow_entities(import_crate_result) or []
 
     has_dataset_refs = any(
-        str(item.id).startswith("dataset/")
+        str(item.id).startswith("dataset/") or 
+        str(item.id).startswith("datasets/") or
+        str(item.id).startswith("data/")
         for item in has_part
     )
 
     return (DataPersistenceKind.TRUE if has_dataset_refs else DataPersistenceKind.FALSE)
 
+
+def action_asset_ids(import_crate_result: ImportCrateResult) -> tuple[set[str], set[str]]:
+    input_ids: set[str] = set()
+    output_ids: set[str] = set()
+
+    if import_crate_result.rocrate is None:
+        return input_ids, output_ids
+
+    for entity in import_crate_result.rocrate.get_entities():
+        raw_type = entity.get("@type", [])
+        entity_types = {raw_type} if isinstance(raw_type, str) else set(raw_type or [])
+
+        if "CreateAction" not in entity_types:
+            continue
+
+        input_ids.update(reference_ids(entity.get("object")))
+        output_ids.update(reference_ids(entity.get("result")))
+
+    return input_ids, output_ids
+
+
+def reference_ids(value: Any) -> set[str]:
+    if value is None:
+        return set()
+
+    values = value if isinstance(value, list) else [value]
+    identifiers: set[str] = set()
+
+    for item in values:
+        if isinstance(item, dict) and item.get("@id"):
+            identifiers.add(str(item["@id"]))
+        elif getattr(item, "id", None):
+            identifiers.add(str(item.id))
+
+    return identifiers
+
+
+def dataset_path_for( entity_id: str, crate_root: Path, input_ids: set[str], output_ids: set[str]) -> Path | None:
+    parsed = urlparse(entity_id)
+
+    if parsed.scheme != "file" or not parsed.netloc or not parsed.path:
+        return None
+
+    remote_path = Path(unquote(parsed.path))
+
+    if "config" in remote_path.parts:
+        category = "config"
+    elif entity_id in output_ids:
+        category = "output"
+    elif entity_id in input_ids:
+        category = "input"
+    else:
+        return None
+
+    return crate_root / "datasets" / category / remote_path.name
+
+
+def copy_remote_file(remote_id: str, destination: Path) -> bool:
+    parsed = urlparse(remote_id)
+    host = parsed.netloc
+    remote_path = unquote(parsed.path)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    scp_result = subprocess.run(
+        ["scp", f"{host}:{remote_path}", str(destination)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if scp_result.returncode == 0:
+        return True
+
+    with destination.open("wb") as output_file:
+        ssh_result = subprocess.run(
+            ["ssh", host, f"cat -- {shlex.quote(remote_path)}"],
+            stdout=output_file,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+
+    if ssh_result.returncode == 0:
+        return True
+
+    destination.unlink(missing_ok=True)
+    return False
+
+
+def materialize_external_assets(import_crate_result: ImportCrateResult) -> dict[str, Path]:
+    input_ids, output_ids = action_asset_ids(import_crate_result)
+    resolved_paths: dict[str, Path] = {}
+
+    for entity_id in input_ids | output_ids:
+        destination = dataset_path_for(
+            entity_id,
+            import_crate_result.crate_location,
+            input_ids,
+            output_ids,
+        )
+        if destination is None:
+            continue
+
+        if destination.is_file() or copy_remote_file(entity_id, destination):
+            resolved_paths[entity_id] = destination
+
+    return resolved_paths
+
+
 def verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalFileSystem) -> InspectCrateResult:
 
     import_crate_result = inspect_crate_result.import_crate_result
+    resolved_paths = materialize_external_assets(import_crate_result)
     has_part = get_workflow_entities(import_crate_result)
 
     required_missing = {
@@ -92,7 +209,7 @@ def verify_rocrate(inspect_crate_result: InspectCrateResult, file_system: LocalF
 
             entity_kind = check_type_of_entity(item, import_crate_result.crate_location)
             entity_name = item.id
-            entity_path = import_crate_result.crate_location / entity_name
+            entity_path = resolved_paths.get(entity_name,import_crate_result.crate_location / entity_name)
             declared_size_bytes = item.get("contentSize")
 
             try:
@@ -162,7 +279,7 @@ def check_type_of_entity(item: dict, crate_location: Path) -> EntityKind:
         return EntityKind.SOFTWARE_SOURCE_CODE
     elif "ImageObject" in entity_type:
         return EntityKind.IMAGE_OBJECT
-    elif "File" in entity_type and entity_name.startswith("dataset/"):
+    elif "File" in entity_type and (entity_name.startswith("dataset/") or entity_name.startswith("datasets/") or entity_name.startswith("data/")):
         return EntityKind.INPUT_OR_OUTPUT
     elif "File" in entity_type and entity_name.endswith(".out"):
         return EntityKind.WORKERS_OUTPUT

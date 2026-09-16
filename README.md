@@ -105,15 +105,6 @@ Each run walks through the same pipeline:
 - **Results & provenance**: outputs are written to `reproducibility_service_{run_id}/Results`; when provenance is enabled, the generated RO-Crate is written there too.
 - **Logging**: each run logs to `reproducibility_service_{run_id}/log/rs_log.txt`.
 
-## Project Structure
-
-The service follows a hexagonal (ports & adapters) layout, keeping business rules independent of I/O and the CLI:
-
-```
-```
-
-`app.py` never contains business logic itself — it only builds requests for the use cases in `application/use_cases`, and hands the results to `view.py` for rendering.
-
 ### Experiment Requirements
 
 1. 
