@@ -76,9 +76,11 @@ def print_banner() -> None:
     )
     # and then it prints it on the console using the console.print() method.
 
+
 def print_error(message: str, details: str | None = None) -> None:
     body = message if not details else f"{message}\n[dim]{details}[/dim]"
     console.print(Panel(body, title="Error", border_style="red", title_align="left"))
+
 
 def print_import_result(result: ImportCrateResult) -> None:
     table = Table.grid(padding=(0, 1))
@@ -88,6 +90,7 @@ def print_import_result(result: ImportCrateResult) -> None:
     if result.acquisition is not None:
         table.add_row("Acquisition", result.acquisition.kind)
     console.print(Panel(table, title="1. Crate source imported", border_style="green", title_align="left"))
+
 
 def print_inspect_result(result, submission_command: str | None = None) -> None:
     crate = result.import_crate_result
@@ -122,9 +125,7 @@ def print_inspect_result(result, submission_command: str | None = None) -> None:
             console.print(f"  [yellow]![/yellow] {warning}")
             
 
-def print_verification_table(
-    inspect_crate_result: InspectCrateResult,
-) -> None:
+def print_verification_table(inspect_crate_result: InspectCrateResult) -> None:
     table = Table(title="3. Input Verification", show_lines=False)
 
     table.add_column("Entity")
@@ -228,10 +229,7 @@ def verification_bytes(entity) -> str:
     return f"{actual} / {declared} B"
 
 
-def print_problem_files_table(
-    entities,
-    crate_name: str,
-) -> None:
+def print_problem_files_table(entities, crate_name: str) -> None:
     console.print()
     console.print("[bold red]Files with problems[/bold red]")
 
@@ -300,8 +298,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
     edits: list[SubmissionCommandEdit] = []
 
     while True:
-        action = questionary.select(
-            "What do you want to do?", choices=[ "remove a flag", "edit a flag value","add a new flag", "edit a positional argument", "add a positional argument", "remove a positional argument","finish"]).ask()
+        action = questionary.select("What do you want to do?", choices=[ "remove a flag", "edit a flag value","add a new flag", "edit a positional argument", "add a positional argument", "remove a positional argument","finish"]).ask()
 
         if action is None:
             return None
@@ -339,14 +336,21 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 continue
 
             value = ""
+            cancelled = False
             while True:
                 current_value = flag.split("=", 1)[1] if "=" in flag else ""
-                raw_value = questionary.text(f"New value for {flag_name}=", default=current_value).ask().strip()
+                raw_value = prompt_flag_value(flag_name, current_value)
+                if raw_value is None or raw_value == "back":
+                    cancelled = True
+                    break
                 try:
                     value = validate_flag_value(flag_name, raw_value)
                     break
                 except ValueError as exc:
                     console.print(f"[yellow]{exc}[/yellow]")
+
+            if cancelled:
+                continue
 
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_VALUE,name=flag_name,value=value))
             updated_flag = flag_name if value is None else f"{flag_name}={value}"
@@ -382,16 +386,20 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
                 continue
 
             value = None
+            cancelled = False
             if flag_requires_value(flag_name):
                 while True:
-                    raw_value = Prompt.ask(f"Value for {flag_name}").strip()
+                    raw_value = prompt_flag_value(flag_name)
+                    if raw_value is None or raw_value == "back":
+                        cancelled = True
+                        break
                     try:
                         value = validate_flag_value(flag_name, raw_value)
                         break
                     except ValueError as exc:
                         console.print(f"[yellow]{exc}[/yellow]")
-            else:
-                value = None
+            if cancelled:
+                continue
 
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=flag_name,value=value))
 
@@ -429,9 +437,7 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
 
             new_value = new_value.strip()
             if not new_value:
-                console.print(
-                    "[yellow]A positional argument cannot be empty.[/yellow]"
-                )
+                console.print("[yellow]A positional argument cannot be empty.[/yellow]")
                 continue
 
             edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.SET_POSITIONAL,name="",value=new_value,position=position))
@@ -439,26 +445,19 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
             print_edited_submission_command(executable,current_flags,current_positionals, provenance_enabled)
 
         elif action == "add a positional argument":
-            new_value = questionary.text(
-                "Value for the new positional argument"
-            ).ask()
+
+            new_value = questionary.text("Value for the new positional argument").ask()
 
             if new_value is None:
                 continue
 
             new_value = new_value.strip()
             if not new_value:
-                console.print(
-                    "[yellow]A positional argument cannot be empty.[/yellow]"
-                )
+                console.print("[yellow]Empty positional argument, will not be added.[/yellow]")
                 continue
 
-            edits.append(
-                SubmissionCommandEdit(
-                    kind=SubmissionCommandEditKind.ADD_POSITIONAL,
-                    value=new_value,
-                )
-            )
+            edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD_POSITIONAL,value=new_value,))
+
             current_positionals.append(new_value)
             print_edited_submission_command(executable,current_flags,current_positionals,provenance_enabled)
 
@@ -485,6 +484,31 @@ def print_questionary_edit_submission_command( backend: ExecutionBackend, curren
             print_edited_submission_command(executable,current_flags,current_positionals, provenance_enabled)
 
     return edits
+
+
+def prompt_flag_value(flag_name: str, default: str = "") -> str | None:
+    definition = resolve_flag_definition(flag_name)
+
+    if definition is not None and definition.choices:
+        choices = list(definition.choices)
+        custom_label = "another value"
+        back_label = "back"
+        select_choices = [*choices, custom_label, back_label]
+
+        selected = questionary.select(f"Choose a value for {flag_name}",choices=select_choices).ask()
+
+        if selected is None or selected == back_label:
+            return None
+
+        if selected == custom_label:
+            return questionary.text(f"Enter another value for {flag_name}").ask()
+
+        return selected
+
+    return questionary.text(
+        f"Value for {flag_name}",
+        default=default,
+    ).ask()
 
 
 def print_execution_plan(plan: ExecutionPlan) -> None:
@@ -521,6 +545,7 @@ def run_with_spinner(description: str, fn, *args, **kwargs):
         progress.add_task(description, total=None)
         return fn(*args, **kwargs)
 
+
 def run_streaming(description: str, fn, submission):
     console.print(Panel(description, border_style="cyan"))
 
@@ -528,6 +553,7 @@ def run_streaming(description: str, fn, submission):
         console.print(Text.from_ansi(data.decode("utf-8", errors="replace")), end="")
 
     return fn(submission, on_output=on_output)
+
     
 def print_final_summary(outcome: ExecutionOutcome) -> None:
     status_style = "green" if outcome.succeeded else "red"
@@ -546,6 +572,7 @@ def print_final_summary(outcome: ExecutionOutcome) -> None:
 
     console.print(Panel(table, title="5. Execution Summary", border_style=status_style, title_align="left"))
 
+
 def print_edited_submission_command(executable: str, flags: list[str], positionals: list[str], provenance_enabled: bool = False) -> None:
     display_flags = list(flags)
 
@@ -559,8 +586,10 @@ def print_edited_submission_command(executable: str, flags: list[str], positiona
     console.print(f"  {command}")
     console.print()
 
+
 def sort_flag_choices(flags: list[str]) -> list[str]:
     return sorted(flags,key=lambda flag: canonical_flag_base(flag).casefold())
+
 
 def print_provenance_questions_banner() -> None:
     body = Text()
@@ -577,6 +606,7 @@ def print_provenance_questions_banner() -> None:
         )
     )
 
+
 def print_build_execution_plan_banner() -> None:
     console.print(
         Panel(
@@ -585,6 +615,7 @@ def print_build_execution_plan_banner() -> None:
             border_style="magenta",
         )
     )
+
 
 def select_environment_flags(environment_flags: list[tuple[str, str]]) -> list[str]:
     if not environment_flags:
@@ -619,6 +650,7 @@ def select_environment_flags(environment_flags: list[tuple[str, str]]) -> list[s
         for flag in selected_flags
         if flag != finish_value
     ]
+
 
 def positional_index(selection: object, count: int) -> int | None:
     if selection is None:

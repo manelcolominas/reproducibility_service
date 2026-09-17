@@ -131,6 +131,7 @@ class ExecutionResult:
     def failed(self) -> bool:
         return self.status == ExecutionStatus.FAILED
 
+
 class ExecutionBackendDetector:
     """Detects SLURM vs local execution."""
 
@@ -150,6 +151,7 @@ class ExecutionBackendDetector:
             return ExecutionBackend.SLURM
         return ExecutionBackend.LOCAL
 
+
 # DO NOT DELETE
 @dataclass(frozen=True, slots=True)
 class ExecutionSubmission:
@@ -162,6 +164,7 @@ class ExecutionSubmission:
     @property
     def execution_directory(self) -> Path:
         return self.results_directory
+
 
 @dataclass(frozen=True, slots=True)
 class ExecutionOutcome:

@@ -33,8 +33,8 @@
         //"--extra_flag=--lang=java",
         //"--extra_flag=--workers=4"
         //"--data_persistence"
-        "--provenance"
-        //"-y"
+        //"--provenance"
+        "-y"
       ]
     }
   ]

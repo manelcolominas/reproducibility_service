@@ -529,8 +529,7 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
     if not original_has_log_level and not edit_has_log_level:
         log_level = questionary.select(
             "Which log level do you want to use?",
-            choices=["info", "api", "debug", "trace"],
-            default="info",
+            choices=["info", "api", "debug", "trace"]
         ).ask() or "info"
 
         view.console.print()

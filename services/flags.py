@@ -1,3 +1,20 @@
+#!/usr/bin/env python3
+#
+#  Copyright 2002-2026 Barcelona Supercomputing Center (www.bsc.es)
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
 from enum import Enum
 from dataclasses import dataclass
 
@@ -67,7 +84,7 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--streaming", "Enable streaming for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("FILES","OBJECTS","PSCOS","ALL","NONE")),
     FlagDefinition("--streaming_master_name", "Master name for the streaming implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--streaming_master_port", "Master port for the streaming implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.INT, prefer_equals=True),
-    FlagDefinition("--scheduler", "Scheduler implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("es.bsc.compss.components.impl.TaskScheduler","es.bsc.compss.components.impl.TaskScheduler","es.bsc.compss.scheduler.orderstrict.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.locality.LocalityTS","es.bsc.compss.scheduler.lookahead.successors.constraintsfifo.ConstraintsFifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.constraintsfifo.ConstraintsFifoTS","es.bsc.compss.scheduler.lookahead.successors.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.successors.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.successors.locality.LocalityTS","es.bsc.compss.scheduler.lookahead.mt.successors.locality.LocalityTS","es.bsc.compss.scheduler.predefined.PredefinedTS")),
+    FlagDefinition("--scheduler", "Scheduler implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("es.bsc.compss.components.impl.TaskScheduler","es.bsc.compss.scheduler.orderstrict.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.locality.LocalityTS","es.bsc.compss.scheduler.lookahead.successors.constraintsfifo.ConstraintsFifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.constraintsfifo.ConstraintsFifoTS","es.bsc.compss.scheduler.lookahead.successors.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.fifo.FifoTS","es.bsc.compss.scheduler.lookahead.successors.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.mt.successors.lifo.LifoTS","es.bsc.compss.scheduler.lookahead.successors.locality.LocalityTS","es.bsc.compss.scheduler.lookahead.mt.successors.locality.LocalityTS","es.bsc.compss.scheduler.predefined.PredefinedTS")),
     FlagDefinition("--scheduler_config_file", "Path to the scheduler configuration file.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.PATH, prefer_equals=True),
     FlagDefinition("--checkpoint", "Checkpoint implementation class name for the COMPSs runtime.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True, choices=("es.bsc.compss.checkpoint.policies.CheckpointPolicyInstantiatedGroup","es.bsc.compss.checkpoint.policies.CheckpointPolicyPeriodicTime","es.bsc.compss.checkpoint.policies.CheckpointPolicyFinishedTasks","es.bsc.compss.checkpoint.policies.NoCheckpoint")),
     FlagDefinition("--checkpoint_params", "Parameters for the checkpoint implementation.", (ExecutionBackend.LOCAL, ExecutionBackend.SLURM), FlagValueKind.STRING, prefer_equals=True),
@@ -122,7 +139,7 @@ FLAG_DEFINITIONS: tuple[FlagDefinition, ...] = (
     FlagDefinition("--storage_cpu_affinity", "CPU affinity for the storage implementation.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--constraints", "Constraints for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--project_name", "Project name for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
-    FlagDefinition("--qos", "Quality of Service for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
+    FlagDefinition("--qos", "Quality of Service for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True, choices=("gp_debug","gp_bench","gp_bsccs","acc_bsccs")),
     FlagDefinition("--forward_cpus_per_node", "Forward CPUs per node to the SLURM job (true/false).", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
     FlagDefinition("--job_dependency", "Set a job dependency for the SLURM job.", (ExecutionBackend.SLURM,), FlagValueKind.STRING, prefer_equals=True),
     FlagDefinition("--forward_time_limit", "Forward time limit to the SLURM job (true/false).", (ExecutionBackend.SLURM,), FlagValueKind.BOOL, prefer_equals=True),
