@@ -50,7 +50,7 @@ compss_reproducibility_service workflow-635-1.crate.zip \
 | `--backend {auto,local,slurm}` |Optional| Execution backend to use (default: `auto`) |
 | `--command` |Optional| Override the COMPSs submission command discovered from the crate metadata |
 | `--extra-flag` |Optional| Extra runtime flag to append to the submission command (repeatable) |
-| `-p`, `--provenance` |Optional| Enable provenance and write `ro-crate-info.yaml` |
+| `-p`, `--provenance` |Optional| Enable provenance |
 | `--agent_name` |Optional| Participant name to record in the generated provenance |
 | `--agent_email` |Optional| Participant email |
 | `--agent_org` |Optional| Participant organization |
@@ -75,6 +75,26 @@ export COMPSS_RS_PYTHONPATH="--pythonpath"
 Command-line flags supplied with `--extra_flag` and environment variables are
 combined before the execution plan is built.
 ```
+
+### Behavior of some flags
+
+- **`-p`, `--provenance`**: 
+  Enables provenance.
+
+- **`-y`, `--yes`**: 
+  skips confirmation prompts,
+  Do you want to enable provenance for this reproduction? y
+  Do you want to provide your name? n
+  Do you want to enable data persistence ? y
+
+- **`--data_persistence`**:
+Enables data_persistence for the provenance generation.
+
+-- **`--agent_name`**: 
+It sets the name of the agent of the execution of the reproducibility_service
+
+```bash
+compss_reproducibility_service <source> -y --provenance
 
 ## What the Service Does
 

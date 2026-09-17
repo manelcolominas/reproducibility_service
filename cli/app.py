@@ -402,10 +402,6 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
                     view.console.print("[yellow]Empty agent name provided, the crate author will be used by default.[/yellow]")
 
         if args.data_persistence or args.yes:
-            # Explicit CLI option has highest priority.
-            data_persistence = DataPersistenceKind.TRUE
-
-        if args.data_persistence or args.yes:
             if args.yes and not args.data_persistence:
                 view.console.print("[yellow]Do you want to enable data persistence ? [y/N]: [/yellow]y")
             data_persistence = DataPersistenceKind.TRUE
