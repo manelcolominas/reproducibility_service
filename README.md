@@ -1,7 +1,7 @@
 # COMPSs Reproducibility Service
 
 <p align="center">
-  <img src="./APP-REQ/logo-color.svg" alt="Logo" width="220">
+  <img src="logo-color.svg" alt="Logo" width="220">
 </p>
 
 A CLI tool that reproduces a [COMPSs](https://compss-doc.readthedocs.io/) workflow run from an **RO-Crate**. Point it at a crate (a local directory, a `.zip` file, or a remote URL e.g. from WorkflowHub) — and it will import the crate, inspect its metadata, verify that the referenced input files are present, build the `compss` submission command, and execute it and (optionaly) record new provenance.
@@ -9,8 +9,7 @@ A CLI tool that reproduces a [COMPSs](https://compss-doc.readthedocs.io/) workfl
 ## Pre-requisites
 
 - COMPSs must be installed on your local machine, or the COMPSs module must be loaded on the cluster. See the [COMPSs Official Installation Guide](https://compss-doc.readthedocs.io/en/stable/Sections/01_Installation.html).
-- Python 3.11+ (the codebase uses modern typing syntax such as `X | None` and `slots=True` dataclasses).
-- Python dependencies: `rich`, `questionary`, `ro-crate-py` (`rocrate`), `PyYAML`.
+- Python dependencies: `rich`, `questionary`, `rocrate`, `PyYAML`.
 - Ensure that all dependencies for the experiment you wish to reproduce are satisfied on the machine where you want to resubmit the application.
 
 ## How to Use
@@ -105,11 +104,21 @@ Each run walks through the same pipeline:
 - **Results & provenance**: outputs are written to `reproducibility_service_{run_id}/Results`; when provenance is enabled, the generated RO-Crate is written there too.
 - **Logging**: each run logs to `reproducibility_service_{run_id}/log/rs_log.txt`.
 
+---
+
 ### Experiment Requirements
 
-1. 
-2. 
-3. 
+For the crate to be importable and pass verification, it must satisfy:
+
+1. **A valid `ro-crate-metadata.json` at the crate root.** This file is required to load the crate at all — if it's missing or malformed, the import step fails immediately.
+
+2. **The crate's file layout must match what `ro-crate-metadata.json` declares.** Every entity listed under `hasPart` is checked against the filesystem, relative to the crate root:
+
+   - **Input/output data files** — any entity whose `@id` starts with `dataset/`, `datasets/`, or `data/` must exist at that exact relative path (e.g. an entry `dataset/data/file0.txt` requires `<crate_root>/dataset/data/file0.txt` to exist).
+
+   - **Software source code** — any entity of type `SoftwareSourceCode` must exist at its declared `@id` path (e.g. `application_sources/main.py`).
+
+   Missing or size-mismatched files for these two categories are reported as verification **failures**; other missing entities (logs, README, config YAML, etc.) are only reported as **warnings**. Declared file sizes (`contentSize`) are also checked against the actual size on disk when present.
 
 ---
 
