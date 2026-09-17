@@ -27,7 +27,7 @@ import requests
 import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse, quote
 from enum import Enum
 import json
     
@@ -254,7 +254,7 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
         #        Request URI: URI
         # BROWSER HEADERS
 
-        download_url = resolve_zenodo_download_url(source.name)
+        download_url = source.name
         request = Request(download_url, headers=BROWSER_HEADERS, method="GET")
         # try to download the crate source from the given URL
         try:
@@ -325,29 +325,19 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
     return import_crate_result
 
 
-ZENODO_RECORD_RE = re.compile(r"zenodo\.org/records/(\d+)")
+def download_from_url(url: str, destination: Path) -> None:
+    with requests.get(url, stream=True, timeout=30, headers=BROWSER_HEADERS) as r:
+        r.raise_for_status()
+        with open(destination, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    f.write(chunk)
 
 
-# THE DOWNLOAD AUTOMATICALY FROM ZENODO IS NOT WORKING WELL
-def resolve_zenodo_download_url(url: str) -> str:
-    match = ZENODO_RECORD_RE.search(url)
-    if not match:
-        return url  # not a Zenodo URL, leave untouched
-
-    record_id = match.group(1)
-    api_url = f"https://zenodo.org/api/records/{record_id}"
-    api_request = Request(api_url, headers=BROWSER_HEADERS, method="GET")
-    with urlopen(api_request, timeout=30) as api_response:
-        record = json.loads(api_response.read())
-
-    files = record.get("files", [])
-    if not files:
-        raise FileSystemError("Zenodo record has no files", details=api_url)
-
-    # if the original URL already names a specific file, match it; otherwise take the first file
-    requested_name = unquote(Path(url.split("?", 1)[0]).name)
-    file_entry = next((f for f in files if f["key"] == requested_name), files[0])
-    return file_entry["links"]["self"]
+def download_zenodo_file(url: str, destination: Path) -> None:
+    # ja pots rebre la URL exacta del fitxer
+    # ex: https://zenodo.org/records/22228540/files/COMPSs_RO-Crate_20260811_160903.zip
+    download_from_url(url, destination)
 
 
 def filename_from_http_response(response: requests.Response) -> str | None:
