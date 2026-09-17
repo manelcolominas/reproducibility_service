@@ -365,7 +365,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             return None, None
 
     
-    provenance_flag = args.provenance
+    provenance_flag = args.provenance or args.yes
     if not args.yes and not provenance_flag:
         view.console.print()
         provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction? [y/N]: [/yellow]").strip().lower().startswith("y")
@@ -375,7 +375,7 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     # overrides it through the CLI or an interactive answer.
     data_persistence = (inspect_result.import_crate_result.data_persistence or DataPersistenceKind.FALSE)
 
-    if provenance_flag or args.yes:
+    if provenance_flag:
         view.print_provenance_questions_banner()
         view.console.print()
 
@@ -399,7 +399,6 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             view.console.print()
 
             data_persistence = (DataPersistenceKind.TRUE if wants_data_persistence else DataPersistenceKind.FALSE)
-
 
     view.console.print()
     view.print_build_execution_plan_banner()
