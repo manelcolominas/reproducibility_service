@@ -470,17 +470,37 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
     return crate_root, plan_result
 
 
-def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = (), environment_flags: tuple[str, ...] = ()):
+def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlanService, crate_root: Path, workspace_directory: Path, execution_directory: Path, provenance_enabled: bool, submission_edits: tuple[SubmissionCommandEdit, ...] = (), environment_flags: tuple[str, ...] = (),):
     raw_command = args.command or plan_service.discover_command(crate_root)
     backend = ExecutionBackend(args.backend)
 
-    effective_backend = plan_service.select_backend(BuildExecutionPlanRequest(crate_root=crate_root, workspace_directory=workspace_directory, execution_directory=execution_directory, backend=backend))
-    
+    effective_backend = plan_service.select_backend(
+        BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend))
+
+    cli_extra_edits = build_flag_edits(args.extra_flag)
+    environment_edits = build_flag_edits(environment_flags)
+
+    all_predefined_edits = (tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits))
+
     qos_edit: tuple[SubmissionCommandEdit, ...] = ()
 
-    original_has_qos = bool(raw_command and any(token == "--qos" or token.startswith("--qos=") for token in raw_command.split()))
+    original_has_qos = bool(
+        raw_command
+        and any(
+            token == "--qos" or token.startswith("--qos=")
+            for token in raw_command.split()
+        )
+    )
 
-    edit_has_qos = any( edit.name == "--qos" and edit.kind in {SubmissionCommandEditKind.ADD, SubmissionCommandEditKind.SET_VALUE } for edit in submission_edits)
+    edit_has_qos = any(
+        edit.name == "--qos"
+        and edit.kind
+        in {
+            SubmissionCommandEditKind.ADD,
+            SubmissionCommandEditKind.SET_VALUE,
+        }
+        for edit in all_predefined_edits
+    )
 
     if effective_backend == ExecutionBackend.SLURM:
         if not original_has_qos and not edit_has_qos:
@@ -491,32 +511,19 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
 
             qos_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--qos",value=qos),)
 
-    cli_extra_edits = build_flag_edits(args.extra_flag)
-    environment_edits = build_flag_edits(environment_flags)
-
-    for raw_flag in args.extra_flag:
-        if "=" in raw_flag:
-            name, value = raw_flag.split("=", 1)
-            cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=name.strip(),value=value.strip() or None))
-        else:
-            cli_extra_edits.append(SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name=raw_flag.strip(),value=None))
-
-
     log_level_edit: tuple[SubmissionCommandEdit, ...] = ()
 
     original_log_level = current_log_level_value(raw_command)
-    original_has_log_level = (
-        original_log_level is not None
-        and original_log_level.lower() != "off"
-    )
+    original_has_log_level = ( original_log_level is not None and original_log_level.lower() != "off")
 
     edit_has_log_level = any(
         edit.name == "--log_level"
-        and edit.kind in {
+        and edit.kind
+        in {
             SubmissionCommandEditKind.ADD,
             SubmissionCommandEditKind.SET_VALUE,
         }
-        for edit in submission_edits
+        for edit in all_predefined_edits
     )
 
     if not original_has_log_level and not edit_has_log_level:
@@ -530,20 +537,44 @@ def build_plan(args: argparse.Namespace, plan_service: DefaultBuildExecutionPlan
 
         log_level_edit = (SubmissionCommandEdit(kind=SubmissionCommandEditKind.ADD,name="--log_level",value=log_level,),)
 
-    
-    merged_edits = tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + qos_edit + log_level_edit
+    merged_edits = (tuple(cli_extra_edits) + tuple(environment_edits) + tuple(submission_edits) + qos_edit + log_level_edit)
 
     try:
-        return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=args.command,submission_edits=merged_edits))
+        return plan_service.execute(
+            BuildExecutionPlanRequest(
+                crate_root=crate_root,
+                workspace_directory=workspace_directory,
+                execution_directory=execution_directory,
+                backend=backend,
+                provenance_enabled=provenance_enabled,
+                submission_command=args.command,
+                submission_edits=merged_edits,
+            )
+        )
 
     except BuildExecutionPlanFailure as exc:
         if args.yes or args.command:
             raise
 
         reason = str(exc).strip() or "unknown error"
-        manual_command = Prompt.ask("[yellow]Could not use the submission command from the crate "f"({reason}). Enter one manually (e.g. 'runcompss/enqueue_compss main.py')[/yellow]")
 
-        return plan_service.execute(BuildExecutionPlanRequest(crate_root=crate_root,workspace_directory=workspace_directory,execution_directory=execution_directory,backend=backend,provenance_enabled=provenance_enabled,submission_command=manual_command,submission_edits=merged_edits))
+        manual_command = Prompt.ask(
+            "[yellow]Could not use the submission command from the crate "
+            f"({reason}). Enter one manually "
+            "(e.g. 'runcompss/enqueue_compss main.py')[/yellow]"
+        )
+
+        return plan_service.execute(
+            BuildExecutionPlanRequest(
+                crate_root=crate_root,
+                workspace_directory=workspace_directory,
+                execution_directory=execution_directory,
+                backend=backend,
+                provenance_enabled=provenance_enabled,
+                submission_command=manual_command,
+                submission_edits=merged_edits,
+            )
+        )
 
 
 def current_log_level_value(raw_command: str | None) -> str | None:
