@@ -26,6 +26,9 @@ For example:
 
 ```bash
 compss_reproducibility_service workflow-635-1.crate.zip \
+or 
+compss_reproducibility_service https://workflowhub.org/workflows/635/ro_crate?version=1\
+
   --backend=slurm \
   --provenance \
   --agent_name="John Doe" \
@@ -59,6 +62,7 @@ compss_reproducibility_service workflow-635-1.crate.zip \
 | `-y`, `--yes` |Optional| Skip confirmation prompts (non-interactive mode) |
 |`-data_persistence`|Optional| Enables the data_persistence|
 
+
 ## Environment Variables
 
 The service can read additional COMPSs flags from environment variables named
@@ -78,20 +82,70 @@ combined before the execution plan is built.
 
 ### Behavior of some flags
 
-- **`-p`, `--provenance`**: 
-  Enables provenance.
+- **`-p`, `--provenance`**:
+  Enables provenance tracking for this run. When set, the service asks
+  additional questions (agent name, data persistence) and writes an
+  `ro-crate-info.yaml` describing the reproduction.
 
-- **`-y`, `--yes`**: 
-  skips confirmation prompts,
-  Do you want to enable provenance for this reproduction? y
-  Do you want to provide your name? n
-  Do you want to enable data persistence ? y
+- **`-y`, `--yes`**:
+  Skips confirmation prompts by auto-answering every yes/no question
+  (the questions are still printed to the screen, together with the
+  answer that was assumed). With `-y`, the following answers are used:
+  - `Do you want to enable provenance for this reproduction? [y/N]: y`
+  - `Do you want to provide your name? [y/N]: n` (the crate author is
+    used instead, unless `--agent_name` is also provided)
+  - `Do you want to enable data persistence? [y/N]: y`
+
+  Note that `-y` also enables provenance by itself, so passing `-y`
+  alone is equivalent to passing `-y --provenance`.
 
 - **`--data_persistence`**:
-Enables data_persistence for the provenance generation.
+  Enables data persistence for the provenance generation, regardless of
+  whether `-y` is used.
 
--- **`--agent_name`**: 
-It sets the name of the agent of the execution of the reproducibility_service
+- **`--agent_name`**:
+  Sets the name of the agent recorded as the author of this reproduction
+  run. If omitted and `-y` is used, the crate's original author is set as the agent of the reproduction.
+
+
+### `--extra_flag` and Environment Variables
+
+Both mechanisms let you add or override COMPSs runtime flags on top of the
+submission command discovered from the crate, without editing the crate
+itself.
+
+- **`--extra_flag`** (repeatable): pass one flag per occurrence, (`--extra_flag=--lang=python`). Each one becomes an "ADD/override" edit
+  applied to the discovered submission command.
+
+- **Environment variables**: any variable named `COMPSS_RS_<suffix>` (e.g.
+  `COMPSS_RS_1`, `COMPSS_RS_LOG_LEVEL`) is picked up automatically and its
+  *value* is treated the same way as an `--extra_flag` value (e.g.
+  `export COMPSS_RS_LOG_LEVEL="--log_level=info"`). Variables are sorted by
+  name before being applied. If any `COMPSS_RS_*`  environment variables are found, the service always asks **"Do you want to use the environment variables?"**
+  — this confirmation is shown even in non-interactive (`-y`) runs, so make
+  sure to unset any `COMPSS_RS_*` variables you don't want to be prompted
+  about when automating runs.
+
+#### How they interact with each other and with the original command
+
+Flags are merged in this order, and **later sources override earlier ones
+when they target the same flag name**:
+
+1. The submission command discovered from the crate metadata (or the one
+   given via `--command`).
+2. `--extra_flag` values (in the order given on the command line).
+3. Selected environment-variable flags (`COMPSS_RS_*`).
+4. Manual edits made through the interactive "modify submission command"
+   step, if used.
+
+In practice this means:
+- An environment variable flag **overrides** the same flag coming from
+  `--extra_flag` or from the original crate command.
+- A flag added interactively while editing the command **overrides**
+  both `--extra_flag` and environment-variable values.
+- If a flag is not overridden by any of these sources, the original value
+  from the crate's submission command is kept.
+
 
 ```bash
 compss_reproducibility_service <source> -y --provenance
