@@ -9,14 +9,17 @@
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/635",
       //"cwd": "/home/mcolomin/Desktop",
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_local",
-      "cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_mn5",
+      //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_files_mn5",
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/386",
       //"cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/804",
       //"cwd":"/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/690",
+      "cwd": "/home/mcolomin/Desktop/bsc-wdc/codi_compss/proves/matmul_objects_zenodo",
       "console": "integratedTerminal",
       "args": [
-        //"https://workflowhub.org/workflows/635/ro_crate?version=1"
+        "https://workflowhub.org/workflows/635/ro_crate?version=1",
         //"https://workflowhub.org/workflows/386/ro_crate?version=2",
+        //"https://zenodo.org/records/22228540/files/COMPSs_RO-Crate_20260811_160903.zip?download=1"
+        //"https://zenodo.org/records/22228540/files/COMPSs_RO-Crate_20260811_160903.zip"
         //"workflow-690-1.crate",
         //"workflow-635-1.crate",
         //"workflow-635-1.crate.zip"
@@ -25,7 +28,7 @@
         // matmul_files_local
         //"COMPSs_RO-Crate_20260810_112548",
         // matmul_files_mn5
-        "COMPSs_RO-Crate_20260804_112127",
+        //"COMPSs_RO-Crate_20260804_112127",
         //"--provenance",
         //"--agent_name",
         //"Manel Colominas",

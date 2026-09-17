@@ -95,9 +95,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     # the source is a positional argument, it is mandatory and does not require a flag, doesn't begin with a dash (- or --). The user must provide it when running the command.
     parser.add_argument("source", help="Local directory, .zip file, or URL of the RO-Crate")
 
-        
     # Add a flag to allow the user to specify a run identifier. This flag is optional and can be used to provide a custom identifier for the workflow run. If not provided, a random identifier will be generated based on the current timestamp.
-    parser.add_argument("--run-id", help="Identifier for this run (default: random)")
+    parser.add_argument("--run_id", help="Identifier for this run (default: random)")
 
     # Add a flag to allow the user to specify the execution backend. The choices are "auto", "local", or "slurm". The default is "auto". This flag is optional and can be used to override the default backend detected from the crate metadata.
     parser.add_argument("--backend", choices=["auto", "local", "slurm"], default="auto", help="Execution backend")

@@ -29,6 +29,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote
 from enum import Enum
+import json
     
 
 from models.crate import (
@@ -253,7 +254,8 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
         #        Request URI: URI
         # BROWSER HEADERS
 
-        request = Request(source.name, headers=BROWSER_HEADERS, method="GET")
+        download_url = resolve_zenodo_download_url(source.name)
+        request = Request(download_url, headers=BROWSER_HEADERS, method="GET")
         # try to download the crate source from the given URL
         try:
             # send the HTTP GET request and wait for the response from the server maximum 30 seconds
@@ -321,6 +323,31 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
     )
 
     return import_crate_result
+
+
+ZENODO_RECORD_RE = re.compile(r"zenodo\.org/records/(\d+)")
+
+
+# THE DOWNLOAD AUTOMATICALY FROM ZENODO IS NOT WORKING WELL
+def resolve_zenodo_download_url(url: str) -> str:
+    match = ZENODO_RECORD_RE.search(url)
+    if not match:
+        return url  # not a Zenodo URL, leave untouched
+
+    record_id = match.group(1)
+    api_url = f"https://zenodo.org/api/records/{record_id}"
+    api_request = Request(api_url, headers=BROWSER_HEADERS, method="GET")
+    with urlopen(api_request, timeout=30) as api_response:
+        record = json.loads(api_response.read())
+
+    files = record.get("files", [])
+    if not files:
+        raise FileSystemError("Zenodo record has no files", details=api_url)
+
+    # if the original URL already names a specific file, match it; otherwise take the first file
+    requested_name = unquote(Path(url.split("?", 1)[0]).name)
+    file_entry = next((f for f in files if f["key"] == requested_name), files[0])
+    return file_entry["links"]["self"]
 
 
 def filename_from_http_response(response: requests.Response) -> str | None:

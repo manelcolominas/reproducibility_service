@@ -28,12 +28,12 @@ For example:
 compss_reproducibility_service workflow-635-1.crate.zip \
 or 
 compss_reproducibility_service https://workflowhub.org/workflows/635/ro_crate?version=1\
-
+  --run_id=365 \
   --backend=slurm \
   --provenance \
   --agent_name="John Doe" \
   or
-  --agent_name "John Doe"
+  --agent_name "John Doe" \
   --agent_email=john.doe@example.com \
   --agent_org="Barcelona Supercomputing Center" \
   --agent_orcid=https://0000-0001-2345-6789 \
@@ -46,21 +46,21 @@ compss_reproducibility_service https://workflowhub.org/workflows/635/ro_crate?ve
 
 ### CLI options
 
-| Flag | | Description |
-| --- | --- |--- |
-| `source` |Mandatory| Local directory, `.zip` file, or URL of the RO-Crate |
-| `--run-id` |Optional| Identifier for this run (default: timestamp, `YYYYMMDD_HHMMSS`) |
+| Flag                           | | Description |
+|--------------------------------| --- |--- |
+| `source`                       |Mandatory| Local directory, `.zip` file, or URL of the RO-Crate |
+| `--run_id`                     |Optional| Identifier for this run (default: timestamp, `YYYYMMDD_HHMMSS`) |
 | `--backend {auto,local,slurm}` |Optional| Execution backend to use (default: `auto`) |
-| `--command` |Optional| Override the COMPSs submission command discovered from the crate metadata |
-| `--extra-flag` |Optional| Extra runtime flag to append to the submission command (repeatable) |
-| `-p`, `--provenance` |Optional| Enable provenance |
-| `--agent_name` |Optional| Participant name to record in the generated provenance |
-| `--agent_email` |Optional| Participant email |
-| `--agent_org` |Optional| Participant organization |
-| `--agent_orcid` |Optional| Participant ORCID |
-| `--agent_ror` |Optional| Participant ROR |
-| `-y`, `--yes` |Optional| Skip confirmation prompts (non-interactive mode) |
-|`-data_persistence`|Optional| Enables the data_persistence|
+| `--command`                    |Optional| Override the COMPSs submission command discovered from the crate metadata |
+| `--extra-flag`                 |Optional| Extra runtime flag to append to the submission command (repeatable) |
+| `-p`, `--provenance`           |Optional| Enable provenance |
+| `--agent_name`                 |Optional| Participant name to record in the generated provenance |
+| `--agent_email`                |Optional| Participant email |
+| `--agent_org`                  |Optional| Participant organization |
+| `--agent_orcid`                |Optional| Participant ORCID |
+| `--agent_ror`                  |Optional| Participant ROR |
+| `-y`, `--yes`                  |Optional| Skip confirmation prompts (non-interactive mode) |
+| `-data_persistence`            |Optional| Enables the data_persistence|
 
 
 ## Environment Variables
