@@ -364,11 +364,18 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             view.console.print("Aborted after failed verification.")
             return None, None
 
-    
     provenance_flag = args.provenance or args.yes
-    if not args.yes and not provenance_flag:
+    if not provenance_flag:
         view.console.print()
-        provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction? [y/N]: [/yellow]").strip().lower().startswith("y")
+        if args.yes:
+            view.console.print("[yellow]Do you want to enable provenance for this reproduction? [y/N]: [/yellow]y")
+            provenance_flag = True
+        else:
+            provenance_flag = view.console.input("[yellow]Do you want to enable provenance for this reproduction? [y/N]: [/yellow]").strip().lower().startswith("y")
+        view.console.print()
+    else:
+        view.console.print()
+        view.console.print("[yellow]Do you want to enable provenance for this reproduction? [y/N]: [/yellow]y")
         view.console.print()
 
     # Preserve the value inferred from the crate unless the user explicitly
@@ -379,9 +386,13 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
         view.print_provenance_questions_banner()
         view.console.print()
 
-        if not args.agent_name and not args.yes:
-            wants_name = view.console.input("[yellow]Do you want to provide your name? [y/N]: [/yellow]").strip().lower().startswith("y")
-
+        if not args.agent_name:
+            if args.yes:
+                view.console.print("[yellow]Do you want to provide your name? [y/N]: [/yellow]n")
+                wants_name = False  # amb -y no hi ha manera d'escriure el nom interactivament, es manté el del crate
+            else:
+                wants_name = view.console.input("[yellow]Do you want to provide your name? [y/N]: [/yellow]").strip().lower().startswith("y")
+        
             if wants_name:
                 typed_name = Prompt.ask("[yellow]Write your name please:[/yellow]").strip()
 
@@ -394,10 +405,14 @@ def run_pipeline( args: argparse.Namespace, settings: AppSettings, workspace_dir
             # Explicit CLI option has highest priority.
             data_persistence = DataPersistenceKind.TRUE
 
+        if args.data_persistence or args.yes:
+            if args.yes and not args.data_persistence:
+                view.console.print("[yellow]Do you want to enable data persistence ? [y/N]: [/yellow]y")
+            data_persistence = DataPersistenceKind.TRUE
+
         elif not args.yes:
             wants_data_persistence = view.console.input("[yellow]Do you want to enable data persistence ? [y/N]: [/yellow]").strip().lower().startswith("y")
             view.console.print()
-
             data_persistence = (DataPersistenceKind.TRUE if wants_data_persistence else DataPersistenceKind.FALSE)
 
     view.console.print()
