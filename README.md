@@ -147,8 +147,7 @@ In practice this means:
   from the crate's submission command is kept.
 
 
-```bash
-compss_reproducibility_service <source> -y --provenance
+---
 
 ## What the Service Does
 
