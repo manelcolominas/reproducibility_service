@@ -258,16 +258,17 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
         is_zenodo = urlparse(download_url).hostname in {"zenodo.org", "www.zenodo.org"}
 
         if is_zenodo:
-            response = requests.get(download_url, stream=True)
-            downloaded_filename = filename_from_http_response(response)
+            response = requests.get(download_url, stream=True, timeout=30)
+            downloaded_filename = filename_from_http_response(response) or "RO-Crate.zip"
+            downloaded_zip_path = workspace_directory / downloaded_filename
 
             try:
-                file = open(downloaded_filename, "wb")
-                for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1 MB
-                    if chunk:
-                        file.write(chunk)
-                file.close()
-            except (HTTPError, URLError, OSError) as exc:
+                response.raise_for_status()
+                with downloaded_zip_path.open("wb") as file:
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1 MB
+                        if chunk:
+                            file.write(chunk)
+            except (requests.RequestException, OSError) as exc:
                 raise FileSystemError("Could not download crate source from Zenodo", details=str(exc)) from exc
 
             final_dirname = crate_dirname_from_downloaded_filename(filename=downloaded_filename)
@@ -301,13 +302,17 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
 
         # attempt to extract the downloaded archive into the final crate directory
         try:
-            # open the downloaded bytes as a zip archive
-            archive_file = zipfile.ZipFile(BytesIO(download_bytes))
-            # extract all contents of the zip archive into the final crate directory
-            archive_file.extractall(final_shared_crate_directory)
-            # set the prepared root to the final crate directory
-            source_root = final_shared_crate_directory
-            # mark the extraction as successful
+            if is_zenodo:
+                with zipfile.ZipFile(downloaded_zip_path) as archive_file:
+                    archive_names = archive_file.namelist()
+                    archive_file.extractall(final_shared_crate_directory)
+                downloaded_zip_path.unlink()
+            else:
+                with zipfile.ZipFile(BytesIO(download_bytes)) as archive_file:
+                    archive_names = archive_file.namelist()
+                    archive_file.extractall(final_shared_crate_directory)
+
+            source_root = extracted_crate_root(final_shared_crate_directory, archive_names)
             extracted = True
         # if a BadZipFile exception occurs, it will be caught here and a FileSystemError will be raised
         except zipfile.BadZipFile as exc:
@@ -344,6 +349,19 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
     )
 
     return import_crate_result
+
+
+def extracted_crate_root(extraction_directory: Path, archive_names: list[str]) -> Path:
+    if (extraction_directory / "ro-crate-metadata.json").is_file():
+        return extraction_directory
+
+    top_level_names = {name.split("/", 1)[0] for name in archive_names if name.strip("/")}
+    if len(top_level_names) == 1:
+        nested_root = extraction_directory / next(iter(top_level_names))
+        if (nested_root / "ro-crate-metadata.json").is_file():
+            return nested_root
+
+    return extraction_directory
 
 
 def filename_from_http_response(response: requests.Response) -> str | None:

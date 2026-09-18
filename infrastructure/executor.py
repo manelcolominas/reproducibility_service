@@ -23,12 +23,12 @@ import subprocess
 import pty
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Callable
 import shutil
 import struct
 import fcntl
 import termios
+from rocrate.rocrate import ROCrate
 
 from models.execution import (
     ExecutionContext,
@@ -149,12 +149,22 @@ class SubprocessExecutionAgent:
         result = ExecutionResult(status=status, command=submission.command, context=context, log=log, return_code=return_code, started_at=started_at, finished_at=finished_at, summary_message="Execution succeeded" if status == ExecutionStatus.SUCCEEDED else "Execution failed", error_message=error_message, generated_ro_crate_path=generated_ro_crate_path)
         return ExecutionOutcome(result=result, submission=submission)
 
-    def find_generated_ro_crate_path(self, submission: ExecutionSubmission) -> Path:
-        generated_ro_crate_path = None
-        for candidate in sorted(submission.results_directory.rglob("COMPSs_RO-Crate*"), key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True):
-            if candidate.is_dir() or candidate.is_file():
-                generated_ro_crate_path = candidate.resolve()
-                break
-        if self._logger is not None:
-            self._logger.info("generated_ro_crate_search results_directory=%s found=%s", submission.results_directory, generated_ro_crate_path)
-        return generated_ro_crate_path
+    def find_generated_ro_crate_path(self, submission):
+        candidates = sorted(submission.results_directory.rglob("*"),key=lambda path: path.stat().st_mtime,reverse=True)
+
+        for candidate in candidates:
+            if not candidate.is_dir():
+                continue
+
+            metadata = candidate / "ro-crate-metadata.json"
+            if not metadata.is_file():
+                continue
+
+            try:
+                ROCrate(candidate)
+            except Exception:
+                continue
+
+            return candidate.resolve()
+
+        return None
