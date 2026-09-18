@@ -255,28 +255,49 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
         # BROWSER HEADERS
 
         download_url = source.name
-        request = Request(download_url, headers=BROWSER_HEADERS, method="GET")
-        # try to download the crate source from the given URL
-        try:
-            # send the HTTP GET request and wait for the response from the server maximum 30 seconds
-            response = urlopen(request, timeout=30)
-            # read the response content
-            download_bytes = response.read()
-            # we call filename_from_http_response to determine the filename for the downloaded 
-            # content based on the server's response and the source name (https://workflows/635/ro_crate?version=1)
+        is_zenodo = urlparse(download_url).hostname in {"zenodo.org", "www.zenodo.org"}
+
+        if is_zenodo:
+            response = requests.get(download_url, stream=True)
             downloaded_filename = filename_from_http_response(response)
 
-        # if an exception occurs during the download, it will be caught here
-        except (HTTPError, URLError, OSError) as exc:
-            raise FileSystemError("Could not download crate source", details=str(exc)) from exc
+            try:
+                file = open(downloaded_filename, "wb")
+                for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1 MB
+                    if chunk:
+                        file.write(chunk)
+                file.close()
+            except (HTTPError, URLError, OSError) as exc:
+                raise FileSystemError("Could not download crate source from Zenodo", details=str(exc)) from exc
 
-        # determine the final directory name for the crate based on the downloaded filename
-        final_dirname = crate_dirname_from_downloaded_filename(filename=downloaded_filename)
-        # build the final crate directory path based on the parent directory and the final directory name
-        final_shared_crate_directory = shared_crate_directory.parent / final_dirname
+            final_dirname = crate_dirname_from_downloaded_filename(filename=downloaded_filename)
+            final_shared_crate_directory = shared_crate_directory.parent / final_dirname
 
-        # create the final crate directory if it doesn't exist using the function create_directory from the file system object
-        file_system.create_directory(path=final_shared_crate_directory, parents=True, exist_ok=True)
+            file_system.create_directory(path=final_shared_crate_directory, parents=True, exist_ok=True)
+
+        else:
+            request = Request(download_url, headers=BROWSER_HEADERS, method="GET")
+            # try to download the crate source from the given URL
+            try:
+                # send the HTTP GET request and wait for the response from the server maximum 30 seconds
+                response = urlopen(request, timeout=30)
+                # read the response content
+                download_bytes = response.read()
+                # we call filename_from_http_response to determine the filename for the downloaded 
+                # content based on the server's response and the source name (https://workflows/635/ro_crate?version=1)
+                downloaded_filename = filename_from_http_response(response)
+
+            # if an exception occurs during the download, it will be caught here
+            except (HTTPError, URLError, OSError) as exc:
+                raise FileSystemError("Could not download crate source", details=str(exc)) from exc
+
+            # determine the final directory name for the crate based on the downloaded filename
+            final_dirname = crate_dirname_from_downloaded_filename(filename=downloaded_filename)
+            # build the final crate directory path based on the parent directory and the final directory name
+            final_shared_crate_directory = shared_crate_directory.parent / final_dirname
+
+            # create the final crate directory if it doesn't exist using the function create_directory from the file system object
+            file_system.create_directory(path=final_shared_crate_directory, parents=True, exist_ok=True)
 
         # attempt to extract the downloaded archive into the final crate directory
         try:
@@ -323,21 +344,6 @@ def import_rocrate(source_name, workspace_directory, shared_crate_directory, fil
     )
 
     return import_crate_result
-
-
-def download_from_url(url: str, destination: Path) -> None:
-    with requests.get(url, stream=True, timeout=30, headers=BROWSER_HEADERS) as r:
-        r.raise_for_status()
-        with open(destination, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    f.write(chunk)
-
-
-def download_zenodo_file(url: str, destination: Path) -> None:
-    # ja pots rebre la URL exacta del fitxer
-    # ex: https://zenodo.org/records/22228540/files/COMPSs_RO-Crate_20260811_160903.zip
-    download_from_url(url, destination)
 
 
 def filename_from_http_response(response: requests.Response) -> str | None:
@@ -408,7 +414,7 @@ def crate_dirname_from_downloaded_filename(filename: str | None) -> str:
             name = name[:-4].strip()
         # if the resulting name is empty, fallback to the default name "RO-Crate"
         if not name:
-            name = "Ro-Crate"
+            name = "RO-Crate"
     # return the final crate directory name
     return name
 

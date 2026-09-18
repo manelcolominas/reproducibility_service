@@ -1,13 +1,17 @@
 import requests
 
+from services.import_crate import filename_from_http_response
+
 url = "https://zenodo.org/records/22228540/files/COMPSs_RO-Crate_20260811_160903.zip"
-output = "COMPSs_RO-Crate_20260811_160903.zip"
 
-with requests.get(url, stream=True) as r:
-    r.raise_for_status()
-    with open(output, "wb") as f:
-        for chunk in r.iter_content(chunk_size=1024 * 1024):  # 1 MB
-            if chunk:
-                f.write(chunk)
+response = requests.get(url, stream=True)
+response.raise_for_status()
+downloaded_filename = filename_from_http_response(response)
 
-print(f"Downloaded: {output}")
+file = open(downloaded_filename, "wb")
+for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1 MB
+    if chunk:
+        file.write(chunk)
+file.close()
+
+print(f"Downloaded: {downloaded_filename}")
